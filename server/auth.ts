@@ -19,7 +19,9 @@ const DEMO_CREDENTIALS = {
   },
 };
 
-const JWT_SECRET = new TextEncoder().encode(ENV.cookieSecret);
+// Use environment secret or fallback to a development secret
+const cookieSecret = ENV.cookieSecret || "eli-dashboard-dev-secret-change-in-production-2024";
+const JWT_SECRET = new TextEncoder().encode(cookieSecret);
 
 /**
  * Validate hardcoded credentials
