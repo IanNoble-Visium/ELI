@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, varchar, double, json, text, timestamp, int, mysqlEnum } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, varchar, double, json, text, timestamp, int, mysqlEnum, bigint } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const aiAnomalies = mysqlTable("ai_anomalies", {
