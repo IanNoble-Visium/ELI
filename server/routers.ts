@@ -25,6 +25,7 @@ import {
   addIncidentTag,
   deleteIncidentTag,
   getAllTags,
+  purgeOldData,
 } from "./db";
 
 export const appRouter = router({
@@ -394,6 +395,19 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await setSystemConfig(input.key, input.value, input.description);
         return { success: true };
+      }),
+
+    /**
+     * Purge old data based on retention policy
+     */
+    purge: protectedProcedure
+      .input(z.object({ retentionDays: z.number().min(1).max(365) }))
+      .mutation(async ({ input }) => {
+        const result = await purgeOldData(input.retentionDays);
+        return {
+          success: true,
+          ...result,
+        };
       }),
   }),
 });

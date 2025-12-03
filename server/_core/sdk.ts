@@ -268,6 +268,22 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+
+    // Handle hardcoded demo user
+    if (sessionUserId === "demo-admin") {
+      return {
+        id: 1,
+        openId: "demo-admin",
+        name: "Administrator",
+        email: "admin@eli-dashboard.pe",
+        role: "admin",
+        loginMethod: "hardcoded",
+        createdAt: signedInAt.toISOString(),
+        updatedAt: signedInAt.toISOString(),
+        lastSignedIn: signedInAt.toISOString(),
+      } as User;
+    }
+
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically

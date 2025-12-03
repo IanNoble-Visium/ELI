@@ -19,10 +19,6 @@ const DEMO_CREDENTIALS = {
   },
 };
 
-// Use environment secret or fallback to a development secret
-const cookieSecret = ENV.cookieSecret || "eli-dashboard-dev-secret-change-in-production-2024";
-const JWT_SECRET = new TextEncoder().encode(cookieSecret);
-
 /**
  * Validate hardcoded credentials
  */
@@ -39,13 +35,21 @@ export function getDemoUser() {
 
 /**
  * Generate JWT token for authenticated user
+ * Uses the same format as sdk.ts expects: openId, appId, name
  */
 export async function generateToken(userId: number): Promise<string> {
-  const token = await new SignJWT({ userId })
-    .setProtectedHeader({ alg: "HS256" })
+  const user = DEMO_CREDENTIALS.user;
+  const secretKey = new TextEncoder().encode(ENV.cookieSecret);
+  
+  const token = await new SignJWT({ 
+    openId: user.openId,
+    appId: ENV.appId || "eli-dashboard",
+    name: user.name,
+  })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt()
     .setExpirationTime("24h")
-    .sign(JWT_SECRET);
+    .sign(secretKey);
   return token;
 }
 
@@ -54,8 +58,10 @@ export async function generateToken(userId: number): Promise<string> {
  */
 export async function verifyToken(token: string): Promise<number | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload.userId as number;
+    const secretKey = new TextEncoder().encode(ENV.cookieSecret);
+    const { payload } = await jwtVerify(token, secretKey);
+    // Return 1 for demo user
+    return payload.openId === DEMO_CREDENTIALS.user.openId ? 1 : null;
   } catch {
     return null;
   }

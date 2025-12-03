@@ -357,3 +357,63 @@ export async function getAllTags() {
   const uniqueTags = Array.from(new Set(tags.map(t => t.tag)));
   return uniqueTags;
 }
+
+// ===== Data Purge =====
+
+export async function purgeOldData(retentionDays: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+  const cutoffTimestamp = cutoffDate.getTime();
+
+  let deletedEvents = 0;
+  let deletedSnapshots = 0;
+  let deletedWebhookRequests = 0;
+  const cloudinaryIds: string[] = [];
+
+  try {
+    // Get snapshots with Cloudinary IDs before deleting
+    const oldSnapshots = await db
+      .select({ id: snapshots.id, cloudinaryPublicId: snapshots.cloudinaryPublicId })
+      .from(snapshots)
+      .innerJoin(events, eq(snapshots.eventId, events.id))
+      .where(lte(events.startTime, cutoffTimestamp));
+
+    cloudinaryIds.push(
+      ...oldSnapshots
+        .map((s) => s.cloudinaryPublicId)
+        .filter((id): id is string => id !== null)
+    );
+
+    // Delete old snapshots (via events relationship)
+    const snapshotResult = await db.delete(snapshots).where(
+      sql`event_id IN (SELECT id FROM events WHERE start_time <= ${cutoffTimestamp})`
+    );
+
+    // Delete old events
+    const eventResult = await db.delete(events).where(
+      lte(events.startTime, cutoffTimestamp)
+    );
+
+    // Delete old webhook requests
+    const webhookResult = await db.delete(webhookRequests).where(
+      lte(webhookRequests.createdAt, cutoffDate)
+    );
+
+    // Note: Cloudinary deletion would be handled separately via Cloudinary API
+    // For now, we just collect the IDs that should be deleted
+
+    return {
+      deletedEvents: eventResult[0]?.affectedRows || 0,
+      deletedSnapshots: snapshotResult[0]?.affectedRows || 0,
+      deletedWebhookRequests: webhookResult[0]?.affectedRows || 0,
+      cloudinaryIdsToDelete: cloudinaryIds,
+      cutoffDate: cutoffDate.toISOString(),
+    };
+  } catch (error) {
+    console.error("[Purge] Error purging old data:", error);
+    throw error;
+  }
+}

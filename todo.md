@@ -1,10 +1,29 @@
 # ELI Unified Dashboard - Project TODO
 
+---
+## 🚨 PRIORITY NEXT: Quick Wins for Demo Readiness
+---
+
+### Immediate (Next Session)
+- [ ] **Create mock data seed script** - Generate 3,084 cameras, sample events, incidents
+- [ ] **Add loading skeletons** to ExecutiveDashboard, Map, Topology, Incidents
+- [ ] **Implement actual purge logic** - PostgreSQL record deletion based on retention days
+- [ ] **Add tag filtering to incident list** - 90% done, just needs UI filter dropdown
+
+### Short-term Polish
+- [ ] **Test video playback** in Incident Management with IREX alert videos
+- [ ] **Add staggered animations** to dashboard cards and charts
+- [ ] **Fix any remaining Peru theme inconsistencies**
+
+---
+
 ## Phase 1: Core Infrastructure & Authentication ✅
 - [x] Set up database schema for events, snapshots, channels, AI jobs
 - [x] Implement hardcoded admin/admin authentication (no OAuth)
 - [x] Create base layout with Peru-themed colors (red #D91023, white, dark gray)
 - [x] Set up routing structure for all dashboard pages
+- [x] Fix JWT token format for hardcoded auth
+- [x] Fix cookie SameSite settings for localhost development
 
 ## Phase 2: Backend API - Webhook Ingestion ⚙️
 - [x] Port /webhook/irex endpoint from ELI-DEMO

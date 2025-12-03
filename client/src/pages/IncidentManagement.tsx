@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
