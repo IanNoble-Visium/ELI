@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getRecentEvents, getDb } from "../lib/db.js";
+import { getRecentEvents, getEventCounts, getDb } from "../lib/db.js";
 
 /**
  * API endpoint to retrieve surveillance events from the database
@@ -118,9 +118,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Limit results
     events = events.slice(0, limit);
 
+    // Get total counts from database (not limited)
+    const stats = await getEventCounts();
+
     return res.status(200).json({
       success: true,
       count: events.length,
+      totalCount: stats.total,
+      stats: {
+        total: stats.total,
+        critical: stats.critical,
+        high: stats.high,
+        faces: stats.faces,
+        plates: stats.plates,
+      },
       events,
       dbConnected: true,
     });

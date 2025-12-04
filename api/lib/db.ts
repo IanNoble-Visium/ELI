@@ -178,6 +178,57 @@ export async function getRecentEvents(options: {
   return query.orderBy(desc(events.startTime)).limit(limit);
 }
 
+export async function getEventCounts(): Promise<{
+  total: number;
+  critical: number;
+  high: number;
+  faces: number;
+  plates: number;
+}> {
+  const db = await getDb();
+  if (!db) return { total: 0, critical: 0, high: 0, faces: 0, plates: 0 };
+
+  try {
+    // Get total count
+    const [totalResult] = await db.select({ count: count() }).from(events);
+
+    // Get critical (level 3) count
+    const [criticalResult] = await db
+      .select({ count: count() })
+      .from(events)
+      .where(eq(events.level, "3"));
+
+    // Get high (level 2) count
+    const [highResult] = await db
+      .select({ count: count() })
+      .from(events)
+      .where(eq(events.level, "2"));
+
+    // Get face events count (topic contains 'Face')
+    const [facesResult] = await db
+      .select({ count: count() })
+      .from(events)
+      .where(sql`${events.topic} LIKE '%Face%'`);
+
+    // Get plate events count (topic contains 'Plate')
+    const [platesResult] = await db
+      .select({ count: count() })
+      .from(events)
+      .where(sql`${events.topic} LIKE '%Plate%'`);
+
+    return {
+      total: totalResult?.count || 0,
+      critical: criticalResult?.count || 0,
+      high: highResult?.count || 0,
+      faces: facesResult?.count || 0,
+      plates: platesResult?.count || 0,
+    };
+  } catch (error) {
+    console.error("[API DB] Error getting event counts:", error);
+    return { total: 0, critical: 0, high: 0, faces: 0, plates: 0 };
+  }
+}
+
 // ========== Channels ==========
 
 export async function upsertChannel(data: {

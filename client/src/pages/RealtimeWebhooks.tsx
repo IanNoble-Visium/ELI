@@ -46,12 +46,21 @@ interface ServiceStatus {
   lastChecked: string;
 }
 
+interface EventStats {
+  total: number;
+  critical: number;
+  high: number;
+  faces: number;
+  plates: number;
+}
+
 export default function RealtimeWebhooks() {
   const [, setLocation] = useLocation();
   const [isPaused, setIsPaused] = useState(false);
   const [filterLevel, setFilterLevel] = useState("all");
   const [filterTopic, setFilterTopic] = useState("all");
   const [webhooks, setWebhooks] = useState<WebhookData[]>([]);
+  const [eventStats, setEventStats] = useState<EventStats>({ total: 0, critical: 0, high: 0, faces: 0, plates: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -92,6 +101,10 @@ export default function RealtimeWebhooks() {
           payloadSize: 0,
         }));
         setWebhooks(webhookData);
+        // Set stats from API response (real database counts)
+        if (data.stats) {
+          setEventStats(data.stats);
+        }
         setError(data.dbConnected === false ? "Database not configured" : null);
       } else {
         setWebhooks([]);
@@ -179,14 +192,8 @@ export default function RealtimeWebhooks() {
     return colors[topic] || "text-gray-400";
   };
 
-  // Stats - count both matched and not matched events for faces and plates
-  const stats = {
-    total: webhooks.length,
-    critical: webhooks.filter(w => w.level === 3).length,
-    high: webhooks.filter(w => w.level === 2).length,
-    faces: webhooks.filter(w => w.topic?.includes("Face")).length,
-    plates: webhooks.filter(w => w.topic?.includes("Plate")).length,
-  };
+  // Use stats from API (actual database counts) instead of counting from limited webhooks
+  const stats = eventStats;
 
   // Unique topics for filter
   const uniqueTopics = Array.from(new Set(webhooks.map(w => w.topic)));
