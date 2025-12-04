@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Activity, Filter, Pause, Play, RefreshCw, Camera, MapPin, Clock } from "lucide-react";
+import { ArrowLeft, Activity, Filter, Pause, Play, RefreshCw, Camera, MapPin, Clock, Database, Cloud, Share2, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 
@@ -38,6 +38,14 @@ interface WebhookData {
   payloadSize: number;
 }
 
+interface ServiceStatus {
+  name: string;
+  status: "connected" | "disconnected" | "error" | "not_configured";
+  latency?: number;
+  message?: string;
+  lastChecked: string;
+}
+
 export default function RealtimeWebhooks() {
   const [, setLocation] = useLocation();
   const [isPaused, setIsPaused] = useState(false);
@@ -47,6 +55,8 @@ export default function RealtimeWebhooks() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [services, setServices] = useState<ServiceStatus[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
 
   // Fetch webhooks from real database
   const fetchWebhooks = useCallback(async () => {
@@ -79,18 +89,46 @@ export default function RealtimeWebhooks() {
     }
   }, []);
 
+  // Fetch service health status
+  const fetchServiceHealth = useCallback(async () => {
+    try {
+      setServicesLoading(true);
+      const response = await fetch("/api/health/services", { credentials: "include" });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.services) {
+        setServices(data.services);
+      }
+    } catch (err) {
+      console.error("[Services] Health check error:", err);
+    } finally {
+      setServicesLoading(false);
+    }
+  }, []);
+
   // Initial fetch
   useEffect(() => {
     fetchWebhooks();
-  }, [fetchWebhooks]);
+    fetchServiceHealth();
+  }, [fetchWebhooks, fetchServiceHealth]);
 
-  // Auto-refresh every 3 seconds when not paused
+  // Auto-refresh webhooks every 3 seconds when not paused
   useEffect(() => {
     if (!isPaused) {
       const interval = setInterval(fetchWebhooks, 3000);
       return () => clearInterval(interval);
     }
   }, [isPaused, fetchWebhooks]);
+
+  // Auto-refresh service health every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchServiceHealth, 30000);
+    return () => clearInterval(interval);
+  }, [fetchServiceHealth]);
 
   // Filter webhooks
   const filteredWebhooks = webhooks.filter((webhook) => {
@@ -312,6 +350,92 @@ export default function RealtimeWebhooks() {
                 <div className="w-3 h-3 rounded-full bg-blue-500" />
                 <span className="text-xs">Low (0)</span>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Connection Status */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Activity className="w-4 h-4" />
+                  Service Status
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchServiceHealth}
+                  disabled={servicesLoading}
+                  className="h-6 w-6 p-0"
+                >
+                  <RefreshCw className={`w-3 h-3 ${servicesLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {servicesLoading && services.length === 0 ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Checking services...
+                </div>
+              ) : (
+                services.map((service) => {
+                  const getStatusIcon = () => {
+                    switch (service.status) {
+                      case "connected":
+                        return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+                      case "disconnected":
+                        return <XCircle className="w-4 h-4 text-red-500" />;
+                      case "error":
+                        return <AlertCircle className="w-4 h-4 text-red-500" />;
+                      case "not_configured":
+                        return <AlertCircle className="w-4 h-4 text-yellow-500" />;
+                      default:
+                        return <AlertCircle className="w-4 h-4 text-gray-500" />;
+                    }
+                  };
+
+                  const getServiceIcon = () => {
+                    if (service.name.includes("PostgreSQL")) return <Database className="w-3 h-3" />;
+                    if (service.name.includes("Cloudinary")) return <Cloud className="w-3 h-3" />;
+                    if (service.name.includes("Neo4j")) return <Share2 className="w-3 h-3" />;
+                    return <Database className="w-3 h-3" />;
+                  };
+
+                  const getStatusColor = () => {
+                    switch (service.status) {
+                      case "connected": return "bg-green-500/10 border-green-500/20";
+                      case "disconnected": return "bg-red-500/10 border-red-500/20";
+                      case "error": return "bg-red-500/10 border-red-500/20";
+                      case "not_configured": return "bg-yellow-500/10 border-yellow-500/20";
+                      default: return "bg-gray-500/10 border-gray-500/20";
+                    }
+                  };
+
+                  return (
+                    <div
+                      key={service.name}
+                      className={`flex items-center justify-between p-2 rounded border ${getStatusColor()}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {getServiceIcon()}
+                        <span className="text-xs font-medium">{service.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {service.latency && (
+                          <span className="text-xs text-muted-foreground">{service.latency}ms</span>
+                        )}
+                        {getStatusIcon()}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              {services.length === 0 && !servicesLoading && (
+                <div className="text-xs text-muted-foreground text-center py-2">
+                  No service status available
+                </div>
+              )}
             </CardContent>
           </Card>
 

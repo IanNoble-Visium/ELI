@@ -6,71 +6,90 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, RefreshCw, Database, AlertCircle } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
 
-// Mock graph data (will be replaced with Neo4j data)
-const generateMockGraphData = () => {
-  const nodes: any[] = [];
-  const links: any[] = [];
+interface GraphNode {
+  id: string;
+  name: string;
+  type: "camera" | "location" | "vehicle" | "person" | "event";
+  color: string;
+  val: number;
+  latitude?: number;
+  longitude?: number;
+  region?: string;
+  eventCount?: number;
+  x?: number;
+  y?: number;
+}
 
-  // Create nodes for different entity types
-  const entityTypes = [
-    { type: "camera", count: 30, color: "#10B981" },
-    { type: "person", count: 15, color: "#3B82F6" },
-    { type: "vehicle", count: 12, color: "#F59E0B" },
-    { type: "location", count: 10, color: "#8B5CF6" },
-    { type: "event", count: 20, color: "#D91023" },
-  ];
+interface GraphLink {
+  source: string | GraphNode;
+  target: string | GraphNode;
+  value: number;
+  type: string;
+}
 
-  let nodeId = 0;
-  entityTypes.forEach((entityType) => {
-    for (let i = 0; i < entityType.count; i++) {
-      nodes.push({
-        id: `${entityType.type}-${nodeId}`,
-        name: `${entityType.type.charAt(0).toUpperCase() + entityType.type.slice(1)} ${i + 1}`,
-        type: entityType.type,
-        color: entityType.color,
-        val: Math.random() * 10 + 5,
-      });
-      nodeId++;
-    }
-  });
-
-  // Create random links
-  for (let i = 0; i < 80; i++) {
-    const source = nodes[Math.floor(Math.random() * nodes.length)];
-    const target = nodes[Math.floor(Math.random() * nodes.length)];
-    if (source.id !== target.id) {
-      links.push({
-        source: source.id,
-        target: target.id,
-        value: Math.random() * 5 + 1,
-        type: ["observed", "detected", "associated", "located_at"][Math.floor(Math.random() * 4)],
-      });
-    }
-  }
-
-  return { nodes, links };
-};
+interface TopologyData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+  stats: {
+    cameras: number;
+    locations: number;
+    vehicles: number;
+    persons: number;
+    events: number;
+    edges: number;
+  };
+  dbConnected: boolean;
+  lastUpdated?: string;
+}
 
 export default function TopologyGraph() {
   const [, setLocation] = useLocation();
-  const [graphData] = useState(generateMockGraphData());
+  const [graphData, setGraphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>({ nodes: [], links: [] });
+  const [stats, setStats] = useState({ cameras: 0, locations: 0, vehicles: 0, persons: 0, events: 0, edges: 0 });
   const [layout, setLayout] = useState("force");
-  const [selectedNode, setSelectedNode] = useState<any>(null);
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dbConnected, setDbConnected] = useState(false);
   const graphRef = useRef<any>(null);
 
-  // Simulate loading for graph initialization
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  // Fetch real topology data from API
+  const fetchTopologyData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch("/api/data/topology", { credentials: "include" });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: TopologyData = await response.json();
+
+      if (data.success) {
+        setGraphData({ nodes: data.nodes, links: data.links });
+        setStats(data.stats);
+        setDbConnected(data.dbConnected);
+        setError(data.dbConnected ? null : "Database not configured");
+      } else {
+        setError("Failed to fetch topology data");
+      }
+    } catch (err) {
+      console.error("[TopologyGraph] Fetch error:", err);
+      setError("Failed to connect to API");
+    } finally {
       setIsLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
+    }
   }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchTopologyData();
+  }, [fetchTopologyData]);
 
   const handleNodeClick = useCallback((node: any) => {
     setSelectedNode(node);
@@ -102,14 +121,15 @@ export default function TopologyGraph() {
     }
   };
 
-  const stats = {
+  // Computed stats from real data
+  const displayStats = {
     nodes: graphData.nodes.length,
     edges: graphData.links.length,
-    cameras: graphData.nodes.filter(n => n.type === "camera").length,
-    persons: graphData.nodes.filter(n => n.type === "person").length,
-    vehicles: graphData.nodes.filter(n => n.type === "vehicle").length,
-    locations: graphData.nodes.filter(n => n.type === "location").length,
-    events: graphData.nodes.filter(n => n.type === "event").length,
+    cameras: stats.cameras,
+    persons: stats.persons,
+    vehicles: stats.vehicles,
+    locations: stats.locations,
+    events: stats.events,
   };
 
   return (
@@ -126,9 +146,18 @@ export default function TopologyGraph() {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
-            <div>
-              <h1 className="text-xl font-bold">Topology Graph</h1>
-              <p className="text-xs text-muted-foreground">Network visualization and relationships</p>
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-xl font-bold">Topology Graph</h1>
+                <p className="text-xs text-muted-foreground">Network visualization and relationships</p>
+              </div>
+              {/* Database connection indicator */}
+              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
+                dbConnected ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+              }`}>
+                <Database className="w-3 h-3" />
+                {dbConnected ? "Live Data" : "No DB"}
+              </div>
             </div>
           </div>
 
@@ -169,19 +198,32 @@ export default function TopologyGraph() {
             />
           </div>
 
+          {/* Error display */}
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </div>
+          )}
+
           {/* Stats */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Graph Statistics</CardTitle>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Graph Statistics</CardTitle>
+                <Button variant="ghost" size="sm" onClick={fetchTopologyData} disabled={isLoading}>
+                  <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Total Nodes</span>
-                <Badge variant="outline">{stats.nodes}</Badge>
+                <Badge variant="outline">{displayStats.nodes}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Total Edges</span>
-                <Badge variant="outline">{stats.edges}</Badge>
+                <Badge variant="outline">{displayStats.edges}</Badge>
               </div>
               <div className="h-px bg-border my-2" />
               <div className="flex items-center justify-between">
@@ -189,35 +231,35 @@ export default function TopologyGraph() {
                   <div className="w-3 h-3 rounded-full bg-green-500" />
                   <span className="text-sm">Cameras</span>
                 </div>
-                <Badge variant="outline">{stats.cameras}</Badge>
+                <Badge variant="outline">{displayStats.cameras}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-blue-500" />
                   <span className="text-sm">Persons</span>
                 </div>
-                <Badge variant="outline">{stats.persons}</Badge>
+                <Badge variant="outline">{displayStats.persons}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-orange-500" />
                   <span className="text-sm">Vehicles</span>
                 </div>
-                <Badge variant="outline">{stats.vehicles}</Badge>
+                <Badge variant="outline">{displayStats.vehicles}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-purple-500" />
                   <span className="text-sm">Locations</span>
                 </div>
-                <Badge variant="outline">{stats.locations}</Badge>
+                <Badge variant="outline">{displayStats.locations}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-primary" />
                   <span className="text-sm">Events</span>
                 </div>
-                <Badge variant="outline">{stats.events}</Badge>
+                <Badge variant="outline">{displayStats.events}</Badge>
               </div>
             </CardContent>
           </Card>
