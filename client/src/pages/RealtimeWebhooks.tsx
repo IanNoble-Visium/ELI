@@ -58,10 +58,10 @@ export default function RealtimeWebhooks() {
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [servicesLoading, setServicesLoading] = useState(true);
 
-  // Fetch webhooks from real database
+  // Fetch events from real database (events have full topic/level data)
   const fetchWebhooks = useCallback(async () => {
     try {
-      const response = await fetch("/api/webhooks/recent?limit=100", {
+      const response = await fetch("/api/data/events?limit=100", {
         credentials: "include",
       });
 
@@ -72,11 +72,30 @@ export default function RealtimeWebhooks() {
       const data = await response.json();
 
       if (data.success) {
-        setWebhooks(data.webhooks || []);
+        // Transform events to webhook format for compatibility
+        const webhookData = (data.events || []).map((event: any) => ({
+          id: event.id,
+          receivedAt: event.receivedAt,
+          processingTime: event.processingTime || 0,
+          status: "success",
+          eventId: event.eventId,
+          monitorId: event.monitorId,
+          topic: event.topic || "Unknown",
+          module: event.module || "Unknown",
+          level: event.level || 1,
+          startTime: event.startTime,
+          endTime: event.endTime,
+          channel: event.channel || {},
+          params: event.params || {},
+          snapshotsCount: event.snapshotsCount || 0,
+          hasImages: event.hasImages || false,
+          payloadSize: 0,
+        }));
+        setWebhooks(webhookData);
         setError(data.dbConnected === false ? "Database not configured" : null);
       } else {
         setWebhooks([]);
-        setError(data.message || "Failed to fetch webhooks");
+        setError(data.message || "Failed to fetch events");
       }
 
       setLastRefresh(new Date());
@@ -160,13 +179,13 @@ export default function RealtimeWebhooks() {
     return colors[topic] || "text-gray-400";
   };
 
-  // Stats
+  // Stats - count both matched and not matched events for faces and plates
   const stats = {
     total: webhooks.length,
     critical: webhooks.filter(w => w.level === 3).length,
     high: webhooks.filter(w => w.level === 2).length,
-    faces: webhooks.filter(w => w.topic === "FaceMatched").length,
-    plates: webhooks.filter(w => w.topic === "PlateMatched").length,
+    faces: webhooks.filter(w => w.topic?.includes("Face")).length,
+    plates: webhooks.filter(w => w.topic?.includes("Plate")).length,
   };
 
   // Unique topics for filter

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getDb } from "../lib/db.js";
+import neo4j from "neo4j-driver";
 
 /**
  * API endpoint to check connection status of external services
@@ -158,10 +159,11 @@ async function checkCloudinary(now: string): Promise<ServiceStatus> {
 
 async function checkNeo4j(now: string): Promise<ServiceStatus> {
   const startTime = Date.now();
-  
+  let driver: neo4j.Driver | null = null;
+
   try {
     const neo4jUri = process.env.NEO4J_URI;
-    const neo4jUser = process.env.NEO4J_USER;
+    const neo4jUser = process.env.NEO4J_USERNAME || process.env.NEO4J_USER;
     const neo4jPassword = process.env.NEO4J_PASSWORD;
 
     if (!neo4jUri || !neo4jUser || !neo4jPassword) {
@@ -173,14 +175,28 @@ async function checkNeo4j(now: string): Promise<ServiceStatus> {
       };
     }
 
-    // For Neo4j, we'd need the neo4j-driver package
-    // For now, return not_configured if env vars are set but driver not available
-    return {
-      name: "Neo4j",
-      status: "not_configured",
-      message: "Neo4j driver not installed",
-      lastChecked: now,
-    };
+    // Create Neo4j driver and verify connectivity
+    driver = neo4j.driver(
+      neo4jUri,
+      neo4j.auth.basic(neo4jUser, neo4jPassword)
+    );
+
+    // Verify connectivity with a simple query
+    const session = driver.session();
+    try {
+      await session.run("RETURN 1");
+      const latency = Date.now() - startTime;
+
+      return {
+        name: "Neo4j",
+        status: "connected",
+        latency,
+        message: "Connection healthy",
+        lastChecked: now,
+      };
+    } finally {
+      await session.close();
+    }
   } catch (error) {
     return {
       name: "Neo4j",
@@ -189,6 +205,10 @@ async function checkNeo4j(now: string): Promise<ServiceStatus> {
       message: error instanceof Error ? error.message : "Unknown error",
       lastChecked: now,
     };
+  } finally {
+    if (driver) {
+      await driver.close();
+    }
   }
 }
 
