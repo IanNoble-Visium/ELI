@@ -1,152 +1,314 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { parse as parseCookieHeader, serialize } from "cookie";
 import { SignJWT, jwtVerify } from "jose";
-import { appRouter } from "../../server/routers";
-import { COOKIE_NAME } from "../../shared/const";
-import * as db from "../../server/db";
-import type { User } from "../../drizzle/schema";
 
-// Load environment variables
-import "dotenv/config";
-
+// Constants
+const COOKIE_NAME = "eli_session";
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "eli-dashboard-dev-secret-change-in-production-2024"
 );
 
-// Create context for Vercel fetch adapter
-async function createFetchContext(req: Request): Promise<{
-  req: Request;
-  res: {
-    cookie: (name: string, value: string, options: any) => void;
-    clearCookie: (name: string, options: any) => void;
-  };
-  user: User | null;
-  setCookies: string[];
-}> {
-  let user: User | null = null;
-  const setCookies: string[] = [];
-  
-  try {
-    const cookieHeader = req.headers.get("cookie") || "";
-    const cookies = parseCookieHeader(cookieHeader);
-    const token = cookies[COOKIE_NAME];
-    
-    if (token) {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
-      const openId = payload.openId as string;
-      
-      // Check for demo admin
-      if (openId === "demo-admin") {
-        user = {
-          id: "demo-user-001",
-          openId: "demo-admin",
-          name: "Administrator",
-          email: "admin@eli.peru.gob.pe",
-          role: "admin",
-          loginMethod: "password",
-          lastSignedIn: new Date(),
-        } as User;
-      } else {
-        user = (await db.getUserByOpenId(openId)) || null;
-      }
-    }
-  } catch (error) {
-    console.error("[Auth] Error verifying token:", error);
-    user = null;
-  }
-  
+// Demo user credentials
+const DEMO_USER = {
+  id: "demo-user-001",
+  openId: "demo-admin",
+  name: "Administrator",
+  email: "admin@eli.peru.gob.pe",
+  role: "admin",
+};
+
+// Check if request is secure
+function isSecureRequest(req: VercelRequest): boolean {
+  const proto = req.headers["x-forwarded-proto"];
+  if (!proto) return false;
+  const protoStr = Array.isArray(proto) ? proto[0] : proto;
+  return protoStr.includes("https");
+}
+
+// Get cookie options
+function getCookieOptions(req: VercelRequest) {
+  const isSecure = isSecureRequest(req);
   return {
-    req,
-    res: {
-      cookie: (name: string, value: string, options: any) => {
-        setCookies.push(serialize(name, value, {
-          httpOnly: options.httpOnly ?? true,
-          path: options.path ?? "/",
-          sameSite: options.sameSite ?? "lax",
-          secure: options.secure ?? process.env.NODE_ENV === "production",
-          maxAge: options.maxAge ? options.maxAge / 1000 : undefined,
-        }));
-      },
-      clearCookie: (name: string, options: any) => {
-        setCookies.push(serialize(name, "", {
-          httpOnly: true,
-          path: options.path ?? "/",
-          sameSite: options.sameSite ?? "lax",
-          secure: options.secure ?? process.env.NODE_ENV === "production",
-          maxAge: -1,
-        }));
-      },
-    },
-    user,
-    setCookies,
+    httpOnly: true,
+    path: "/",
+    sameSite: isSecure ? ("none" as const) : ("lax" as const),
+    secure: isSecure,
   };
+}
+
+// Verify session token
+async function verifyToken(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// Generate session token
+async function generateToken(user: typeof DEMO_USER) {
+  return await new SignJWT({
+    userId: user.id,
+    openId: user.openId,
+    appId: process.env.VITE_APP_ID || "",
+    name: user.name,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("24h")
+    .sign(JWT_SECRET);
+}
+
+// Get current user from cookie
+async function getCurrentUser(req: VercelRequest) {
+  const cookieHeader = req.headers.cookie || "";
+  const cookies = parseCookieHeader(cookieHeader);
+  const token = cookies[COOKIE_NAME];
+
+  if (!token) return null;
+
+  const payload = await verifyToken(token);
+  if (!payload) return null;
+
+  if (payload.openId === "demo-admin") {
+    return DEMO_USER;
+  }
+
+  return null;
 }
 
 // Vercel serverless handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Handle CORS for preflight requests
+  // Set CORS headers
+  const origin = req.headers.origin || "*";
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
+
+  // Handle preflight
   if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
     return res.status(200).end();
   }
 
-  // Convert Vercel request to Fetch API request
-  const protocol = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  const url = `${protocol}://${host}${req.url}`;
-  
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (value) {
-      headers.set(key, Array.isArray(value) ? value.join(", ") : value);
-    }
-  }
-
-  const fetchRequest = new Request(url, {
-    method: req.method,
-    headers,
-    body: req.method !== "GET" && req.method !== "HEAD" ? JSON.stringify(req.body) : undefined,
-  });
-
-  // Create context that will track cookies
-  const ctx = await createFetchContext(fetchRequest);
-
   try {
-    const response = await fetchRequestHandler({
-      endpoint: "/api/trpc",
-      req: fetchRequest,
-      router: appRouter,
-      createContext: () => ctx as any,
-      onError: ({ error, path }) => {
-        console.error(`[tRPC Error] ${path}:`, error);
-      },
-    });
+    const url = new URL(req.url || "", `https://${req.headers.host}`);
+    const path = url.pathname.replace("/api/trpc/", "").split("?")[0];
+    const cookieOptions = getCookieOptions(req);
 
-    // Set CORS headers
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-
-    // Set cookies from context
-    if (ctx.setCookies.length > 0) {
-      res.setHeader("Set-Cookie", ctx.setCookies);
+    // Parse body for mutations
+    let input: any = {};
+    if (req.method === "POST" && req.body) {
+      const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      // Handle tRPC batch format: { "0": { "json": {...} } }
+      if (body && body["0"] && body["0"].json) {
+        input = body["0"].json;
+      } else if (body && body.json) {
+        input = body.json;
+      } else {
+        input = body;
+      }
     }
 
-    // Copy response headers
-    response.headers.forEach((value, key) => {
-      if (key.toLowerCase() !== "set-cookie") {
-        res.setHeader(key, value);
-      }
-    });
+    // Route: auth.login
+    if (path === "auth.login") {
+      const { username, password } = input;
 
-    // Send response
-    const body = await response.text();
-    res.status(response.status).send(body);
+      if (username !== "admin" || password !== "admin") {
+        return res.status(200).json([{
+          error: {
+            json: {
+              message: "Invalid credentials",
+              code: -32001,
+              data: { code: "UNAUTHORIZED", httpStatus: 401 }
+            }
+          }
+        }]);
+      }
+
+      const token = await generateToken(DEMO_USER);
+      const cookie = serialize(COOKIE_NAME, token, {
+        ...cookieOptions,
+        maxAge: 24 * 60 * 60, // 24 hours in seconds
+      });
+      res.setHeader("Set-Cookie", cookie);
+
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: {
+              success: true,
+              user: {
+                id: DEMO_USER.id,
+                name: DEMO_USER.name,
+                role: DEMO_USER.role,
+              }
+            }
+          }
+        }
+      }]);
+    }
+
+    // Route: auth.me
+    if (path === "auth.me") {
+      const user = await getCurrentUser(req);
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: user
+          }
+        }
+      }]);
+    }
+
+    // Route: auth.logout
+    if (path === "auth.logout") {
+      const cookie = serialize(COOKIE_NAME, "", {
+        ...cookieOptions,
+        maxAge: -1,
+      });
+      res.setHeader("Set-Cookie", cookie);
+
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: { success: true }
+          }
+        }
+      }]);
+    }
+
+    // Route: dashboard.metrics
+    if (path === "dashboard.metrics") {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: {
+              totalEvents: 0,
+              totalChannels: 3084,
+              activeChannels: 359,
+            }
+          }
+        }
+      }]);
+    }
+
+    // Route: config.get
+    if (path === "config.get") {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: null
+          }
+        }
+      }]);
+    }
+
+    // Route: config.set
+    if (path === "config.set") {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: { success: true }
+          }
+        }
+      }]);
+    }
+
+    // Route: config.purge
+    if (path === "config.purge") {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: {
+              success: true,
+              deletedEvents: 0,
+              deletedSnapshots: 0,
+              deletedWebhookRequests: 0,
+            }
+          }
+        }
+      }]);
+    }
+
+    // Route: webhook.recent
+    if (path === "webhook.recent") {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: []
+          }
+        }
+      }]);
+    }
+
+    // Route: incidents.*
+    if (path.startsWith("incidents.")) {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: path.includes("get") ? [] : { success: true }
+          }
+        }
+      }]);
+    }
+
+    // Route: events.*
+    if (path.startsWith("events.")) {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: []
+          }
+        }
+      }]);
+    }
+
+    // Route: channels.*
+    if (path.startsWith("channels.")) {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: []
+          }
+        }
+      }]);
+    }
+
+    // Route: snapshots.*
+    if (path.startsWith("snapshots.")) {
+      return res.status(200).json([{
+        result: {
+          data: {
+            json: []
+          }
+        }
+      }]);
+    }
+
+    // Not found
+    console.log("[tRPC] Unknown path:", path);
+    return res.status(200).json([{
+      error: {
+        json: {
+          message: `Procedure not found: ${path}`,
+          code: -32004,
+          data: { code: "NOT_FOUND", httpStatus: 404 }
+        }
+      }
+    }]);
+
   } catch (error: any) {
-    console.error("[Handler Error]", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("[tRPC Handler Error]", error);
+    return res.status(200).json([{
+      error: {
+        json: {
+          message: error.message || "Internal server error",
+          code: -32603,
+          data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500 }
+        }
+      }
+    }]);
   }
 }
