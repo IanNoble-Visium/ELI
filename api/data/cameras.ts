@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getChannelsList, getDb, channels, count, eq } from "../lib/db";
+import { getChannelsList, getDb, channels, count, eq } from "../lib/db.js";
 
 /**
  * API endpoint to retrieve camera/channel data from the database
@@ -142,4 +142,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
 

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getIncidentsList, getDb } from "../lib/db";
+import { getIncidentsList, getDb } from "../lib/db.js";
 
 /**
  * API endpoint to retrieve incidents from the database

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getRecentWebhooks, getDb } from "../lib/db";
+import { getRecentWebhooks, getDb } from "../lib/db.js";
 
 /**
  * API endpoint to retrieve recent webhook requests from the database
@@ -92,4 +92,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
 

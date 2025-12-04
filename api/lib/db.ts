@@ -10,7 +10,7 @@ import {
   webhookRequests,
   snapshots,
   incidents,
-} from "../../drizzle/schema";
+} from "../../drizzle/schema.js";
 
 // Cache the drizzle instance to reuse across requests
 let _db: MySql2Database<Record<string, never>> | null = null;

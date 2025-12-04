@@ -5,7 +5,7 @@ import {
   insertSnapshots,
   upsertChannel,
   getDb
-} from "../lib/db";
+} from "../lib/db.js";
 
 // Vercel serverless handler for IREX webhooks
 // Persists all incoming webhooks to PostgreSQL/TiDB database
@@ -158,4 +158,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
 

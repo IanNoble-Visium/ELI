@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getDashboardStats, getDb, events, channels, desc, count, gte, lte, and } from "../lib/db";
+import { getDashboardStats, getDb, events, channels, desc, count, gte, lte, and } from "../lib/db.js";
 
 /**
  * API endpoint to retrieve dashboard statistics from the database

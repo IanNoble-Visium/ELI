@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getRecentEvents, getDb } from "../lib/db";
+import { getRecentEvents, getDb } from "../lib/db.js";
 
 /**
  * API endpoint to retrieve surveillance events from the database
@@ -134,4 +134,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
 
