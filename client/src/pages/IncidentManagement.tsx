@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
@@ -44,6 +45,15 @@ export default function IncidentManagement() {
   const [noteText, setNoteText] = useState("");
   const [tagText, setTagText] = useState("");
   const [tagColor, setTagColor] = useState("#D91023");
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate loading for incident data
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Fetch notes and tags for selected incident
   const { data: notes, refetch: refetchNotes } = trpc.incidents.getNotes.useQuery(
@@ -252,47 +262,70 @@ export default function IncidentManagement() {
 
           {/* Incident List */}
           <div className="p-2 space-y-2">
-            {filteredIncidents.map((incident, index) => (
-              <motion.div
-                key={incident.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.03, duration: 0.3 }}
-              >
-                <Card
-                  className={`cursor-pointer hover:border-primary/50 transition-all ${
-                    selectedIncident?.id === incident.id ? "border-primary" : ""
-                  }`}
-                  onClick={() => setSelectedIncident(incident)}
-                >
+            {isLoading ? (
+              // Loading skeleton for incidents
+              Array.from({ length: 8 }).map((_, i) => (
+                <Card key={i}>
                   <CardContent className="p-3">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <AlertTriangle className={`w-4 h-4 ${getPriorityColor(incident.priority).replace("bg-", "text-")}`} />
-                        <span className="font-mono text-sm font-semibold">{incident.id}</span>
+                        <Skeleton className="w-4 h-4 rounded" />
+                        <Skeleton className="h-4 w-20" />
                       </div>
                       <div className="flex gap-1">
-                        <Badge className={`${getPriorityColor(incident.priority)} text-white text-xs`}>
-                          {incident.priority}
-                        </Badge>
-                        <Badge className={`${getStatusColor(incident.status)} text-white text-xs`}>
-                          {incident.status}
-                        </Badge>
+                        <Skeleton className="h-5 w-14 rounded-full" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
                       </div>
                     </div>
-                    <div className="text-sm font-medium mb-1">{incident.type}</div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="w-3 h-3" />
-                      {incident.location}
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                      <Clock className="w-3 h-3" />
-                      {format(incident.createdAt, "MMM dd, HH:mm")}
-                    </div>
+                    <Skeleton className="h-4 w-28 mb-2" />
+                    <Skeleton className="h-3 w-32 mb-1" />
+                    <Skeleton className="h-3 w-24" />
                   </CardContent>
                 </Card>
-              </motion.div>
-            ))}
+              ))
+            ) : (
+              filteredIncidents.map((incident, index) => (
+                <motion.div
+                  key={incident.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03, duration: 0.3 }}
+                >
+                  <Card
+                    className={`cursor-pointer hover:border-primary/50 transition-all ${
+                      selectedIncident?.id === incident.id ? "border-primary" : ""
+                    }`}
+                    onClick={() => setSelectedIncident(incident)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className={`w-4 h-4 ${getPriorityColor(incident.priority).replace("bg-", "text-")}`} />
+                          <span className="font-mono text-sm font-semibold">{incident.id}</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <Badge className={`${getPriorityColor(incident.priority)} text-white text-xs`}>
+                            {incident.priority}
+                          </Badge>
+                          <Badge className={`${getStatusColor(incident.status)} text-white text-xs`}>
+                            {incident.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium mb-1">{incident.type}</div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="w-3 h-3" />
+                        {incident.location}
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                        <Clock className="w-3 h-3" />
+                        {format(incident.createdAt, "MMM dd, HH:mm")}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))
+            )}
           </div>
         </motion.div>
 

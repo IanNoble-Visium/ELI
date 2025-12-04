@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
@@ -60,7 +61,16 @@ export default function TopologyGraph() {
   const [layout, setLayout] = useState("force");
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const graphRef = useRef<any>(null);
+
+  // Simulate loading for graph initialization
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleNodeClick = useCallback((node: any) => {
     setSelectedNode(node);
@@ -272,6 +282,34 @@ export default function TopologyGraph() {
 
         {/* Graph Canvas */}
         <div className="flex-1 relative bg-card/30">
+          {isLoading ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur z-10">
+              <div className="relative w-72 h-72 mb-6">
+                {/* Network skeleton with animated connections */}
+                <Skeleton className="absolute inset-0 rounded-full opacity-20" />
+                
+                {/* Center node */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-primary/60 rounded-full animate-pulse" />
+                
+                {/* Orbiting nodes */}
+                <div className="absolute top-1/4 left-1/4 w-6 h-6 bg-green-500/60 rounded-full animate-pulse" style={{ animationDelay: '0.1s' }} />
+                <div className="absolute top-1/4 right-1/4 w-6 h-6 bg-blue-500/60 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                <div className="absolute bottom-1/4 left-1/4 w-6 h-6 bg-orange-500/60 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }} />
+                <div className="absolute bottom-1/4 right-1/4 w-6 h-6 bg-purple-500/60 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                
+                {/* Connection lines (simulated) */}
+                <div className="absolute top-1/2 left-1/4 w-1/4 h-0.5 bg-muted-foreground/30 origin-right rotate-12" />
+                <div className="absolute top-1/2 right-1/4 w-1/4 h-0.5 bg-muted-foreground/30 origin-left -rotate-12" />
+                <div className="absolute top-1/4 left-1/2 w-0.5 h-1/4 bg-muted-foreground/30" />
+                <div className="absolute bottom-1/4 left-1/2 w-0.5 h-1/4 bg-muted-foreground/30" />
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Network className="w-5 h-5 animate-pulse" />
+                <span className="text-sm font-medium">Building intelligence network...</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Analyzing {graphData.nodes.length} entities and {graphData.links.length} relationships</p>
+            </div>
+          ) : null}
           <ForceGraph2D
             ref={graphRef}
             graphData={graphData}

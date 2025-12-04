@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Users, Car, MapPin, Activity, Camera, Clock, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -116,10 +117,19 @@ const generateTimelineData = () => {
 export default function POLEAnalytics() {
   const [, setLocation] = useLocation();
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Generate POLE data (memoized to prevent regeneration on re-renders)
   const poleData = useMemo(() => generatePOLEData(), []);
   const timelineData = useMemo(() => generateTimelineData(), []);
+
+  // Simulate loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Pattern recognition stats
   const patternData = [
@@ -181,6 +191,63 @@ export default function POLEAnalytics() {
 
       {/* Main Content */}
       <main className="container py-8 space-y-8">
+        {isLoading ? (
+          // Loading skeleton
+          <>
+            {/* Stats Skeleton */}
+            <div className="grid md:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 w-4" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-12 mb-1" />
+                    <Skeleton className="h-3 w-20" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Chart Skeleton */}
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-36" />
+                <Skeleton className="h-4 w-56" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[300px] w-full rounded-lg" />
+              </CardContent>
+            </Card>
+
+            {/* Tabs Skeleton */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex gap-2 mb-6">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-9 w-24 rounded" />
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="w-2 h-2 rounded-full" />
+                        <div>
+                          <Skeleton className="h-4 w-24 mb-1" />
+                          <Skeleton className="h-3 w-40" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+        <>
         {/* Stats Overview */}
         <div className="grid md:grid-cols-4 gap-6">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0, duration: 0.4 }}>
@@ -478,6 +545,8 @@ export default function POLEAnalytics() {
             </CardContent>
           </Card>
         </motion.div>
+        </>
+        )}
       </main>
     </div>
   );

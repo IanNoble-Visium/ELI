@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   ArrowLeft, 
   Camera, 
@@ -16,6 +17,78 @@ import {
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
+
+// Loading skeleton component
+function ExecutiveDashboardSkeleton() {
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header Skeleton */}
+      <header className="border-b border-border bg-card/50 backdrop-blur sticky top-0 z-50">
+        <div className="container flex items-center justify-between h-16">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-8 w-20" />
+            <div>
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3 w-32 mt-1" />
+            </div>
+          </div>
+          <Skeleton className="h-9 w-40" />
+        </div>
+      </header>
+
+      <main className="container py-8 space-y-8">
+        {/* KPI Cards Skeleton */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-20 mb-2" />
+                <Skeleton className="h-3 w-28" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Charts Row Skeleton */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[300px] w-full" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[300px] w-full" />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Regional Activity Skeleton */}
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-4 w-56" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-[300px] w-full" />
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
 
 interface DashboardStats {
   overview: {
@@ -170,7 +243,52 @@ export default function ExecutiveDashboard() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Show skeleton while loading */}
+      {isLoading && !stats ? (
+        <main className="container py-8 space-y-8">
+          {/* KPI Cards Skeleton */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4 rounded" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-20 mb-2" />
+                  <Skeleton className="h-3 w-28" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Charts Skeleton */}
+          <div className="grid lg:grid-cols-2 gap-6">
+            {[1, 2].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-4 w-48 mt-1" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-[300px] w-full rounded-lg" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-4 w-56 mt-1" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[300px] w-full rounded-lg" />
+            </CardContent>
+          </Card>
+        </main>
+      ) : (
+      /* Main Content */
       <main className="container py-8 space-y-8">
         {/* KPI Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -342,6 +460,7 @@ export default function ExecutiveDashboard() {
           </motion.div>
         )}
       </main>
+      )}
     </div>
   );
 }
