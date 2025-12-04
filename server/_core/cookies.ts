@@ -1,4 +1,4 @@
-import type { CookieOptions, Request } from "express";
+import type { CookieOptions, Request as ExpressRequest } from "express";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -8,10 +8,19 @@ function isIpAddress(host: string) {
   return host.includes(":");
 }
 
-function isSecureRequest(req: Request) {
-  if (req.protocol === "https") return true;
-
-  const forwardedProto = req.headers["x-forwarded-proto"];
+// Check if request is secure (works with Express or Fetch Request)
+function isSecureRequest(req: ExpressRequest | Request): boolean {
+  // Express request
+  if ("protocol" in req && typeof req.protocol === "string") {
+    if (req.protocol === "https") return true;
+  }
+  
+  // Fetch request or Express with x-forwarded-proto header
+  const forwardedProto = 
+    req instanceof Request 
+      ? req.headers.get("x-forwarded-proto")
+      : req.headers["x-forwarded-proto"];
+      
   if (!forwardedProto) return false;
 
   const protoList = Array.isArray(forwardedProto)
@@ -21,11 +30,20 @@ function isSecureRequest(req: Request) {
   return protoList.some(proto => proto.trim().toLowerCase() === "https");
 }
 
+// Get hostname from Express or Fetch Request
+function getHostname(req: ExpressRequest | Request): string {
+  if (req instanceof Request) {
+    const host = req.headers.get("host") || req.headers.get("x-forwarded-host") || "";
+    return host.split(":")[0]; // Remove port
+  }
+  return req.hostname || "";
+}
+
 export function getSessionCookieOptions(
-  req: Request
+  req: ExpressRequest | Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
   const isSecure = isSecureRequest(req);
-  const hostname = req.hostname;
+  const hostname = getHostname(req);
   const isLocalhost = LOCAL_HOSTS.has(hostname);
 
   // For localhost/development: use "lax" sameSite (works with HTTP)
