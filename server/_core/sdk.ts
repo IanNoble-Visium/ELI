@@ -267,7 +267,7 @@ class SDKServer {
     }
 
     const sessionUserId = session.openId;
-    const signedInAt = new Date();
+    const signedInAt = new Date().toISOString();
 
     // Handle hardcoded demo user
     if (sessionUserId === "demo-admin") {
@@ -278,9 +278,9 @@ class SDKServer {
         email: "admin@eli-dashboard.pe",
         role: "admin",
         loginMethod: "hardcoded",
-        createdAt: signedInAt.toISOString(),
-        updatedAt: signedInAt.toISOString(),
-        lastSignedIn: signedInAt.toISOString(),
+        createdAt: signedInAt,
+        updatedAt: signedInAt,
+        lastSignedIn: signedInAt,
       } as User;
     }
 
