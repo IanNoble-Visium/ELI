@@ -12,6 +12,30 @@ import { format } from "date-fns";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
+// Staggered animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.2,
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: [0.25, 0.46, 0.45, 0.94],
+    },
+  },
+};
+
 // Fix for default marker icons in Leaflet
 import icon from "leaflet/dist/images/marker-icon.png";
 import iconShadow from "leaflet/dist/images/marker-shadow.png";
@@ -25,19 +49,83 @@ const DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Custom marker icons
-const createCustomIcon = (color: string) => {
+// Custom marker icons with animations
+const createCustomIcon = (color: string, isAlert: boolean = false) => {
+  const pulseAnimation = isAlert ? `
+    @keyframes pulse-ring {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2.5); opacity: 0; }
+    }
+  ` : '';
+
+  const pulseRing = isAlert ? `
+    <div style="
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background-color: ${color};
+      opacity: 0.4;
+      animation: pulse-ring 1.5s ease-out infinite;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    "></div>
+  ` : '';
+
   return L.divIcon({
     className: 'custom-marker',
-    html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
+    html: `
+      <style>${pulseAnimation}</style>
+      <div style="position: relative; width: 16px; height: 16px;">
+        ${pulseRing}
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background-color: ${color};
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          border: 2px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+          transition: all 0.3s ease;
+        "></div>
+      </div>
+    `,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+};
+
+// Create larger hover icon
+const createHoverIcon = (color: string) => {
+  return L.divIcon({
+    className: 'custom-marker-hover',
+    html: `
+      <div style="
+        background-color: ${color};
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 20px ${color}40;
+        transition: all 0.3s ease;
+      "></div>
+    `,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
   });
 };
 
 const activeIcon = createCustomIcon("#10B981"); // Green
 const inactiveIcon = createCustomIcon("#6B7280"); // Gray
-const alertIcon = createCustomIcon("#D91023"); // Peru Red
+const alertIcon = createCustomIcon("#D91023", true); // Peru Red with pulse
+
+const activeHoverIcon = createHoverIcon("#10B981");
+const inactiveHoverIcon = createHoverIcon("#6B7280");
+const alertHoverIcon = createHoverIcon("#D91023");
 
 interface CameraData {
   id: string;
@@ -203,75 +291,114 @@ export default function GeographicMap() {
 
       {/* Main Content */}
       <div className="flex h-[calc(100vh-4rem)]">
-        {/* Sidebar */}
+        {/* Sidebar with staggered animations */}
         <motion.div
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.4 }}
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
           className="w-80 border-r border-border bg-card/50 backdrop-blur p-4 space-y-4 overflow-y-auto"
         >
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Camera Status</CardTitle>
-              <CardDescription className="text-xs">
-                Last updated: {format(lastRefresh, "HH:mm:ss")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm">Total Cameras</span>
-                </div>
-                <Badge variant="outline" className="font-bold">{stats.total.toLocaleString()}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
-                  <span className="text-sm">Active</span>
-                </div>
-                <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                  {stats.active.toLocaleString()}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-gray-500" />
-                  <span className="text-sm">Inactive</span>
-                </div>
-                <Badge variant="outline" className="bg-gray-500/10 text-gray-500 border-gray-500/20">
-                  {stats.inactive.toLocaleString()}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-primary" />
-                  <span className="text-sm">Alerts</span>
-                </div>
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                  {stats.alert.toLocaleString()}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+          <motion.div variants={cardVariants}>
+            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  Camera Status
+                  <motion.div
+                    className="w-2 h-2 bg-green-500 rounded-full"
+                    animate={{ scale: [1, 1.2, 1], opacity: [1, 0.7, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Last updated: {format(lastRefresh, "HH:mm:ss")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <motion.div
+                  className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                  whileHover={{ x: 4 }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">Total Cameras</span>
+                  </div>
+                  <Badge variant="outline" className="font-bold">{stats.total.toLocaleString()}</Badge>
+                </motion.div>
+                <motion.div
+                  className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                  whileHover={{ x: 4 }}
+                >
+                  <div className="flex items-center gap-2">
+                    <motion.div
+                      className="w-3 h-3 rounded-full bg-green-500"
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                    <span className="text-sm">Active</span>
+                  </div>
+                  <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                    {stats.active.toLocaleString()}
+                  </Badge>
+                </motion.div>
+                <motion.div
+                  className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                  whileHover={{ x: 4 }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-gray-500" />
+                    <span className="text-sm">Inactive</span>
+                  </div>
+                  <Badge variant="outline" className="bg-gray-500/10 text-gray-500 border-gray-500/20">
+                    {stats.inactive.toLocaleString()}
+                  </Badge>
+                </motion.div>
+                <motion.div
+                  className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                  whileHover={{ x: 4 }}
+                >
+                  <div className="flex items-center gap-2">
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                    >
+                      <AlertTriangle className="w-4 h-4 text-primary" />
+                    </motion.div>
+                    <span className="text-sm">Alerts</span>
+                  </div>
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                    {stats.alert.toLocaleString()}
+                  </Badge>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Region Distribution */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Regional Distribution</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {Object.entries(stats.byRegion)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 8)
-                .map(([region, count]) => (
-                  <div key={region} className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{region}</span>
-                    <span className="font-mono">{count}</span>
-                  </div>
-                ))}
-            </CardContent>
-          </Card>
+          <motion.div variants={cardVariants}>
+            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Regional Distribution</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {Object.entries(stats.byRegion)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 8)
+                  .map(([region, count], index) => (
+                    <motion.div
+                      key={region}
+                      className="flex items-center justify-between text-sm hover:bg-muted/30 p-1 rounded transition-colors cursor-pointer"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      whileHover={{ x: 4 }}
+                    >
+                      <span className="text-muted-foreground">{region}</span>
+                      <span className="font-mono">{count}</span>
+                    </motion.div>
+                  ))}
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {selectedCamera && (
             <motion.div

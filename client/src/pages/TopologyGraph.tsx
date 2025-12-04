@@ -10,6 +10,39 @@ import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, RefreshCw, Data
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
 
+// Staggered animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: [0.25, 0.46, 0.45, 0.94],
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -10 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.3 },
+  },
+};
+
 interface GraphNode {
   id: string;
   name: string;
@@ -180,146 +213,182 @@ export default function TopologyGraph() {
 
       {/* Main Content */}
       <div className="flex h-[calc(100vh-4rem)]">
-        {/* Sidebar */}
+        {/* Sidebar with staggered animations */}
         <motion.div
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.4 }}
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
           className="w-80 border-r border-border bg-card/50 backdrop-blur p-4 space-y-4 overflow-y-auto"
         >
           {/* Search */}
-          <div className="relative">
+          <motion.div variants={itemVariants} className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search nodes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 transition-all duration-200 focus:ring-2 focus:ring-primary/30"
             />
-          </div>
+          </motion.div>
 
           {/* Error display */}
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-2">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-2"
+            >
               <AlertCircle className="w-4 h-4" />
               {error}
-            </div>
+            </motion.div>
           )}
 
           {/* Stats */}
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Graph Statistics</CardTitle>
-                <Button variant="ghost" size="sm" onClick={fetchTopologyData} disabled={isLoading}>
-                  <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Nodes</span>
-                <Badge variant="outline">{displayStats.nodes}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Edges</span>
-                <Badge variant="outline">{displayStats.edges}</Badge>
-              </div>
-              <div className="h-px bg-border my-2" />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
-                  <span className="text-sm">Cameras</span>
+          <motion.div variants={cardVariants}>
+            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    Graph Statistics
+                    <motion.div
+                      className="w-2 h-2 bg-primary rounded-full"
+                      animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" onClick={fetchTopologyData} disabled={isLoading}>
+                    <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                  </Button>
                 </div>
-                <Badge variant="outline">{displayStats.cameras}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500" />
-                  <span className="text-sm">Persons</span>
-                </div>
-                <Badge variant="outline">{displayStats.persons}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-orange-500" />
-                  <span className="text-sm">Vehicles</span>
-                </div>
-                <Badge variant="outline">{displayStats.vehicles}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-purple-500" />
-                  <span className="text-sm">Locations</span>
-                </div>
-                <Badge variant="outline">{displayStats.locations}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-primary" />
-                  <span className="text-sm">Events</span>
-                </div>
-                <Badge variant="outline">{displayStats.events}</Badge>
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <motion.div
+                  className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                  whileHover={{ x: 4 }}
+                >
+                  <span className="text-sm text-muted-foreground">Total Nodes</span>
+                  <Badge variant="outline">{displayStats.nodes}</Badge>
+                </motion.div>
+                <motion.div
+                  className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                  whileHover={{ x: 4 }}
+                >
+                  <span className="text-sm text-muted-foreground">Total Edges</span>
+                  <Badge variant="outline">{displayStats.edges}</Badge>
+                </motion.div>
+                <div className="h-px bg-border my-2" />
+                {[
+                  { color: "bg-green-500", label: "Cameras", value: displayStats.cameras },
+                  { color: "bg-blue-500", label: "Persons", value: displayStats.persons },
+                  { color: "bg-orange-500", label: "Vehicles", value: displayStats.vehicles },
+                  { color: "bg-purple-500", label: "Locations", value: displayStats.locations },
+                  { color: "bg-primary", label: "Events", value: displayStats.events },
+                ].map((stat, index) => (
+                  <motion.div
+                    key={stat.label}
+                    className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors cursor-pointer"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 + index * 0.05 }}
+                    whileHover={{ x: 4 }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <motion.div
+                        className={`w-3 h-3 rounded-full ${stat.color}`}
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
+                      />
+                      <span className="text-sm">{stat.label}</span>
+                    </div>
+                    <Badge variant="outline">{stat.value}</Badge>
+                  </motion.div>
+                ))}
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Selected Node Details */}
           {selectedNode && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
-              <Card>
+              <Card className="border-primary/30 shadow-lg shadow-primary/10">
                 <CardHeader>
-                  <CardTitle className="text-lg">Node Details</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <motion.div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: selectedNode.color }}
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                    Node Details
+                  </CardTitle>
                   <CardDescription>{selectedNode.name}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <motion.div
+                    className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                    whileHover={{ x: 4 }}
+                  >
                     <span className="text-sm text-muted-foreground">Type</span>
                     <Badge style={{ backgroundColor: selectedNode.color }}>
                       {selectedNode.type}
                     </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
+                  </motion.div>
+                  <motion.div
+                    className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                    whileHover={{ x: 4 }}
+                  >
                     <span className="text-sm text-muted-foreground">ID</span>
                     <span className="text-xs font-mono">{selectedNode.id}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
+                  </motion.div>
+                  <motion.div
+                    className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                    whileHover={{ x: 4 }}
+                  >
                     <span className="text-sm text-muted-foreground">Connections</span>
                     <Badge variant="outline">
                       {graphData.links.filter(
                         (l: any) => l.source === selectedNode.id || l.target === selectedNode.id
                       ).length}
                     </Badge>
-                  </div>
+                  </motion.div>
                 </CardContent>
               </Card>
             </motion.div>
           )}
 
           {/* Controls */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Controls</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" size="sm" className="w-full" onClick={handleZoomIn}>
-                <ZoomIn className="w-4 h-4 mr-2" />
-                Zoom In
-              </Button>
-              <Button variant="outline" size="sm" className="w-full" onClick={handleZoomOut}>
-                <ZoomOut className="w-4 h-4 mr-2" />
-                Zoom Out
-              </Button>
-              <Button variant="outline" size="sm" className="w-full" onClick={handleZoomToFit}>
-                <Maximize2 className="w-4 h-4 mr-2" />
-                Fit to Screen
-              </Button>
-            </CardContent>
-          </Card>
+          <motion.div variants={cardVariants}>
+            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+              <CardHeader>
+                <CardTitle className="text-sm">Controls</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button variant="outline" size="sm" className="w-full" onClick={handleZoomIn}>
+                    <ZoomIn className="w-4 h-4 mr-2" />
+                    Zoom In
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button variant="outline" size="sm" className="w-full" onClick={handleZoomOut}>
+                    <ZoomOut className="w-4 h-4 mr-2" />
+                    Zoom Out
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button variant="outline" size="sm" className="w-full" onClick={handleZoomToFit}>
+                    <Maximize2 className="w-4 h-4 mr-2" />
+                    Fit to Screen
+                  </Button>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
         </motion.div>
 
         {/* Graph Canvas */}
@@ -358,28 +427,87 @@ export default function TopologyGraph() {
             nodeLabel="name"
             nodeColor="color"
             nodeVal="val"
-            linkDirectionalParticles={2}
-            linkDirectionalParticleSpeed={0.005}
+            linkDirectionalParticles={3}
+            linkDirectionalParticleSpeed={0.004}
+            linkDirectionalParticleWidth={2}
+            linkDirectionalParticleColor={(link: any) => {
+              // Vary particle color based on link type
+              const colors = ["#D91023", "#10B981", "#3B82F6", "#F59E0B"];
+              return colors[Math.floor(Math.random() * colors.length)];
+            }}
             onNodeClick={handleNodeClick}
             backgroundColor="#1F2937"
-            linkColor={() => "#4B5563"}
+            linkColor={() => "#4B556380"}
+            linkWidth={1.5}
+            cooldownTicks={100}
+            onEngineStop={() => graphRef.current?.zoomToFit(400, 50)}
             nodeCanvasObject={(node: any, ctx, globalScale) => {
               const label = node.name;
               const fontSize = 12 / globalScale;
-              ctx.font = `${fontSize}px Sans-Serif`;
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              ctx.fillStyle = node.color;
-              
-              // Draw node circle
+              const nodeRadius = node.val || 5;
+
+              // Draw outer glow for selected or hovered nodes
+              if (selectedNode?.id === node.id) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, nodeRadius + 4, 0, 2 * Math.PI, false);
+                ctx.fillStyle = `${node.color}40`;
+                ctx.fill();
+
+                // Pulsing ring effect
+                const pulseRadius = nodeRadius + 8 + Math.sin(Date.now() / 200) * 3;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, pulseRadius, 0, 2 * Math.PI, false);
+                ctx.strokeStyle = `${node.color}60`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+              }
+
+              // Draw node shadow
               ctx.beginPath();
-              ctx.arc(node.x, node.y, node.val, 0, 2 * Math.PI, false);
+              ctx.arc(node.x + 1, node.y + 1, nodeRadius, 0, 2 * Math.PI, false);
+              ctx.fillStyle = "rgba(0,0,0,0.3)";
               ctx.fill();
-              
-              // Draw label
-              if (globalScale > 1) {
+
+              // Draw main node circle with gradient
+              const gradient = ctx.createRadialGradient(
+                node.x - nodeRadius/3, node.y - nodeRadius/3, 0,
+                node.x, node.y, nodeRadius
+              );
+              gradient.addColorStop(0, node.color);
+              gradient.addColorStop(1, `${node.color}CC`);
+
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI, false);
+              ctx.fillStyle = gradient;
+              ctx.fill();
+
+              // Draw node border
+              ctx.strokeStyle = "#ffffff40";
+              ctx.lineWidth = 1;
+              ctx.stroke();
+
+              // Draw label with background
+              if (globalScale > 0.8) {
+                ctx.font = `${fontSize}px Inter, Sans-Serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                const textWidth = ctx.measureText(label).width;
+                const padding = 4;
+                const textY = node.y + nodeRadius + fontSize + 2;
+
+                // Label background
+                ctx.fillStyle = "rgba(31, 41, 55, 0.85)";
+                ctx.fillRect(
+                  node.x - textWidth/2 - padding,
+                  textY - fontSize/2 - padding/2,
+                  textWidth + padding * 2,
+                  fontSize + padding
+                );
+
+                // Label text
                 ctx.fillStyle = "#F9FAFB";
-                ctx.fillText(label, node.x, node.y + node.val + fontSize);
+                ctx.fillText(label, node.x, textY);
               }
             }}
           />

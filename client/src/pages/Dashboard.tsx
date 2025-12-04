@@ -16,6 +16,31 @@ import {
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 
+// Staggered animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.2,
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 30, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.4,
+      ease: [0.25, 0.46, 0.45, 0.94],
+    },
+  },
+};
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
@@ -138,29 +163,40 @@ export default function Dashboard() {
           </p>
         </motion.div>
         
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {dashboardSections.map((section, index) => (
+        <motion.div
+          className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {dashboardSections.map((section) => (
             <motion.div
               key={section.route}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1, duration: 0.5 }}
-              whileHover={{ y: -8, scale: 1.02 }}
+              variants={cardVariants}
+              whileHover={{
+                y: -8,
+                scale: 1.02,
+                transition: { duration: 0.2 }
+              }}
             >
               <Card
                 className="cursor-pointer border-border/50 hover:border-primary/60 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20 bg-card/60 backdrop-blur-sm h-full group"
                 onClick={() => setLocation(section.route)}
               >
                 <CardHeader>
-                  <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-4 ring-2 ring-primary/20 group-hover:ring-primary/40 group-hover:bg-primary/20 transition-all duration-300">
+                  <motion.div
+                    className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-4 ring-2 ring-primary/20 group-hover:ring-primary/40 group-hover:bg-primary/20 transition-all duration-300"
+                    whileHover={{ rotate: 5, scale: 1.1 }}
+                    transition={{ duration: 0.2 }}
+                  >
                     <section.icon className={`w-7 h-7 ${section.color} drop-shadow-sm`} />
-                  </div>
+                  </motion.div>
                   <CardTitle className="text-lg">{section.title}</CardTitle>
                   <CardDescription className="text-sm">{section.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary transition-all duration-300"
                   >
                     Open Module
@@ -169,7 +205,7 @@ export default function Dashboard() {
               </Card>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
       </main>
     </div>
   );

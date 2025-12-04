@@ -14,9 +14,46 @@ import {
   TrendingDown,
   RefreshCw
 } from "lucide-react";
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
+
+// Staggered animation variants for container and children
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: [0.25, 0.46, 0.45, 0.94],
+    },
+  },
+};
+
+const chartVariants = {
+  hidden: { opacity: 0, y: 30, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.5,
+      ease: [0.25, 0.46, 0.45, 0.94],
+    },
+  },
+};
 
 // Loading skeleton component
 function ExecutiveDashboardSkeleton() {
@@ -290,19 +327,31 @@ export default function ExecutiveDashboard() {
       ) : (
       /* Main Content */
       <main className="container py-8 space-y-8">
-        {/* KPI Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {kpis.map((kpi, index) => (
+        {/* KPI Cards with staggered animation */}
+        <motion.div
+          className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {kpis.map((kpi) => (
             <motion.div
               key={kpi.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1, duration: 0.4 }}
+              variants={itemVariants}
+              whileHover={{
+                y: -4,
+                transition: { duration: 0.2 }
+              }}
             >
-              <Card className="hover:border-primary/50 transition-all">
+              <Card className="hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 h-full">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
-                  <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+                  <motion.div
+                    whileHover={{ rotate: 10, scale: 1.1 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+                  </motion.div>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">{kpi.value}</div>
@@ -318,47 +367,80 @@ export default function ExecutiveDashboard() {
               </Card>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
 
-        {/* Charts Row 1 */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Events Timeline */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.4 }}
-          >
-            <Card>
+        {/* Charts Row 1 with staggered reveal */}
+        <motion.div
+          className="grid lg:grid-cols-2 gap-6"
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
+        >
+          {/* Events Timeline with gradient */}
+          <motion.div variants={chartVariants}>
+            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
               <CardHeader>
                 <CardTitle>Events Timeline</CardTitle>
                 <CardDescription>Daily event and alert distribution</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={eventsByDay}>
+                  <AreaChart data={eventsByDay}>
+                    <defs>
+                      <linearGradient id="eventGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#D91023" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#D91023" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="alertGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F77F00" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#F77F00" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis dataKey="day" stroke="#9CA3AF" />
                     <YAxis stroke="#9CA3AF" />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: "#374151", border: "1px solid #4B5563" }}
-                      labelStyle={{ color: "#F9FAFB" }}
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#1f2937",
+                        border: "1px solid #D91023",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
+                      }}
+                      labelStyle={{ color: "#F9FAFB", fontWeight: "bold" }}
                     />
                     <Legend />
-                    <Line type="monotone" dataKey="events" stroke="#D91023" strokeWidth={2} name="Events" />
-                    <Line type="monotone" dataKey="alerts" stroke="#F77F00" strokeWidth={2} name="Alerts" />
-                  </LineChart>
+                    <Area
+                      type="monotone"
+                      dataKey="events"
+                      stroke="#D91023"
+                      strokeWidth={2}
+                      fill="url(#eventGradient)"
+                      name="Events"
+                      isAnimationActive={true}
+                      animationDuration={1500}
+                      animationEasing="ease-out"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="alerts"
+                      stroke="#F77F00"
+                      strokeWidth={2}
+                      fill="url(#alertGradient)"
+                      name="Alerts"
+                      isAnimationActive={true}
+                      animationDuration={1500}
+                      animationEasing="ease-out"
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </motion.div>
 
           {/* Events by Type */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.4 }}
-          >
-            <Card>
+          <motion.div variants={chartVariants}>
+            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
               <CardHeader>
                 <CardTitle>Events by Type</CardTitle>
                 <CardDescription>Distribution of event categories</CardDescription>
@@ -375,28 +457,37 @@ export default function ExecutiveDashboard() {
                       outerRadius={100}
                       fill="#8884d8"
                       dataKey="value"
+                      isAnimationActive={true}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
                     >
                       {eventsByType.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: "#374151", border: "1px solid #4B5563" }}
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#1f2937",
+                        border: "1px solid #D91023",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </motion.div>
-        </div>
+        </motion.div>
 
         {/* Regional Activity */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.4 }}
+          variants={chartVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
         >
-          <Card>
+          <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
             <CardHeader>
               <CardTitle>Regional Activity</CardTitle>
               <CardDescription>Events and camera distribution by region</CardDescription>
@@ -404,44 +495,91 @@ export default function ExecutiveDashboard() {
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={regionActivity}>
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#D91023" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#D91023" stopOpacity={0.7}/>
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="region" stroke="#9CA3AF" />
                   <YAxis stroke="#9CA3AF" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: "#374151", border: "1px solid #4B5563" }}
-                    labelStyle={{ color: "#F9FAFB" }}
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1f2937",
+                      border: "1px solid #D91023",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
+                    }}
+                    labelStyle={{ color: "#F9FAFB", fontWeight: "bold" }}
                   />
                   <Legend />
-                  <Bar dataKey="events" fill="#D91023" name="Events" />
-                  <Bar dataKey="cameras" fill="#4B5563" name="Cameras" />
+                  <Bar
+                    dataKey="events"
+                    fill="url(#barGradient)"
+                    name="Events"
+                    radius={[4, 4, 0, 0]}
+                    isAnimationActive={true}
+                    animationDuration={1200}
+                  />
+                  <Bar
+                    dataKey="cameras"
+                    fill="#4B5563"
+                    name="Cameras"
+                    radius={[4, 4, 0, 0]}
+                    isAnimationActive={true}
+                    animationDuration={1200}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Recent Alerts */}
+        {/* Recent Alerts with staggered list items */}
         {stats?.recentAlerts && stats.recentAlerts.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7, duration: 0.4 }}
+            variants={chartVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-50px" }}
           >
-            <Card>
+            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
               <CardHeader>
                 <CardTitle>Recent Alerts</CardTitle>
                 <CardDescription>Latest security events from the surveillance network</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <motion.div
+                  className="space-y-3"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
                   {stats.recentAlerts.slice(0, 5).map((alert, i) => (
-                    <div key={alert.id || i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <motion.div
+                      key={alert.id || i}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer"
+                      variants={itemVariants}
+                      whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                    >
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${
-                          alert.level === 3 ? "bg-red-500" :
-                          alert.level === 2 ? "bg-orange-500" :
-                          alert.level === 1 ? "bg-yellow-500" : "bg-blue-500"
-                        }`} />
+                        <motion.div
+                          className={`w-2 h-2 rounded-full ${
+                            alert.level === 3 ? "bg-red-500" :
+                            alert.level === 2 ? "bg-orange-500" :
+                            alert.level === 1 ? "bg-yellow-500" : "bg-blue-500"
+                          }`}
+                          animate={alert.level === 3 ? {
+                            scale: [1, 1.3, 1],
+                            opacity: [1, 0.7, 1]
+                          } : {}}
+                          transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                        />
                         <div>
                           <div className="font-medium text-sm">{alert.type}</div>
                           <div className="text-xs text-muted-foreground">
@@ -452,9 +590,9 @@ export default function ExecutiveDashboard() {
                       <div className="text-xs text-muted-foreground">
                         {format(new Date(alert.timestamp), "HH:mm:ss")}
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
-                </div>
+                </motion.div>
               </CardContent>
             </Card>
           </motion.div>
