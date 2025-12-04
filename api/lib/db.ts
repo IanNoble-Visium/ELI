@@ -141,12 +141,12 @@ export async function insertEvent(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  // Exclude createdAt from the data to avoid overwriting on conflict
+  const { id, ...updateData } = data;
+
   await db.insert(events).values(data).onConflictDoUpdate({
     target: events.id,
-    set: {
-      ...data,
-      createdAt: sql`created_at`, // Keep original
-    },
+    set: updateData, // Don't update id or createdAt on conflict
   });
 }
 

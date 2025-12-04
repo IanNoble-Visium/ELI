@@ -115,13 +115,13 @@ export async function getUserByOpenId(openId: string) {
 export async function insertEvent(event: typeof events.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
+  // Exclude id and createdAt from update set to preserve originals on conflict
+  const { id, createdAt, ...updateData } = event;
+
   await db.insert(events).values(event).onConflictDoUpdate({
     target: events.id,
-    set: {
-      ...event,
-      createdAt: sql`created_at`, // Keep original createdAt
-    },
+    set: updateData, // Don't update id or createdAt on conflict
   });
 }
 
