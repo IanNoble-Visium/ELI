@@ -1,9 +1,16 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, Camera, MapPin, Activity, TrendingUp, Users } from "lucide-react";
+import { Shield, Camera, MapPin, Activity, TrendingUp, Users, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useCallback, useRef } from "react";
+
+interface LiveStats {
+  cameras: number;
+  regions: number;
+  events: number;
+  alerts: number;
+}
 
 // List of Peru-themed b-roll videos
 const VIDEO_FILES = [
@@ -63,11 +70,39 @@ export default function Landing() {
     setCurrentVideoIndex((prev) => (prev + 1) % shuffledVideos.length);
   }, [shuffledVideos.length]);
 
+  // Fetch live statistics
+  const [liveStats, setLiveStats] = useState<LiveStats>({ cameras: 3015, regions: 15, events: 0, alerts: 0 });
+  
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch("/api/data/stats");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.overview) {
+            setLiveStats({
+              cameras: data.overview.totalCameras || 3015,
+              regions: Object.keys(data.regionalActivity || {}).length || 15,
+              events: data.overview.totalEvents || 0,
+              alerts: data.overview.criticalAlerts || 0,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+      }
+    };
+    
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   const stats = [
-    { icon: Camera, label: "Cameras", value: "3,084", color: "text-primary" },
-    { icon: MapPin, label: "Regions", value: "25", color: "text-primary" },
-    { icon: Users, label: "Police Stations", value: "107", color: "text-primary" },
-    { icon: Activity, label: "Real-time Events", value: "Live", color: "text-green-500" },
+    { icon: Camera, label: "Cameras", value: liveStats.cameras.toLocaleString(), color: "text-primary" },
+    { icon: MapPin, label: "Regions", value: String(liveStats.regions), color: "text-primary" },
+    { icon: AlertTriangle, label: "Critical Alerts", value: String(liveStats.alerts), color: "text-orange-500" },
+    { icon: Activity, label: "Live Events", value: liveStats.events > 0 ? liveStats.events.toLocaleString() : "Live", color: "text-green-500" },
   ];
 
   const features = [
@@ -84,7 +119,7 @@ export default function Landing() {
     {
       icon: MapPin,
       title: "Geographic Intelligence",
-      description: "Interactive mapping with 3,084 cameras covering 25 regions and 107 police stations.",
+      description: `Interactive mapping with ${liveStats.cameras.toLocaleString()} cameras covering ${liveStats.regions} regions.`,
     },
     {
       icon: Activity,

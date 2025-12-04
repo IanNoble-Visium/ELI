@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, MapPin, Camera, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, MapPin, Camera, AlertTriangle, RefreshCw, Activity, Clock } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { motion } from "framer-motion";
+import { format } from "date-fns";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -36,58 +38,116 @@ const activeIcon = createCustomIcon("#10B981"); // Green
 const inactiveIcon = createCustomIcon("#6B7280"); // Gray
 const alertIcon = createCustomIcon("#D91023"); // Peru Red
 
-// Mock camera data for Peru (will be replaced with real data)
-const generateMockCameras = () => {
-  const cameras: any[] = [];
-  const peruRegions = [
-    { name: "Lima", lat: -12.0464, lng: -77.0428, count: 842 },
-    { name: "Cusco", lat: -13.5319, lng: -71.9675, count: 324 },
-    { name: "Arequipa", lat: -16.4090, lng: -71.5375, count: 298 },
-    { name: "Trujillo", lat: -8.1116, lng: -79.0288, count: 215 },
-    { name: "Piura", lat: -5.1945, lng: -80.6328, count: 187 },
-    { name: "Chiclayo", lat: -6.7714, lng: -79.8411, count: 156 },
-    { name: "Iquitos", lat: -3.7437, lng: -73.2516, count: 142 },
-    { name: "Huancayo", lat: -12.0653, lng: -75.2049, count: 128 },
-  ];
+interface CameraData {
+  id: string;
+  name: string;
+  type: string;
+  latitude: number;
+  longitude: number;
+  address: {
+    country?: string;
+    region?: string;
+    city?: string;
+    district?: string;
+    street?: string;
+  };
+  status: "active" | "inactive" | "alert";
+  lastEventTime: string;
+  eventCount: number;
+  alertCount: number;
+  tags?: { id: number; name: string }[];
+}
 
-  peruRegions.forEach((region) => {
-    for (let i = 0; i < Math.min(region.count, 50); i++) {
-      // Show max 50 markers per region for performance
-      cameras.push({
-        id: `${region.name}-${i}`,
-        name: `Camera ${region.name}-${i + 1}`,
-        lat: region.lat + (Math.random() - 0.5) * 0.5,
-        lng: region.lng + (Math.random() - 0.5) * 0.5,
-        region: region.name,
-        status: Math.random() > 0.1 ? "active" : "inactive",
-        hasAlert: Math.random() > 0.9,
-        lastEvent: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-      });
-    }
-  });
+interface CameraStats {
+  total: number;
+  active: number;
+  inactive: number;
+  alert: number;
+  byRegion: Record<string, number>;
+}
 
-  return cameras;
-};
-
-function MapController({ center }: { center: [number, number] }) {
+function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 6);
-  }, [center, map]);
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
   return null;
 }
 
 export default function GeographicMap() {
   const [, setLocation] = useLocation();
-  const [cameras] = useState(generateMockCameras());
-  const [selectedCamera, setSelectedCamera] = useState<any>(null);
+  const [cameras, setCameras] = useState<CameraData[]>([]);
+  const [stats, setStats] = useState<CameraStats>({ total: 0, active: 0, inactive: 0, alert: 0, byRegion: {} });
+  const [selectedCamera, setSelectedCamera] = useState<CameraData | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
   const [mapCenter, setMapCenter] = useState<[number, number]>([-9.19, -75.0152]); // Center of Peru
+  const [mapZoom, setMapZoom] = useState(6);
 
-  const stats = {
-    total: 3084,
-    active: cameras.filter(c => c.status === "active").length,
-    inactive: cameras.filter(c => c.status === "inactive").length,
-    alerts: cameras.filter(c => c.hasAlert).length,
+  // Fetch real camera data
+  const fetchCameras = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams();
+      if (selectedRegion !== "all") params.append("region", selectedRegion);
+      params.append("limit", "500"); // Limit for performance
+      
+      const response = await fetch(`/api/data/cameras?${params}`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) throw new Error("Failed to fetch cameras");
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setCameras(data.cameras);
+        setStats(data.stats);
+      }
+      
+      setLastRefresh(new Date());
+    } catch (error) {
+      console.error("[Map] Fetch error:", error);
+      // Keep existing data on error
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedRegion]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchCameras();
+  }, [fetchCameras]);
+
+  // Get unique regions for filter
+  const regions = Object.keys(stats.byRegion).sort();
+
+  // Handle region selection
+  const handleRegionChange = (region: string) => {
+    setSelectedRegion(region);
+    
+    // Center map on selected region
+    const regionCenters: Record<string, [number, number]> = {
+      "Lima": [-12.0464, -77.0428],
+      "Cusco": [-13.5320, -71.9675],
+      "Arequipa": [-16.4090, -71.5375],
+      "Trujillo": [-8.1116, -79.0288],
+      "Piura": [-5.1945, -80.6328],
+      "Chiclayo": [-6.7714, -79.8409],
+      "Iquitos": [-3.7489, -73.2516],
+      "Huancayo": [-12.0651, -75.2049],
+      "Tacna": [-18.0146, -70.2536],
+      "Puno": [-15.8402, -70.0219],
+    };
+    
+    if (region !== "all" && regionCenters[region]) {
+      setMapCenter(regionCenters[region]);
+      setMapZoom(10);
+    } else {
+      setMapCenter([-9.19, -75.0152]);
+      setMapZoom(6);
+    }
   };
 
   return (
@@ -106,8 +166,36 @@ export default function GeographicMap() {
             </Button>
             <div>
               <h1 className="text-xl font-bold">Geographic Map</h1>
-              <p className="text-xs text-muted-foreground">3,084 cameras across Peru</p>
+              <p className="text-xs text-muted-foreground">
+                {stats.total.toLocaleString()} cameras across Peru • Real-time surveillance network
+              </p>
             </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Select value={selectedRegion} onValueChange={handleRegionChange}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Regions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Regions</SelectItem>
+                {regions.map(region => (
+                  <SelectItem key={region} value={region}>
+                    {region} ({stats.byRegion[region]})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchCameras}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </div>
         </div>
       </header>
@@ -122,8 +210,11 @@ export default function GeographicMap() {
           className="w-80 border-r border-border bg-card/50 backdrop-blur p-4 space-y-4 overflow-y-auto"
         >
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-lg">Camera Status</CardTitle>
+              <CardDescription className="text-xs">
+                Last updated: {format(lastRefresh, "HH:mm:ss")}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
@@ -131,7 +222,7 @@ export default function GeographicMap() {
                   <Camera className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm">Total Cameras</span>
                 </div>
-                <Badge variant="outline">{stats.total.toLocaleString()}</Badge>
+                <Badge variant="outline" className="font-bold">{stats.total.toLocaleString()}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -139,7 +230,7 @@ export default function GeographicMap() {
                   <span className="text-sm">Active</span>
                 </div>
                 <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                  {stats.active}
+                  {stats.active.toLocaleString()}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
@@ -148,7 +239,7 @@ export default function GeographicMap() {
                   <span className="text-sm">Inactive</span>
                 </div>
                 <Badge variant="outline" className="bg-gray-500/10 text-gray-500 border-gray-500/20">
-                  {stats.inactive}
+                  {stats.inactive.toLocaleString()}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
@@ -157,9 +248,27 @@ export default function GeographicMap() {
                   <span className="text-sm">Alerts</span>
                 </div>
                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                  {stats.alerts}
+                  {stats.alert.toLocaleString()}
                 </Badge>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Region Distribution */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Regional Distribution</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {Object.entries(stats.byRegion)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8)
+                .map(([region, count]) => (
+                  <div key={region} className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{region}</span>
+                    <span className="font-mono">{count}</span>
+                  </div>
+                ))}
             </CardContent>
           </Card>
 
@@ -169,33 +278,64 @@ export default function GeographicMap() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Camera Details</CardTitle>
+              <Card className="border-primary/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Camera Details
+                  </CardTitle>
                   <CardDescription>{selectedCamera.name}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">ID</span>
+                    <span className="text-sm font-mono">{selectedCamera.id}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Region</span>
-                    <span className="text-sm font-medium">{selectedCamera.region}</span>
+                    <span className="text-sm font-medium">{selectedCamera.address.region || selectedCamera.address.city}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Status</span>
-                    <Badge variant={selectedCamera.status === "active" ? "default" : "secondary"}>
+                    <Badge variant={selectedCamera.status === "active" ? "default" : selectedCamera.status === "alert" ? "destructive" : "secondary"}>
                       {selectedCamera.status}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Coordinates</span>
                     <span className="text-xs font-mono">
-                      {selectedCamera.lat.toFixed(4)}, {selectedCamera.lng.toFixed(4)}
+                      {selectedCamera.latitude.toFixed(4)}, {selectedCamera.longitude.toFixed(4)}
                     </span>
                   </div>
-                  {selectedCamera.hasAlert && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Activity className="w-3 h-3" /> Events
+                    </span>
+                    <span className="text-sm font-medium">{selectedCamera.eventCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Last Event
+                    </span>
+                    <span className="text-xs font-mono">
+                      {format(new Date(selectedCamera.lastEventTime), "MM/dd HH:mm")}
+                    </span>
+                  </div>
+                  {selectedCamera.status === "alert" && (
                     <div className="p-2 bg-primary/10 border border-primary/20 rounded-md">
                       <div className="flex items-center gap-2 text-primary">
                         <AlertTriangle className="w-4 h-4" />
-                        <span className="text-sm font-medium">Active Alert</span>
+                        <span className="text-sm font-medium">{selectedCamera.alertCount} Active Alert(s)</span>
+                      </div>
+                    </div>
+                  )}
+                  {selectedCamera.address.street && (
+                    <div className="flex items-start gap-2 pt-2 border-t border-border">
+                      <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+                      <div className="text-xs text-muted-foreground">
+                        {selectedCamera.address.street}
+                        {selectedCamera.address.district && `, ${selectedCamera.address.district}`}
+                        {selectedCamera.address.city && `, ${selectedCamera.address.city}`}
                       </div>
                     </div>
                   )}
@@ -205,7 +345,7 @@ export default function GeographicMap() {
           )}
 
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm">Legend</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -227,13 +367,19 @@ export default function GeographicMap() {
 
         {/* Map */}
         <div className="flex-1 relative">
+          {isLoading && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-card/90 backdrop-blur px-4 py-2 rounded-full flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Loading cameras...</span>
+            </div>
+          )}
           <MapContainer
             center={mapCenter}
-            zoom={6}
+            zoom={mapZoom}
             style={{ height: "100%", width: "100%" }}
             className="z-0"
           >
-            <MapController center={mapCenter} />
+            <MapController center={mapCenter} zoom={mapZoom} />
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -241,20 +387,26 @@ export default function GeographicMap() {
             {cameras.map((camera) => (
               <Marker
                 key={camera.id}
-                position={[camera.lat, camera.lng]}
-                icon={camera.hasAlert ? alertIcon : camera.status === "active" ? activeIcon : inactiveIcon}
+                position={[camera.latitude, camera.longitude]}
+                icon={camera.status === "alert" ? alertIcon : camera.status === "active" ? activeIcon : inactiveIcon}
                 eventHandlers={{
                   click: () => setSelectedCamera(camera),
                 }}
               >
                 <Popup>
-                  <div className="text-sm">
+                  <div className="text-sm min-w-[150px]">
                     <div className="font-semibold">{camera.name}</div>
-                    <div className="text-xs text-gray-600">{camera.region}</div>
+                    <div className="text-xs text-gray-600">{camera.address.region || camera.address.city}</div>
                     <div className="text-xs mt-1">
-                      Status: <span className={camera.status === "active" ? "text-green-600" : "text-gray-600"}>
+                      Status: <span className={
+                        camera.status === "active" ? "text-green-600" : 
+                        camera.status === "alert" ? "text-red-600" : "text-gray-600"
+                      }>
                         {camera.status}
                       </span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Events: {camera.eventCount}
                     </div>
                   </div>
                 </Popup>

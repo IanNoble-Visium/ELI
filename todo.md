@@ -1,182 +1,270 @@
-# ELI Unified Dashboard - Project TODO
+# ELI Unified Dashboard - Demo Preparation TODO
 
----
-## 🚨 PRIORITY NEXT: Quick Wins for Demo Readiness
----
-
-### Immediate (Next Session)
-- [ ] **Create mock data seed script** - Generate 3,084 cameras, sample events, incidents
-- [ ] **Add loading skeletons** to ExecutiveDashboard, Map, Topology, Incidents
-- [ ] **Implement actual purge logic** - PostgreSQL record deletion based on retention days
-- [ ] **Add tag filtering to incident list** - 90% done, just needs UI filter dropdown
-
-### Short-term Polish
-- [ ] **Test video playback** in Incident Management with IREX alert videos
-- [ ] **Add staggered animations** to dashboard cards and charts
-- [ ] **Fix any remaining Peru theme inconsistencies**
+> **Demo Date:** This Week
+> **Goal:** Impress the Peruvian Government with a professional, polished national surveillance platform
 
 ---
 
-## Phase 1: Core Infrastructure & Authentication ✅
-- [x] Set up database schema for events, snapshots, channels, AI jobs
-- [x] Implement hardcoded admin/admin authentication (no OAuth)
-- [x] Create base layout with Peru-themed colors (red #D91023, white, dark gray)
-- [x] Set up routing structure for all dashboard pages
-- [x] Fix JWT token format for hardcoded auth
-- [x] Fix cookie SameSite settings for localhost development
+## 🎯 DEMO PRIORITY MATRIX
 
-## Phase 2: Backend API - Webhook Ingestion ⚙️
-- [x] Port /webhook/irex endpoint from ELI-DEMO
-- [ ] Port /ingest/event and /ingest/snapshot legacy endpoints
-- [x] Implement PostgreSQL integration for events and snapshots
-- [ ] Implement Neo4j integration for graph relationships
-- [ ] Implement Cloudinary integration for image storage
-- [ ] Add mock mode support for development
+| Priority | Impact | Effort | Focus Area |
+|----------|--------|--------|------------|
+| P0 | Critical | Low | Must have for demo |
+| P1 | High | Medium | Visual polish & animations |
+| P2 | Medium | Medium | Enhanced features |
+| P3 | Nice to have | High | Future enhancements |
 
-## Phase 3: Backend API - Dashboard Endpoints ⚙️
-- [x] Create /api/dashboard/metrics endpoint (KPIs, stats)
-- [x] Create /api/events endpoint (list, filter, search)
-- [x] Create /api/snapshots endpoint
-- [x] Create /api/cameras endpoint
-- [ ] Create /api/graph/topology endpoint (Neo4j data)
-- [ ] Create /api/ai/predictive endpoint
-- [ ] Create /api/ai/behavior endpoint
-- [ ] Create /api/ai/anomaly endpoint
+---
 
-## Phase 4: Frontend - Landing Page ✅
-- [x] Create landing page with Peru theme
-- [x] Add animated statistics (cameras, regions, events)
-- [x] Integrate b-roll video background support
-- [x] Add "Enter Dashboard" CTA button
-- [x] Remove all sales/marketing content
-- [x] Ensure professional government-grade appearance
+## 🚨 P0 - CRITICAL FOR DEMO (Must Complete)
+*High impact, reasonable effort - complete these first*
 
-## Phase 5: Frontend - Executive Dashboard ✅
-- [x] Port executive dashboard from eli-dashboard
-- [x] Implement KPI cards with real-time data
-- [x] Add interactive timeline with zoom functionality
-- [x] Integrate Recharts for event distribution
-- [x] Add camera activity visualizations
-- [x] Implement time-range selector
-- [ ] Add identity image viewer with carousel
+### Loading States & Polish
+- [ ] **Add page loading skeletons** - Use existing `DashboardLayoutSkeleton` pattern for:
+  - [ ] ExecutiveDashboard (KPI cards + charts skeleton)
+  - [ ] GeographicMap (map placeholder with loading spinner)
+  - [ ] TopologyGraph (graph canvas skeleton)
+  - [ ] IncidentManagement (list skeleton)
+  - [ ] POLEAnalytics (cards + chart skeletons)
 
-## Phase 6: Frontend - Geographic Map ✅
-- [x] Port geographic map from eli-dashboard
-- [x] Integrate Leaflet with terrain features
-- [x] Add 3,084 camera markers from IREX mock data
-- [x] Implement event location plotting
-- [x] Add click-to-view event details
-- [x] Create professional legend and controls
+### Data & Content
+- [ ] **Ensure realistic demo data displays** - Verify all mock data shows Peru-specific content
+- [ ] **Test video backgrounds on Landing** - Confirm all 17 b-roll videos load smoothly
+- [ ] **Verify all navigation flows** - Test every route transition works
 
-## Phase 7: Frontend - Topology Graph ✅
-- [x] Port topology graph from eli-dashboard
-- [x] Implement react-force-graph-2d integration
-- [x] Add 5 layout modes (force, hierarchical, grid, radial, circular)
-- [x] Create mini-map navigator
-- [x] Add edge click functionality with details panel
-- [x] Implement node/edge filtering and search
+---
 
-## Phase 8: Frontend - Incident Management ✅
-- [x] Port incident management from IREX-DEMO to React
-- [x] Create incident list with filtering (status, priority, region)
-- [x] Integrate 10 alert videos from IREX
-- [x] Add detailed incident reports
-- [x] Implement video playback controls
-- [x] Add Peru-specific context (locations, units)
+## ⭐ P1 - HIGH IMPACT VISUAL POLISH
+*These will create the "wow factor" for the demo*
 
-## Phase 9: Frontend - POLE Analytics ✅
-- [x] Port POLE analytics from IREX-DEMO to React
-- [x] Create D3.js network visualization component
-- [x] Implement timeline analysis
-- [x] Add pattern recognition dashboard
-- [x] Create intelligence assessment panel
-- [x] Add entity management (People, Objects, Locations, Events)
+### Smooth Page Transitions
+- [ ] **Add route transition animations** - Wrap routes in AnimatePresence for smooth page fades
+- [ ] **Implement exit animations** - Add exit prop to page motion.div containers
 
-## Phase 10: Frontend - Data Management
-- [ ] Create data management tables
-- [ ] Add search and filtering
-- [ ] Implement CRUD operations
-- [ ] Add pagination and export functionality
+### Staggered Loading Animations
+- [ ] **ExecutiveDashboard KPI cards** - Cascade animation (already has basic motion, enhance with stagger)
+- [ ] **Dashboard selector cards** - Add staggered entrance (0.1s delay between each)
+- [ ] **Chart container reveals** - Add slide-up animations as charts come into view
 
-## Phase 11: Frontend - Global Search
-- [ ] Implement cross-data-type search
-- [ ] Add real-time results with performance metrics
-- [ ] Create advanced filtering options
+### Micro-interactions
+- [ ] **Button hover effects** - Add subtle scale/glow on primary action buttons
+- [ ] **Card hover states** - Enhance existing hover with subtle lift + shadow bloom
+- [ ] **Badge pulse animation** - Add pulse to critical/live status badges
+- [ ] **Icon hover rotations** - Subtle rotation on navigation icons
 
-## Phase 12: New Feature - Real-Time Webhook Viewer ✅
-- [x] Create /realtime route and page
-- [x] Implement WebSocket/SSE integration for live updates
-- [x] Design animated event cards (fade-in transitions)
-- [x] Add scrolling feed with live counter
-- [x] Implement filters (level, module, time)
-- [x] Add Framer Motion animations
+### Chart Enhancements
+- [ ] **Animated chart entry** - Charts should draw/animate in when visible
+- [ ] **Tooltip improvements** - Styled tooltips matching Peru theme
+- [ ] **Add gradient fills** - Subtle Peru red gradients on area charts
 
-## Phase 13: New Feature - Data Purge System ✅
-- [x] Create /api/purge endpoint
-- [ ] Implement Cloudinary image purge logic
-- [ ] Implement Neo4j node purge logic
-- [ ] Implement PostgreSQL record purge logic
-- [x] Add configuration panel in settings
-- [x] Create retention slider (1-30 days, default 7)
-- [x] Add "Purge Now" button with confirmation modal
-- [ ] Implement progress bar with SSE updates
+### Map Enhancements
+- [ ] **Camera marker clustering** - Group nearby cameras for cleaner view at low zoom
+- [ ] **Animated marker entry** - Cameras fade in with scale animation on load
+- [ ] **Hover state on markers** - Tooltip preview on marker hover
+- [ ] **Region boundary overlays** - Show Peru region outlines on map
 
-## Phase 14: Theme & Animations ⚙️
-- [x] Apply Peru color scheme globally (Tailwind config)
-- [ ] Update all components with Peru theme
-- [ ] Add Framer Motion to key components
-- [ ] Implement staggered chart loads
-- [ ] Add hover expansions and modal slides
-- [ ] Create graph node pulse animations
-- [ ] Ensure responsive mobile-first design
+### Topology Graph Enhancements
+- [ ] **Node pulse animations** - Active nodes should have subtle pulse
+- [ ] **Link particle speed variation** - Vary particle speed based on edge weight
+- [ ] **Zoom smooth transitions** - Smooth camera transitions on node click
 
-## Phase 15: Mock Data Integration
-- [ ] Port IREX mock data generators to TypeScript
-- [ ] Create seed scripts for PostgreSQL
-- [ ] Create seed scripts for Neo4j
-- [ ] Generate 3,084 camera locations
-- [ ] Generate Peru-specific regions and stations
-- [ ] Create realistic event/incident data
+---
 
-## Phase 16: Testing & Documentation
-- [ ] Write comprehensive README.md
-- [ ] Document environment variables
-- [ ] Create local development setup guide
-- [ ] Add Vercel deployment instructions
-- [ ] Document API endpoints
-- [ ] Add feature overview documentation
-- [ ] Test end-to-end webhook flow
-- [ ] Test all dashboard views with mock data
-- [ ] Verify Peru theme consistency
+## 🎨 P2 - PROFESSIONAL ENHANCEMENTS
+*Additional polish to elevate the demo experience*
 
-## Phase 17: Final Polish
-- [ ] Add loading skeletons for all data views
-- [ ] Implement error boundaries and toasts
-- [ ] Add accessibility features (ARIA labels, keyboard nav)
-- [ ] Optimize performance (lazy loading, code splitting)
-- [ ] Add tooltips and help text
-- [ ] Ensure all videos load properly
-- [ ] Test local development workflow
-- [ ] Prepare for Vercel deployment
+### Real-time Updates Visual Feedback
+- [ ] **Live data indicator** - Animated "LIVE" badge in header
+- [ ] **Auto-refresh countdown** - Show subtle refresh timer on dashboards
+- [ ] **New data flash effect** - Briefly highlight when new data arrives
 
+### Dashboard Refinements
+- [ ] **Stat change indicators** - Animated +/- indicators on KPI changes
+- [ ] **Trend sparklines** - Mini inline charts showing 7-day trends
+- [ ] **Last updated timestamps** - "Updated 30 seconds ago" with auto-refresh
 
-## New Feature Request: Incident Notes & Tags ✅
-- [x] Update database schema with incident_notes and incident_tags tables
-- [x] Create backend API endpoints for notes CRUD operations
-- [x] Create backend API endpoints for tags CRUD operations
-- [x] Build UI component for adding notes to incidents
-- [x] Build UI component for adding/removing tags to incidents
-- [x] Display notes timeline in incident detail view
-- [x] Display tags as badges in incident cards and detail view
-- [ ] Add tag filtering to incident list
-- [ ] Test notes and tags functionality
+### Incident Management Polish
+- [ ] **Tag filtering dropdown** - Filter incidents by tag (90% done)
+- [ ] **Incident priority badges animation** - Pulse animation on critical
+- [ ] **Status change transitions** - Smooth color transitions on status update
+- [ ] **Video thumbnail previews** - Show video frame instead of placeholder
 
-## Follow-Up Features - Incident Management Enhancements
-- [ ] Add tag-based filtering to incident list (filter by specific tags)
-- [ ] Implement export incident reports to PDF (including notes and tags)
-- [ ] Add @mentions in notes to notify specific officers or units
-- [ ] Create comment thread feature for team collaboration on incidents
-- [ ] Add note edit functionality (currently only add/delete)
-- [ ] Implement tag autocomplete from existing tags
-- [ ] Add bulk tagging for multiple incidents
-- [ ] Create incident activity timeline showing all notes, tags, and status changes
+### Navigation Enhancements
+- [ ] **Breadcrumb trail** - Show navigation path on subpages
+- [ ] **Active route indicator** - Subtle glow on current nav item
+- [ ] **Keyboard shortcuts** - Add Ctrl+1-6 for quick navigation
+
+### Sound & Haptics (Optional)
+- [ ] **Alert sound toggle** - Option for audio notifications on critical alerts
+- [ ] **Click feedback sounds** - Subtle UI sounds (disabled by default)
+
+---
+
+## ✨ WOW FACTOR - DEMO HIGHLIGHTS
+*Features specifically designed to impress government stakeholders*
+
+### Landing Page
+- [x] ✅ Peru b-roll video background with smooth transitions
+- [x] ✅ Animated statistics counters
+- [ ] **Add "SISTEMA NACIONAL" government seal/badge**
+- [ ] **Typing effect on subtitle** - "Peru's National Surveillance & Intelligence Platform"
+
+### Executive Dashboard "Command Center" Feel
+- [ ] **Full-screen mode** - F11 fullscreen toggle for presentations
+- [ ] **Dark ambient glow** - Subtle red glow around critical stats
+- [ ] **Real-time event ticker** - Scrolling ticker of recent events at bottom
+
+### Geographic Map "Situational Awareness"
+- [ ] **Heat map overlay toggle** - Event density heat map option
+- [ ] **Quick region jump** - Dropdown to instantly fly to any of 25 regions
+- [ ] **Incident cluster markers** - Show incident counts by region
+
+### Topology Graph "Intelligence Network"
+- [ ] **Relationship highlighting** - Click node to highlight all connections
+- [ ] **Path finding demo** - Show shortest path between two entities
+- [ ] **Export graph image** - One-click PNG export of current view
+
+### Real-time Feed "Live Operations"
+- [ ] **Large display mode** - Optimized for big screens/projectors
+- [ ] **Event sound notifications** - Optional alert sounds
+- [ ] **Quick filters pills** - One-click filter buttons
+
+---
+
+## 🔧 TECHNICAL IMPROVEMENTS
+*Performance and reliability for smooth demo*
+
+### Performance
+- [ ] **Lazy load heavy pages** - React.lazy for Map, Topology, POLE
+- [ ] **Optimize map markers** - Virtual scrolling for 3,084 cameras
+- [ ] **Chart data caching** - TanStack Query with stale time
+
+### Error Handling
+- [x] ✅ Error boundary wrapper in App.tsx
+- [x] ✅ Toast notifications via Sonner
+- [ ] **Graceful fallbacks** - Show placeholder on data fetch failure
+- [ ] **Offline detection** - Show "Reconnecting..." on network loss
+
+### Demo Mode
+- [ ] **Demo data generator** - Script to populate realistic Peru data
+- [ ] **Quick reset** - One-click return to demo initial state
+- [ ] **Guided tour option** - Step-by-step feature walkthrough (nice-to-have)
+
+---
+
+## ✅ COMPLETED PHASES
+
+### Phase 1: Core Infrastructure ✅
+- [x] Database schema (events, snapshots, channels, AI jobs)
+- [x] Hardcoded admin/admin authentication
+- [x] Peru theme colors (red #D91023, white, dark gray)
+- [x] All dashboard routes configured
+- [x] JWT token and cookie settings
+
+### Phase 2-3: Backend APIs ⚙️ (Partial)
+- [x] Webhook ingestion endpoint
+- [x] PostgreSQL integration
+- [x] Dashboard metrics endpoint
+- [x] Events, snapshots, cameras endpoints
+- [ ] Neo4j integration (future)
+- [ ] Cloudinary integration (future)
+
+### Phase 4: Landing Page ✅
+- [x] Video background with 17 Peru b-roll clips
+- [x] Animated stats (3,084 cameras, 25 regions, 107 stations)
+- [x] Framer Motion animations
+- [x] Professional government appearance
+
+### Phase 5: Executive Dashboard ✅
+- [x] KPI cards with trend indicators
+- [x] Recharts line/bar/pie charts
+- [x] Time-range selector
+- [x] Motion animations on cards
+
+### Phase 6: Geographic Map ✅
+- [x] Leaflet integration
+- [x] Mock 3,084 camera markers
+- [x] Click-to-view details
+- [x] Legend and controls
+
+### Phase 7: Topology Graph ✅
+- [x] react-force-graph-2d
+- [x] 5 layout modes
+- [x] Node/edge filtering
+- [x] Search functionality
+
+### Phase 8: Incident Management ✅
+- [x] Incident list with filtering
+- [x] Status/priority badges
+- [x] Notes and tags system
+- [x] Video evidence placeholders
+
+### Phase 9: POLE Analytics ✅
+- [x] People/Objects/Locations/Events tabs
+- [x] Timeline charts
+- [x] Pattern recognition display
+- [x] Entity tracking tables
+
+### Phase 10: Real-time Webhooks ✅
+- [x] Live event feed
+- [x] AnimatePresence transitions
+- [x] Pause/play controls
+- [x] Filtering by level/module
+
+### Phase 11: Settings ✅
+- [x] Data retention slider
+- [x] Purge confirmation modal
+- [x] Storage statistics display
+- [x] System information
+
+---
+
+## 📋 POST-DEMO BACKLOG
+
+*Lower priority items for after the demo*
+
+### Backend Integrations
+- [ ] Neo4j graph database connection
+- [ ] Cloudinary image storage
+- [ ] Full purge logic implementation
+- [ ] Predictive/behavior/anomaly AI endpoints
+
+### Advanced Features
+- [ ] Global cross-type search
+- [ ] Data management CRUD tables
+- [ ] PDF report export
+- [ ] @mentions in notes
+- [ ] Comment threading
+- [ ] Tag autocomplete
+- [ ] Bulk operations
+
+### Documentation
+- [ ] Environment variables docs
+- [ ] Local development guide
+- [ ] API endpoint documentation
+- [ ] Deployment instructions
+
+---
+
+## 📊 DEMO CHECKLIST
+
+Before the demo, verify:
+
+- [ ] All pages load without errors
+- [ ] Landing video plays smoothly
+- [ ] Login works (admin/admin)
+- [ ] All navigation flows work
+- [ ] Charts display with data
+- [ ] Map shows camera markers
+- [ ] Topology graph renders
+- [ ] Incidents list displays
+- [ ] POLE tabs switch correctly
+- [ ] Real-time feed updates
+- [ ] Settings page functional
+- [ ] Mobile/tablet responsive (if needed)
+- [ ] Tested on demo presentation device
+
+---
+
+*Last Updated: December 2024*
+*Target: Peruvian Government Demo*

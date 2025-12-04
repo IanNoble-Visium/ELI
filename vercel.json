@@ -9,6 +9,14 @@
       "destination": "/api/trpc/[trpc]"
     },
     {
+      "source": "/api/data/:path*",
+      "destination": "/api/data/:path*"
+    },
+    {
+      "source": "/api/webhooks/:path*",
+      "destination": "/api/webhooks/:path*"
+    },
+    {
       "source": "/webhook/irex",
       "destination": "/api/webhook/irex"
     },

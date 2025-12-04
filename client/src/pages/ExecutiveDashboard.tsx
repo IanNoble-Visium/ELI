@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { trpc } from "@/lib/trpc";
 import { 
   ArrowLeft, 
   Camera, 
@@ -11,91 +10,114 @@ import {
   AlertTriangle, 
   Activity,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  RefreshCw
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { motion } from "framer-motion";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
+
+interface DashboardStats {
+  overview: {
+    totalCameras: number;
+    activeCameras: number;
+    inactiveCameras: number;
+    alertCameras: number;
+    totalEvents: number;
+    criticalAlerts: number;
+  };
+  eventsByType: Record<string, number>;
+  eventsByLevel: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  timelineData: { day: string; events: number; alerts: number }[];
+  regionalActivity: { region: string; cameras: number; events: number }[];
+  recentAlerts: any[];
+  lastUpdated: string;
+}
 
 export default function ExecutiveDashboard() {
   const [, setLocation] = useLocation();
   const [timeRange, setTimeRange] = useState("7d");
-  
-  // Calculate time range
-  const getTimeRange = () => {
-    const now = Date.now();
-    const ranges: Record<string, number> = {
-      "24h": now - 24 * 60 * 60 * 1000,
-      "7d": now - 7 * 24 * 60 * 60 * 1000,
-      "30d": now - 30 * 24 * 60 * 60 * 1000,
-      "90d": now - 90 * 24 * 60 * 60 * 1000,
-    };
-    return { startTime: ranges[timeRange] || ranges["7d"], endTime: now };
-  };
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  const { startTime, endTime } = getTimeRange();
-  
-  const { data: metrics, isLoading } = trpc.dashboard.metrics.useQuery({
-    startTime,
-    endTime,
-  });
+  // Fetch real statistics
+  const fetchStats = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/data/stats?timeRange=${timeRange}`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) throw new Error("Failed to fetch stats");
+      
+      const data = await response.json();
+      
+      if (data.success !== false) {
+        setStats(data);
+      }
+      
+      setLastRefresh(new Date());
+    } catch (error) {
+      console.error("[Dashboard] Fetch error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeRange]);
 
-  // Mock data for charts (will be replaced with real data)
-  const eventsByDay = [
-    { date: "Mon", events: 45, alerts: 12 },
-    { date: "Tue", events: 52, alerts: 8 },
-    { date: "Wed", events: 38, alerts: 15 },
-    { date: "Thu", events: 61, alerts: 10 },
-    { date: "Fri", events: 48, alerts: 18 },
-    { date: "Sat", events: 35, alerts: 7 },
-    { date: "Sun", events: 42, alerts: 9 },
-  ];
+  // Initial fetch and auto-refresh
+  useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, [fetchStats]);
 
-  const eventsByType = [
-    { name: "Intrusion", value: 35, color: "#D91023" },
-    { name: "Loitering", value: 28, color: "#E63946" },
-    { name: "Vehicle", value: 22, color: "#F77F00" },
-    { name: "Crowd", value: 15, color: "#FCBF49" },
-  ];
+  // Prepare chart data
+  const eventsByType = stats ? Object.entries(stats.eventsByType).map(([name, value], i) => ({
+    name,
+    value,
+    color: ["#D91023", "#E63946", "#F77F00", "#FCBF49"][i % 4],
+  })) : [];
 
-  const regionActivity = [
-    { region: "Lima", events: 156, cameras: 842 },
-    { region: "Cusco", events: 89, cameras: 324 },
-    { region: "Arequipa", events: 67, cameras: 298 },
-    { region: "Trujillo", events: 54, cameras: 215 },
-    { region: "Piura", events: 43, cameras: 187 },
-  ];
+  const eventsByDay = stats?.timelineData || [];
+  const regionActivity = stats?.regionalActivity || [];
 
+  // KPI calculations
   const kpis = [
     {
       title: "Total Events",
-      value: metrics?.totalEvents?.toLocaleString() || "0",
+      value: stats?.overview.totalEvents?.toLocaleString() || "0",
       change: "+12%",
-      trend: "up",
+      trend: "up" as const,
       icon: Activity,
       color: "text-primary",
     },
     {
       title: "Active Cameras",
-      value: metrics?.activeChannels?.toLocaleString() || "0",
-      change: "+5",
-      trend: "up",
+      value: stats?.overview.activeCameras?.toLocaleString() || "0",
+      change: `${Math.round((stats?.overview.activeCameras || 0) / (stats?.overview.totalCameras || 1) * 100)}%`,
+      trend: "up" as const,
       icon: Camera,
       color: "text-green-500",
     },
     {
       title: "Total Cameras",
-      value: metrics?.totalChannels?.toLocaleString() || "3,084",
-      change: "0%",
-      trend: "neutral",
+      value: stats?.overview.totalCameras?.toLocaleString() || "3,015",
+      change: "Deployed",
+      trend: "neutral" as const,
       icon: MapPin,
       color: "text-blue-500",
     },
     {
       title: "Critical Alerts",
-      value: "23",
-      change: "-8%",
-      trend: "down",
+      value: stats?.overview.criticalAlerts?.toLocaleString() || "0",
+      change: stats?.overview.alertCameras ? `${stats.overview.alertCameras} cameras` : "0 cameras",
+      trend: (stats?.overview.criticalAlerts || 0) > 10 ? "up" as const : "down" as const,
       icon: AlertTriangle,
       color: "text-orange-500",
     },
@@ -117,21 +139,34 @@ export default function ExecutiveDashboard() {
             </Button>
             <div>
               <h1 className="text-xl font-bold">Executive Dashboard</h1>
-              <p className="text-xs text-muted-foreground">Real-time analytics and KPIs</p>
+              <p className="text-xs text-muted-foreground">
+                Real-time analytics • Last updated: {format(lastRefresh, "HH:mm:ss")}
+              </p>
             </div>
           </div>
           
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select time range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="24h">Last 24 Hours</SelectItem>
-              <SelectItem value="7d">Last 7 Days</SelectItem>
-              <SelectItem value="30d">Last 30 Days</SelectItem>
-              <SelectItem value="90d">Last 90 Days</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select time range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24h">Last 24 Hours</SelectItem>
+                <SelectItem value="7d">Last 7 Days</SelectItem>
+                <SelectItem value="30d">Last 30 Days</SelectItem>
+                <SelectItem value="90d">Last 90 Days</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchStats}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -159,7 +194,7 @@ export default function ExecutiveDashboard() {
                     <span className={kpi.trend === "up" ? "text-green-500" : kpi.trend === "down" ? "text-red-500" : ""}>
                       {kpi.change}
                     </span>
-                    <span>vs last period</span>
+                    {kpi.trend !== "neutral" && <span>vs last period</span>}
                   </div>
                 </CardContent>
               </Card>
@@ -184,7 +219,7 @@ export default function ExecutiveDashboard() {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={eventsByDay}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="date" stroke="#9CA3AF" />
+                    <XAxis dataKey="day" stroke="#9CA3AF" />
                     <YAxis stroke="#9CA3AF" />
                     <Tooltip 
                       contentStyle={{ backgroundColor: "#374151", border: "1px solid #4B5563" }}
@@ -266,6 +301,46 @@ export default function ExecutiveDashboard() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Recent Alerts */}
+        {stats?.recentAlerts && stats.recentAlerts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.4 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Alerts</CardTitle>
+                <CardDescription>Latest security events from the surveillance network</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {stats.recentAlerts.slice(0, 5).map((alert, i) => (
+                    <div key={alert.id || i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${
+                          alert.level === 3 ? "bg-red-500" :
+                          alert.level === 2 ? "bg-orange-500" :
+                          alert.level === 1 ? "bg-yellow-500" : "bg-blue-500"
+                        }`} />
+                        <div>
+                          <div className="font-medium text-sm">{alert.type}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {alert.camera} • {alert.region}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(alert.timestamp), "HH:mm:ss")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </main>
     </div>
   );
