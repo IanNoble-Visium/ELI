@@ -40,6 +40,17 @@ export default function Settings() {
     },
   });
 
+  const purgeMutation = trpc.config.purge.useMutation({
+    onSuccess: (result) => {
+      toast.success("Data purge completed", {
+        description: `Deleted ${result.deletedEvents} events, ${result.deletedSnapshots} snapshots, ${result.deletedWebhookRequests} webhook logs`,
+      });
+    },
+    onError: (error) => {
+      toast.error(`Purge failed: ${error.message}`);
+    },
+  });
+
   const handleSaveRetention = () => {
     updateConfigMutation.mutate({
       key: "dataRetentionDays",
@@ -48,9 +59,7 @@ export default function Settings() {
   };
 
   const handlePurgeData = () => {
-    toast.info("Data purge initiated", {
-      description: "This feature will be implemented with backend support",
-    });
+    purgeMutation.mutate({ retentionDays: retentionDays[0] });
   };
 
   return (
@@ -178,9 +187,9 @@ export default function Settings() {
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive">
+                  <Button variant="destructive" disabled={purgeMutation.isPending}>
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Purge Old Data Now
+                    {purgeMutation.isPending ? "Purging..." : "Purge Old Data Now"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>

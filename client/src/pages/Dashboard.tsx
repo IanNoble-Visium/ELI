@@ -10,9 +10,11 @@ import {
   Users, 
   Activity,
   Settings,
-  LogOut
+  LogOut,
+  Shield
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { motion } from "framer-motion";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -75,16 +77,24 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Peru flag accent at top */}
+      <div className="fixed top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-white to-primary z-50" />
+      
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur sticky top-0 z-50">
+      <header className="border-b border-border bg-card/80 backdrop-blur-lg sticky top-1 z-40">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-              <LayoutDashboard className="w-5 h-5 text-primary" />
-            </div>
+            <motion.div 
+              className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center ring-2 ring-primary/30"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Shield className="w-5 h-5 text-primary" />
+            </motion.div>
             <div>
-              <h1 className="text-xl font-bold">ELI Dashboard</h1>
-              <p className="text-xs text-muted-foreground">Peru Surveillance Platform</p>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">ELI Dashboard</h1>
+              <p className="text-xs text-primary/80 font-medium">Peru Surveillance Platform</p>
             </div>
           </div>
           
@@ -96,6 +106,7 @@ export default function Dashboard() {
             <Button
               variant="outline"
               size="sm"
+              className="hover:border-primary/50 hover:bg-primary/10"
               onClick={() => setLocation("/dashboard/settings")}
             >
               <Settings className="w-4 h-4" />
@@ -103,6 +114,7 @@ export default function Dashboard() {
             <Button
               variant="outline"
               size="sm"
+              className="hover:border-primary/50 hover:bg-primary/10"
               onClick={handleLogout}
               disabled={logoutMutation.isPending}
             >
@@ -114,33 +126,48 @@ export default function Dashboard() {
       
       {/* Main Content */}
       <main className="container py-8">
-        <div className="mb-8">
+        <motion.div 
+          className="mb-8"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
           <h2 className="text-3xl font-bold mb-2">Welcome back, {user?.name}</h2>
           <p className="text-muted-foreground">
             Select a module to access surveillance and analytics tools
           </p>
-        </div>
+        </motion.div>
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {dashboardSections.map((section) => (
-            <Card
+          {dashboardSections.map((section, index) => (
+            <motion.div
               key={section.route}
-              className="cursor-pointer hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10"
-              onClick={() => setLocation(section.route)}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1, duration: 0.5 }}
+              whileHover={{ y: -8, scale: 1.02 }}
             >
-              <CardHeader>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <section.icon className={`w-6 h-6 ${section.color}`} />
-                </div>
-                <CardTitle>{section.title}</CardTitle>
-                <CardDescription>{section.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="outline" className="w-full">
-                  Open Module
-                </Button>
-              </CardContent>
-            </Card>
+              <Card
+                className="cursor-pointer border-border/50 hover:border-primary/60 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20 bg-card/60 backdrop-blur-sm h-full group"
+                onClick={() => setLocation(section.route)}
+              >
+                <CardHeader>
+                  <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-4 ring-2 ring-primary/20 group-hover:ring-primary/40 group-hover:bg-primary/20 transition-all duration-300">
+                    <section.icon className={`w-7 h-7 ${section.color} drop-shadow-sm`} />
+                  </div>
+                  <CardTitle className="text-lg">{section.title}</CardTitle>
+                  <CardDescription className="text-sm">{section.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button 
+                    variant="outline" 
+                    className="w-full group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary transition-all duration-300"
+                  >
+                    Open Module
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
         </div>
       </main>
