@@ -1,0 +1,344 @@
+/**
+ * Database utility for Vercel serverless functions
+ * Provides lazy database connection with proper error handling
+ */
+import { drizzle, MySql2Database } from "drizzle-orm/mysql2";
+import { and, desc, eq, gte, lte, sql, count } from "drizzle-orm";
+import {
+  events,
+  channels,
+  webhookRequests,
+  snapshots,
+  incidents,
+} from "../../drizzle/schema";
+
+// Cache the drizzle instance to reuse across requests
+let _db: MySql2Database<Record<string, never>> | null = null;
+
+/**
+ * Get or create a database connection
+ * Returns null if DATABASE_URL is not configured
+ */
+export async function getDb(): Promise<MySql2Database<Record<string, never>> | null> {
+  if (_db) return _db;
+  
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.warn("[API DB] DATABASE_URL not configured");
+    return null;
+  }
+
+  try {
+    _db = drizzle(dbUrl);
+    console.log("[API DB] Database connected successfully");
+    return _db;
+  } catch (error) {
+    console.error("[API DB] Failed to connect to database:", error);
+    return null;
+  }
+}
+
+// Re-export commonly used drizzle functions for convenience
+export { and, desc, eq, gte, lte, sql, count };
+
+// Re-export schema tables
+export { events, channels, webhookRequests, snapshots, incidents };
+
+// ========== Webhook Requests ==========
+
+export async function insertWebhookRequest(data: {
+  endpoint: string;
+  method: string;
+  payload?: any;
+  eventId?: string;
+  level?: string;
+  module?: string;
+  status?: string;
+  error?: string;
+  processingTime?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(webhookRequests).values({
+    endpoint: data.endpoint,
+    method: data.method,
+    payload: data.payload || null,
+    eventId: data.eventId || null,
+    level: data.level || null,
+    module: data.module || null,
+    status: data.status || "success",
+    error: data.error || null,
+    processingTime: data.processingTime || null,
+  });
+}
+
+export async function getRecentWebhooks(limit: number = 100) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(webhookRequests)
+    .orderBy(desc(webhookRequests.createdAt))
+    .limit(limit);
+}
+
+// ========== Events ==========
+
+export async function insertEvent(data: {
+  id: string;
+  eventId?: string;
+  monitorId?: string;
+  topic?: string;
+  module?: string;
+  level?: string;
+  startTime?: number;
+  endTime?: number;
+  latitude?: number;
+  longitude?: number;
+  channelId?: string;
+  channelType?: string;
+  channelName?: string;
+  channelAddress?: any;
+  params?: any;
+  tags?: any;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(events).values(data).onDuplicateKeyUpdate({
+    set: {
+      ...data,
+      createdAt: sql`created_at`, // Keep original
+    },
+  });
+}
+
+export async function getRecentEvents(options: {
+  limit?: number;
+  level?: string;
+  topic?: string;
+  region?: string;
+} = {}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const { limit = 100, level, topic, region } = options;
+  const conditions = [];
+
+  if (level && level !== "all") {
+    conditions.push(eq(events.level, level));
+  }
+  if (topic && topic !== "all") {
+    conditions.push(eq(events.topic, topic));
+  }
+
+  let query = db.select().from(events);
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+
+  return query.orderBy(desc(events.startTime)).limit(limit);
+}
+
+// ========== Channels ==========
+
+export async function upsertChannel(data: {
+  id: string;
+  name?: string;
+  channelType?: string;
+  latitude?: number;
+  longitude?: number;
+  address?: any;
+  tags?: any;
+  status?: string;
+  region?: string;
+  policeStation?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(channels).values(data).onDuplicateKeyUpdate({
+    set: {
+      ...data,
+      updatedAt: sql`NOW()`,
+    },
+  });
+}
+
+export async function getChannelsList(options: {
+  region?: string;
+  status?: string;
+  limit?: number;
+} = {}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const { region, status, limit } = options;
+  const conditions = [];
+
+  if (region && region !== "all") {
+    conditions.push(eq(channels.region, region));
+  }
+  if (status && status !== "all") {
+    conditions.push(eq(channels.status, status));
+  }
+
+  let query = db.select().from(channels);
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+
+  if (limit) {
+    query = query.limit(limit) as any;
+  }
+
+  return query;
+}
+
+// ========== Statistics ==========
+
+export async function getDashboardStats(timeRange: string = "7d") {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Calculate time range
+  const now = Date.now();
+  const rangeDays = timeRange === "24h" ? 1 : timeRange === "7d" ? 7 : 30;
+  const startTime = now - rangeDays * 24 * 60 * 60 * 1000;
+
+  try {
+    // Total events in time range
+    const [eventCountResult] = await db
+      .select({ count: count() })
+      .from(events)
+      .where(gte(events.startTime, startTime));
+
+    // Total channels
+    const [channelCountResult] = await db
+      .select({ count: count() })
+      .from(channels);
+
+    // Active channels
+    const [activeChannelResult] = await db
+      .select({ count: count() })
+      .from(channels)
+      .where(eq(channels.status, "active"));
+
+    // Inactive channels
+    const [inactiveChannelResult] = await db
+      .select({ count: count() })
+      .from(channels)
+      .where(eq(channels.status, "inactive"));
+
+    // Alert channels
+    const [alertChannelResult] = await db
+      .select({ count: count() })
+      .from(channels)
+      .where(eq(channels.status, "alert"));
+
+    // Events by level
+    const eventsByLevelResult = await db
+      .select({
+        level: events.level,
+        count: count(),
+      })
+      .from(events)
+      .where(gte(events.startTime, startTime))
+      .groupBy(events.level);
+
+    // Events by topic
+    const eventsByTopicResult = await db
+      .select({
+        topic: events.topic,
+        count: count(),
+      })
+      .from(events)
+      .where(gte(events.startTime, startTime))
+      .groupBy(events.topic);
+
+    // Channels by region
+    const channelsByRegionResult = await db
+      .select({
+        region: channels.region,
+        count: count(),
+      })
+      .from(channels)
+      .groupBy(channels.region);
+
+    // Format results
+    const eventsByLevel: Record<string, number> = {};
+    eventsByLevelResult.forEach(row => {
+      if (row.level) eventsByLevel[row.level] = row.count;
+    });
+
+    const eventsByType: Record<string, number> = {};
+    eventsByTopicResult.forEach(row => {
+      if (row.topic) eventsByType[row.topic] = row.count;
+    });
+
+    const channelsByRegion: Record<string, number> = {};
+    channelsByRegionResult.forEach(row => {
+      if (row.region) channelsByRegion[row.region] = row.count;
+    });
+
+    return {
+      overview: {
+        totalEvents: eventCountResult?.count || 0,
+        totalCameras: channelCountResult?.count || 0,
+        activeCameras: activeChannelResult?.count || 0,
+        inactiveCameras: inactiveChannelResult?.count || 0,
+        alertCameras: alertChannelResult?.count || 0,
+        criticalAlerts: eventsByLevel["3"] || 0,
+      },
+      eventsByType,
+      eventsByLevel: {
+        critical: eventsByLevel["3"] || 0,
+        high: eventsByLevel["2"] || 0,
+        medium: eventsByLevel["1"] || 0,
+        low: eventsByLevel["0"] || 0,
+      },
+      channelsByRegion,
+    };
+  } catch (error) {
+    console.error("[API DB] Error getting dashboard stats:", error);
+    return null;
+  }
+}
+
+// ========== Incidents ==========
+
+export async function getIncidentsList(options: {
+  status?: string;
+  priority?: string;
+  region?: string;
+  limit?: number;
+} = {}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const { status, priority, region, limit = 100 } = options;
+  const conditions = [];
+
+  if (status && status !== "all") {
+    conditions.push(eq(incidents.status, status));
+  }
+  if (priority && priority !== "all") {
+    conditions.push(eq(incidents.priority, priority));
+  }
+  if (region && region !== "all") {
+    conditions.push(eq(incidents.region, region));
+  }
+
+  let query = db.select().from(incidents);
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+
+  return query.orderBy(desc(incidents.createdAt)).limit(limit);
+}
+

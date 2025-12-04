@@ -12,9 +12,10 @@ interface LiveStats {
   alerts: number;
 }
 
-// List of Peru-themed b-roll videos
+// List of Peru-themed b-roll videos (all videos from public/videos folder)
 const VIDEO_FILES = [
   "/videos/2_an_aerial_202512030350_431lr.mp4",
+  "/videos/10_10_an_202512030350_pb560.mp4",
   "/videos/11_a_hyperrealistic_202512030351_sif3j.mp4",
   "/videos/12_a_cinematic_202512030351_7xkq5.mp4",
   "/videos/13_an_aerial_202512030351_fhfi4.mp4",
@@ -22,7 +23,7 @@ const VIDEO_FILES = [
   "/videos/17_a_cinematic_202512030351_vc7mw.mp4",
   "/videos/18_an_aerial_202512030351_v3zb3.mp4",
   "/videos/20_a_hyperrealistic_202512030351_hsxbr.mp4",
-  "/videos/21_a_subtle_202512030351_0w7x8.mp4",
+  "/videos/21_a_subtle_202512030351_0wt10.mp4",
   "/videos/26_a_cinematic_202512030351_siwtx.mp4",
   "/videos/30_an_aerial_202512030351_wihjp.mp4",
   "/videos/34_a_cinematic_202512030352_562ir.mp4",

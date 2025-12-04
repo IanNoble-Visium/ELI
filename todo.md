@@ -20,17 +20,17 @@
 *High impact, reasonable effort - complete these first*
 
 ### Loading States & Polish
-- [ ] **Add page loading skeletons** - Use existing `DashboardLayoutSkeleton` pattern for:
-  - [ ] ExecutiveDashboard (KPI cards + charts skeleton)
-  - [ ] GeographicMap (map placeholder with loading spinner)
-  - [ ] TopologyGraph (graph canvas skeleton)
-  - [ ] IncidentManagement (list skeleton)
-  - [ ] POLEAnalytics (cards + chart skeletons)
+- [x] **Add page loading skeletons** - Use existing `DashboardLayoutSkeleton` pattern for:
+  - [x] ExecutiveDashboard (KPI cards + charts skeleton)
+  - [x] GeographicMap (map placeholder with loading spinner)
+  - [x] TopologyGraph (graph canvas skeleton)
+  - [x] IncidentManagement (list skeleton)
+  - [x] POLEAnalytics (cards + chart skeletons)
 
 ### Data & Content
-- [ ] **Ensure realistic demo data displays** - Verify all mock data shows Peru-specific content
-- [ ] **Test video backgrounds on Landing** - Confirm all 17 b-roll videos load smoothly
-- [ ] **Verify all navigation flows** - Test every route transition works
+- [x] **Ensure realistic demo data displays** - Verify all mock data shows Peru-specific content
+- [x] **Test video backgrounds on Landing** - Confirm all 18 b-roll videos load smoothly (fixed path)
+- [x] **Verify all navigation flows** - Test every route transition works (all routes verified)
 
 ---
 
