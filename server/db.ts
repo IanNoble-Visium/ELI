@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, lte, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { neon } from "@neondatabase/serverless";
+import { drizzle, NeonHttpDatabase } from "drizzle-orm/neon-http";
 import {
   users,
   events,
@@ -21,13 +22,14 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: NeonHttpDatabase | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const client = neon(process.env.DATABASE_URL);
+      _db = drizzle(client);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -79,14 +81,15 @@ export async function upsertUser(user: typeof users.$inferInsert): Promise<void>
     }
 
     if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
+      values.lastSignedIn = new Date().toISOString();
     }
 
     if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
+      updateSet.lastSignedIn = new Date().toISOString();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {
@@ -113,10 +116,11 @@ export async function insertEvent(event: typeof events.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.insert(events).values(event).onDuplicateKeyUpdate({
+  await db.insert(events).values(event).onConflictDoUpdate({
+    target: events.id,
     set: {
       ...event,
-      createdAt: sql`createdAt`, // Keep original createdAt
+      createdAt: sql`created_at`, // Keep original createdAt
     },
   });
 }
@@ -182,7 +186,8 @@ export async function insertSnapshot(snapshot: typeof snapshots.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.insert(snapshots).values(snapshot).onDuplicateKeyUpdate({
+  await db.insert(snapshots).values(snapshot).onConflictDoUpdate({
+    target: snapshots.id,
     set: snapshot,
   });
 }
@@ -200,7 +205,8 @@ export async function upsertChannel(channel: typeof channels.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.insert(channels).values(channel).onDuplicateKeyUpdate({
+  await db.insert(channels).values(channel).onConflictDoUpdate({
+    target: channels.id,
     set: channel,
   });
 }
@@ -269,8 +275,9 @@ export async function setSystemConfig(key: string, value: string, description?: 
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.insert(systemConfig).values({ key, value, description }).onDuplicateKeyUpdate({
-    set: { value, description, updatedAt: new Date() },
+  await db.insert(systemConfig).values({ key, value, description }).onConflictDoUpdate({
+    target: systemConfig.key,
+    set: { value, description, updatedAt: new Date().toISOString() },
   });
 }
 
@@ -367,10 +374,8 @@ export async function purgeOldData(retentionDays: number) {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
   const cutoffTimestamp = cutoffDate.getTime();
+  const cutoffDateStr = cutoffDate.toISOString();
 
-  let deletedEvents = 0;
-  let deletedSnapshots = 0;
-  let deletedWebhookRequests = 0;
   const cloudinaryIds: string[] = [];
 
   try {
@@ -388,29 +393,30 @@ export async function purgeOldData(retentionDays: number) {
     );
 
     // Delete old snapshots (via events relationship)
-    const snapshotResult = await db.delete(snapshots).where(
+    await db.delete(snapshots).where(
       sql`event_id IN (SELECT id FROM events WHERE start_time <= ${cutoffTimestamp})`
     );
 
     // Delete old events
-    const eventResult = await db.delete(events).where(
+    await db.delete(events).where(
       lte(events.startTime, cutoffTimestamp)
     );
 
     // Delete old webhook requests
-    const webhookResult = await db.delete(webhookRequests).where(
-      lte(webhookRequests.createdAt, cutoffDate)
+    await db.delete(webhookRequests).where(
+      lte(webhookRequests.createdAt, cutoffDateStr)
     );
 
     // Note: Cloudinary deletion would be handled separately via Cloudinary API
     // For now, we just collect the IDs that should be deleted
+    // Neon HTTP driver doesn't return affected rows count directly
 
     return {
-      deletedEvents: eventResult[0]?.affectedRows || 0,
-      deletedSnapshots: snapshotResult[0]?.affectedRows || 0,
-      deletedWebhookRequests: webhookResult[0]?.affectedRows || 0,
+      deletedEvents: 0, // Neon HTTP doesn't return affected rows
+      deletedSnapshots: 0,
+      deletedWebhookRequests: 0,
       cloudinaryIdsToDelete: cloudinaryIds,
-      cutoffDate: cutoffDate.toISOString(),
+      cutoffDate: cutoffDateStr,
     };
   } catch (error) {
     console.error("[Purge] Error purging old data:", error);

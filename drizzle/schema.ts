@@ -1,16 +1,20 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, varchar, double, json, text, timestamp, int, mysqlEnum, bigint } from "drizzle-orm/mysql-core"
+import { pgTable, pgEnum, index, varchar, doublePrecision, jsonb, text, timestamp, integer, bigint, primaryKey } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
-export const aiAnomalies = mysqlTable("ai_anomalies", {
-	id: bigint({ mode: "number" }).autoincrement().notNull(),
+// PostgreSQL enums
+export const entityTypeEnum = pgEnum('entity_type', ['person', 'object', 'location', 'event']);
+export const userRoleEnum = pgEnum('user_role', ['user', 'admin']);
+
+export const aiAnomalies = pgTable("ai_anomalies", {
+	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
 	metric: varchar({ length: 100 }).notNull(),
 	entityType: varchar({ length: 100 }),
 	entityId: varchar({ length: 255 }),
-	value: double().notNull(),
-	score: double().notNull(),
-	threshold: double(),
-	win: json(),
-	context: json(),
+	value: doublePrecision().notNull(),
+	score: doublePrecision().notNull(),
+	threshold: doublePrecision(),
+	win: jsonb(),
+	context: jsonb(),
 	ts: bigint({ mode: "number" }).notNull(),
 },
 (table) => [
@@ -18,24 +22,24 @@ export const aiAnomalies = mysqlTable("ai_anomalies", {
 	index("idx_ai_anomalies_metric_ts").on(table.metric, table.ts),
 ]);
 
-export const aiBaselines = mysqlTable("ai_baselines", {
-	id: bigint({ mode: "number" }).autoincrement().notNull(),
+export const aiBaselines = pgTable("ai_baselines", {
+	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
 	entityType: varchar({ length: 100 }).notNull(),
 	entityId: varchar({ length: 255 }).notNull(),
-	features: json().notNull(),
+	features: jsonb().notNull(),
 	updatedAt: bigint({ mode: "number" }).notNull(),
 });
 
-export const aiDetections = mysqlTable("ai_detections", {
-	id: bigint({ mode: "number" }).autoincrement().notNull(),
+export const aiDetections = pgTable("ai_detections", {
+	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
 	eventId: varchar({ length: 255 }),
 	channelId: varchar({ length: 255 }),
 	type: varchar({ length: 100 }).notNull(),
 	label: varchar({ length: 255 }),
-	score: double(),
-	bbox: json(),
+	score: doublePrecision(),
+	bbox: jsonb(),
 	embedding: text(),
-	meta: json(),
+	meta: jsonb(),
 	ts: bigint({ mode: "number" }).notNull(),
 },
 (table) => [
@@ -43,12 +47,12 @@ export const aiDetections = mysqlTable("ai_detections", {
 	index("idx_ai_detections_event").on(table.eventId),
 ]);
 
-export const aiInferenceJobs = mysqlTable("ai_inference_jobs", {
-	id: bigint({ mode: "number" }).autoincrement().notNull(),
+export const aiInferenceJobs = pgTable("ai_inference_jobs", {
+	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
 	sourceType: varchar({ length: 100 }).notNull(),
 	sourceId: varchar({ length: 255 }).notNull(),
 	status: varchar({ length: 50 }).default('queued').notNull(),
-	payload: json(),
+	payload: jsonb(),
 	error: text(),
 	createdAt: bigint({ mode: "number" }).notNull(),
 	updatedAt: bigint({ mode: "number" }).notNull(),
@@ -58,40 +62,40 @@ export const aiInferenceJobs = mysqlTable("ai_inference_jobs", {
 	index("idx_ai_jobs_created").on(table.createdAt),
 ]);
 
-export const aiInsights = mysqlTable("ai_insights", {
-	id: bigint({ mode: "number" }).autoincrement().notNull(),
+export const aiInsights = pgTable("ai_insights", {
+	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
 	scope: varchar({ length: 100 }).notNull(),
 	scopeId: varchar({ length: 255 }),
 	summary: text().notNull(),
-	recommendations: json(),
-	context: json(),
+	recommendations: jsonb(),
+	context: jsonb(),
 	ts: bigint({ mode: "number" }).notNull(),
 },
 (table) => [
 	index("idx_ai_insights_scope_ts").on(table.scope, table.scopeId, table.ts),
 ]);
 
-export const channels = mysqlTable("channels", {
-	id: varchar({ length: 255 }).notNull(),
+export const channels = pgTable("channels", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
 	name: varchar({ length: 500 }),
 	channelType: varchar({ length: 100 }),
-	latitude: double(),
-	longitude: double(),
-	address: json(),
-	tags: json(),
+	latitude: doublePrecision(),
+	longitude: doublePrecision(),
+	address: jsonb(),
+	tags: jsonb(),
 	status: varchar({ length: 50 }).default('active'),
 	region: varchar({ length: 100 }),
 	policeStation: varchar({ length: 255 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
 (table) => [
 	index("idx_channels_region").on(table.region),
 	index("idx_channels_status").on(table.status),
 ]);
 
-export const events = mysqlTable("events", {
-	id: varchar({ length: 255 }).notNull(),
+export const events = pgTable("events", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
 	eventId: varchar({ length: 255 }),
 	monitorId: varchar({ length: 255 }),
 	topic: varchar({ length: 500 }),
@@ -99,15 +103,15 @@ export const events = mysqlTable("events", {
 	level: varchar({ length: 50 }),
 	startTime: bigint({ mode: "number" }),
 	endTime: bigint({ mode: "number" }),
-	latitude: double(),
-	longitude: double(),
+	latitude: doublePrecision(),
+	longitude: doublePrecision(),
 	channelId: varchar({ length: 255 }),
 	channelType: varchar({ length: 100 }),
 	channelName: varchar({ length: 500 }),
-	channelAddress: json(),
-	params: json(),
-	tags: json(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	channelAddress: jsonb(),
+	params: jsonb(),
+	tags: jsonb(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
 (table) => [
 	index("idx_events_start_time").on(table.startTime),
@@ -116,47 +120,47 @@ export const events = mysqlTable("events", {
 	index("idx_events_level").on(table.level),
 ]);
 
-export const incidentNotes = mysqlTable("incident_notes", {
-	id: int().autoincrement().notNull(),
+export const incidentNotes = pgTable("incident_notes", {
+	id: integer().notNull().generatedAlwaysAsIdentity(),
 	incidentId: varchar("incident_id", { length: 255 }).notNull(),
-	userId: int("user_id").notNull(),
+	userId: integer("user_id").notNull(),
 	note: text().notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
 });
 
 export type IncidentNote = typeof incidentNotes.$inferSelect;
 export type InsertIncidentNote = typeof incidentNotes.$inferInsert;
 
-export const incidentTags = mysqlTable("incident_tags", {
-	id: int().autoincrement().notNull(),
+export const incidentTags = pgTable("incident_tags", {
+	id: integer().notNull().generatedAlwaysAsIdentity(),
 	incidentId: varchar("incident_id", { length: 255 }).notNull(),
 	tag: varchar({ length: 100 }).notNull(),
 	color: varchar({ length: 50 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 });
 
 export type IncidentTag = typeof incidentTags.$inferSelect;
 export type InsertIncidentTag = typeof incidentTags.$inferInsert;
 
-export const incidents = mysqlTable("incidents", {
-	id: varchar({ length: 255 }).notNull(),
+export const incidents = pgTable("incidents", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
 	incidentType: varchar({ length: 100 }).notNull(),
 	priority: varchar({ length: 50 }).notNull(),
 	status: varchar({ length: 50 }).default('open').notNull(),
 	location: varchar({ length: 500 }),
 	region: varchar({ length: 100 }),
-	latitude: double(),
-	longitude: double(),
+	latitude: doublePrecision(),
+	longitude: doublePrecision(),
 	description: text(),
 	videoUrl: text(),
 	assignedOfficer: varchar({ length: 255 }),
 	assignedUnit: varchar({ length: 255 }),
-	responseTime: int(),
-	eventIds: json(),
-	metadata: json(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	responseTime: integer(),
+	eventIds: jsonb(),
+	metadata: jsonb(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 	resolvedAt: timestamp({ mode: 'string' }),
 },
 (table) => [
@@ -166,68 +170,71 @@ export const incidents = mysqlTable("incidents", {
 	index("idx_incidents_created").on(table.createdAt),
 ]);
 
-export const poleEntities = mysqlTable("pole_entities", {
-	id: varchar({ length: 255 }).notNull(),
-	entityType: mysqlEnum(['person','object','location','event']).notNull(),
+export const poleEntities = pgTable("pole_entities", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	entityType: entityTypeEnum().notNull(),
 	name: varchar({ length: 500 }),
 	description: text(),
-	attributes: json(),
+	attributes: jsonb(),
 	threatLevel: varchar({ length: 50 }),
-	relatedEntities: json(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	relatedEntities: jsonb(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
 (table) => [
 	index("idx_pole_entities_type").on(table.entityType),
 	index("idx_pole_entities_threat").on(table.threatLevel),
 ]);
 
-export const snapshots = mysqlTable("snapshots", {
-	id: varchar({ length: 255 }).notNull(),
+export const snapshots = pgTable("snapshots", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
 	eventId: varchar({ length: 255 }).notNull(),
 	type: varchar({ length: 50 }),
 	path: varchar({ length: 1000 }),
 	imageUrl: varchar({ length: 1000 }),
 	cloudinaryPublicId: varchar({ length: 500 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
 (table) => [
 	index("idx_snapshots_event_id").on(table.eventId),
 	index("idx_snapshots_type").on(table.type),
 ]);
 
-export const systemConfig = mysqlTable("system_config", {
-	id: int().autoincrement().notNull(),
+export const systemConfig = pgTable("system_config", {
+	id: integer().notNull().generatedAlwaysAsIdentity(),
 	key: varchar({ length: 100 }).notNull(),
 	value: text().notNull(),
 	description: text(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 });
 
-export const users = mysqlTable("users", {
-	id: int().autoincrement().notNull(),
+export const users = pgTable("users", {
+	id: integer().notNull().generatedAlwaysAsIdentity(),
 	openId: varchar({ length: 64 }).notNull(),
 	name: text(),
 	email: varchar({ length: 320 }),
 	loginMethod: varchar({ length: 64 }),
-	role: mysqlEnum(['user','admin']).default('user').notNull(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	lastSignedIn: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	role: userRoleEnum().default('user').notNull(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	lastSignedIn: timestamp({ mode: 'string' }).defaultNow().notNull(),
 });
 
-export const webhookRequests = mysqlTable("webhook_requests", {
-	id: bigint({ mode: "number" }).autoincrement().notNull(),
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+export const webhookRequests = pgTable("webhook_requests", {
+	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
 	endpoint: varchar({ length: 255 }).notNull(),
 	method: varchar({ length: 10 }).notNull(),
-	payload: json(),
+	payload: jsonb(),
 	eventId: varchar({ length: 255 }),
 	level: varchar({ length: 50 }),
 	module: varchar({ length: 100 }),
 	status: varchar({ length: 50 }).default('success'),
 	error: text(),
-	processingTime: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	processingTime: integer(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
 (table) => [
 	index("idx_webhook_requests_created").on(table.createdAt),

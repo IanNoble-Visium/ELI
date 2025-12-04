@@ -1,8 +1,10 @@
 /**
  * Database utility for Vercel serverless functions
  * Provides lazy database connection with proper error handling
+ * Uses Neon PostgreSQL serverless driver for optimal Vercel performance
  */
-import { drizzle, MySql2Database } from "drizzle-orm/mysql2";
+import { neon } from "@neondatabase/serverless";
+import { drizzle, NeonHttpDatabase } from "drizzle-orm/neon-http";
 import { and, desc, eq, gte, lte, sql, count } from "drizzle-orm";
 import {
   events,
@@ -13,15 +15,15 @@ import {
 } from "../../drizzle/schema.js";
 
 // Cache the drizzle instance to reuse across requests
-let _db: MySql2Database<Record<string, never>> | null = null;
+let _db: NeonHttpDatabase | null = null;
 
 /**
  * Get or create a database connection
  * Returns null if DATABASE_URL is not configured
  */
-export async function getDb(): Promise<MySql2Database<Record<string, never>> | null> {
+export async function getDb(): Promise<NeonHttpDatabase | null> {
   if (_db) return _db;
-  
+
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
     console.warn("[API DB] DATABASE_URL not configured");
@@ -29,7 +31,8 @@ export async function getDb(): Promise<MySql2Database<Record<string, never>> | n
   }
 
   try {
-    _db = drizzle(dbUrl);
+    const client = neon(dbUrl);
+    _db = drizzle(client);
     console.log("[API DB] Database connected successfully");
     return _db;
   } catch (error) {
@@ -68,7 +71,8 @@ export async function insertSnapshots(eventId: string, snapshotsData: Array<{
   }));
 
   for (const record of snapshotRecords) {
-    await db.insert(snapshots).values(record).onDuplicateKeyUpdate({
+    await db.insert(snapshots).values(record).onConflictDoUpdate({
+      target: snapshots.id,
       set: record,
     });
   }
@@ -137,7 +141,8 @@ export async function insertEvent(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.insert(events).values(data).onDuplicateKeyUpdate({
+  await db.insert(events).values(data).onConflictDoUpdate({
+    target: events.id,
     set: {
       ...data,
       createdAt: sql`created_at`, // Keep original
@@ -190,7 +195,8 @@ export async function upsertChannel(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.insert(channels).values(data).onDuplicateKeyUpdate({
+  await db.insert(channels).values(data).onConflictDoUpdate({
+    target: channels.id,
     set: {
       ...data,
       updatedAt: sql`NOW()`,
