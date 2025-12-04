@@ -3,18 +3,25 @@
   "outputDirectory": "dist/public",
   "installCommand": "pnpm install",
   "framework": null,
-  "functions": {
-    "api/**/*.ts": {
-      "includeFiles": "server/**/*,shared/**/*,drizzle/**/*"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/trpc/:path*",
       "destination": "/api/trpc/[trpc]"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/webhook/irex",
+      "destination": "/api/webhook/irex"
+    },
+    {
+      "source": "/ingest/event",
+      "destination": "/api/webhook/irex"
+    },
+    {
+      "source": "/ingest/snapshot",
+      "destination": "/api/webhook/irex"
+    },
+    {
+      "source": "/((?!api/|webhook/|ingest/).*)",
       "destination": "/index.html"
     }
   ]

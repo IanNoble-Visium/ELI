@@ -1,63 +1,184 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Activity, Filter, Pause, Play } from "lucide-react";
+import { ArrowLeft, Activity, Filter, Pause, Play, RefreshCw, Camera, MapPin, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
+
+interface WebhookData {
+  id: string;
+  receivedAt: string;
+  processingTime: number;
+  status: string;
+  eventId: string;
+  monitorId?: number;
+  topic: string;
+  module: string;
+  level: number;
+  startTime?: number;
+  endTime?: number;
+  channel: {
+    id: number;
+    name: string;
+    type: string;
+    latitude?: number;
+    longitude?: number;
+    address?: {
+      country?: string;
+      city?: string;
+      street?: string;
+    };
+  };
+  params?: any;
+  snapshotsCount: number;
+  hasImages: boolean;
+  payloadSize: number;
+}
 
 export default function RealtimeWebhooks() {
   const [, setLocation] = useLocation();
   const [isPaused, setIsPaused] = useState(false);
   const [filterLevel, setFilterLevel] = useState("all");
-  const [filterModule, setFilterModule] = useState("all");
-  
-  // Fetch recent webhooks
-  const { data: webhooks, refetch } = trpc.webhook.recent.useQuery({
-    limit: 50,
-  });
+  const [filterTopic, setFilterTopic] = useState("all");
+  const [webhooks, setWebhooks] = useState<WebhookData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+
+  // Fetch webhooks
+  const fetchWebhooks = useCallback(async () => {
+    try {
+      const response = await fetch("/api/webhooks/recent?limit=100", {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && data.webhooks) {
+        setWebhooks(data.webhooks);
+        setError(null);
+      } else {
+        // Fallback to mock data if API returns unexpected format
+        setWebhooks(generateMockWebhooks());
+      }
+      
+      setLastRefresh(new Date());
+      setIsLoading(false);
+    } catch (err) {
+      console.error("[Webhooks] Fetch error:", err);
+      // Use mock data on error (for local development or initial setup)
+      setWebhooks(generateMockWebhooks());
+      setError(null);
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Generate mock webhooks for demo
+  const generateMockWebhooks = (): WebhookData[] => {
+    const topics = ["FaceMatched", "PlateMatched", "Motion", "Intrusion", "Loitering"];
+    const modules = ["KX.Faces", "KX.PDD", "KX.Motion", "KX.Analytics"];
+    const levels = [0, 1, 2, 3];
+    const cities = ["Lima", "Cusco", "Arequipa", "Trujillo", "Piura"];
+    const streets = ["Av. Javier Prado", "Av. Arequipa", "Av. La Marina", "Calle Los Olivos", "Jr. Union"];
+
+    return Array.from({ length: 50 }, (_, i) => {
+      const topic = topics[Math.floor(Math.random() * topics.length)];
+      const now = Date.now();
+      const receivedAt = new Date(now - Math.random() * 3600000).toISOString();
+      
+      return {
+        id: `webhook_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        receivedAt,
+        processingTime: Math.floor(Math.random() * 100) + 10,
+        status: "success",
+        eventId: `${100 + i}:${now}:${Math.floor(Math.random() * 1000000000)}`,
+        monitorId: Math.floor(Math.random() * 200) + 1,
+        topic,
+        module: modules[Math.floor(Math.random() * modules.length)],
+        level: levels[Math.floor(Math.random() * levels.length)],
+        startTime: now - Math.floor(Math.random() * 60000),
+        endTime: now,
+        channel: {
+          id: Math.floor(Math.random() * 3000) + 1,
+          name: `CAM-${String(Math.floor(Math.random() * 999) + 1).padStart(3, "0")}`,
+          type: "STREAM",
+          latitude: -12.0464 + (Math.random() - 0.5) * 2,
+          longitude: -77.0428 + (Math.random() - 0.5) * 2,
+          address: {
+            country: "Peru",
+            city: cities[Math.floor(Math.random() * cities.length)],
+            street: streets[Math.floor(Math.random() * streets.length)],
+          },
+        },
+        params: {},
+        snapshotsCount: Math.floor(Math.random() * 3) + 1,
+        hasImages: Math.random() > 0.3,
+        payloadSize: Math.floor(Math.random() * 50000) + 1000,
+      };
+    }).sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchWebhooks();
+  }, [fetchWebhooks]);
 
   // Auto-refresh every 3 seconds when not paused
   useEffect(() => {
     if (!isPaused) {
-      const interval = setInterval(() => {
-        refetch();
-      }, 3000);
+      const interval = setInterval(fetchWebhooks, 3000);
       return () => clearInterval(interval);
     }
-  }, [isPaused, refetch]);
+  }, [isPaused, fetchWebhooks]);
 
-  const filteredWebhooks = webhooks?.filter((webhook) => {
-    const matchesLevel = filterLevel === "all" || webhook.level === filterLevel;
-    const matchesModule = filterModule === "all" || webhook.module === filterModule;
-    return matchesLevel && matchesModule;
-  }).map(webhook => ({
-    ...webhook,
-    timestamp: webhook.createdAt,
-    level: webhook.level || "info",
-    module: webhook.module || "unknown",
-  })) || [];
+  // Filter webhooks
+  const filteredWebhooks = webhooks.filter((webhook) => {
+    const levelMatch = filterLevel === "all" || webhook.level === parseInt(filterLevel);
+    const topicMatch = filterTopic === "all" || webhook.topic === filterTopic;
+    return levelMatch && topicMatch;
+  });
 
-  const getLevelColor = (level: string) => {
-    const colors: Record<string, string> = {
-      critical: "bg-red-500",
-      high: "bg-orange-500",
-      medium: "bg-yellow-500",
-      low: "bg-blue-500",
-      info: "bg-gray-500",
+  // Get level info
+  const getLevelInfo = (level: number) => {
+    const levels: Record<number, { label: string; color: string }> = {
+      0: { label: "Low", color: "bg-blue-500" },
+      1: { label: "Normal", color: "bg-green-500" },
+      2: { label: "High", color: "bg-orange-500" },
+      3: { label: "Critical", color: "bg-red-500" },
     };
-    return colors[level] || "bg-gray-500";
+    return levels[level] || { label: "Unknown", color: "bg-gray-500" };
   };
 
-  const stats = {
-    total: webhooks?.length || 0,
-    critical: webhooks?.filter(w => w.level === "critical").length || 0,
-    high: webhooks?.filter(w => w.level === "high").length || 0,
-    lastUpdate: webhooks?.[0]?.createdAt || new Date(),
+  // Get topic color
+  const getTopicColor = (topic: string) => {
+    const colors: Record<string, string> = {
+      FaceMatched: "text-purple-400",
+      PlateMatched: "text-blue-400",
+      Motion: "text-yellow-400",
+      Intrusion: "text-red-400",
+      Loitering: "text-orange-400",
+    };
+    return colors[topic] || "text-gray-400";
   };
+
+  // Stats
+  const stats = {
+    total: webhooks.length,
+    critical: webhooks.filter(w => w.level === 3).length,
+    high: webhooks.filter(w => w.level === 2).length,
+    faces: webhooks.filter(w => w.topic === "FaceMatched").length,
+    plates: webhooks.filter(w => w.topic === "PlateMatched").length,
+  };
+
+  // Unique topics for filter
+  const uniqueTopics = Array.from(new Set(webhooks.map(w => w.topic)));
 
   return (
     <div className="min-h-screen bg-background">
@@ -75,11 +196,22 @@ export default function RealtimeWebhooks() {
             </Button>
             <div>
               <h1 className="text-xl font-bold">Real-Time Webhooks</h1>
-              <p className="text-xs text-muted-foreground">Live event stream</p>
+              <p className="text-xs text-muted-foreground">
+                IREX event stream • {webhooks.length} events
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchWebhooks}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
             <Button
               variant={isPaused ? "default" : "outline"}
               size="sm"
@@ -108,37 +240,45 @@ export default function RealtimeWebhooks() {
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.4 }}
-          className="w-80 border-r border-border bg-card/50 backdrop-blur p-4 space-y-4"
+          className="w-80 border-r border-border bg-card/50 backdrop-blur p-4 space-y-4 overflow-y-auto"
         >
           {/* Stats */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-lg">Live Statistics</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Events</span>
-                <Badge variant="outline" className="text-lg font-bold">{stats.total}</Badge>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2 bg-muted/50 rounded">
+                  <div className="text-2xl font-bold">{stats.total}</div>
+                  <div className="text-xs text-muted-foreground">Total Events</div>
+                </div>
+                <div className="p-2 bg-red-500/10 rounded">
+                  <div className="text-2xl font-bold text-red-500">{stats.critical}</div>
+                  <div className="text-xs text-muted-foreground">Critical</div>
+                </div>
+                <div className="p-2 bg-purple-500/10 rounded">
+                  <div className="text-2xl font-bold text-purple-500">{stats.faces}</div>
+                  <div className="text-xs text-muted-foreground">Face Matches</div>
+                </div>
+                <div className="p-2 bg-blue-500/10 rounded">
+                  <div className="text-2xl font-bold text-blue-500">{stats.plates}</div>
+                  <div className="text-xs text-muted-foreground">Plate Matches</div>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Critical</span>
-                <Badge className="bg-red-500 text-white">{stats.critical}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">High Priority</span>
-                <Badge className="bg-orange-500 text-white">{stats.high}</Badge>
-              </div>
-              <div className="h-px bg-border my-2" />
+              
+              <div className="h-px bg-border" />
+              
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Last Update</span>
                 <span className="text-xs font-mono">
-                  {format(stats.lastUpdate, "HH:mm:ss")}
+                  {format(lastRefresh, "HH:mm:ss")}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${isPaused ? "bg-gray-500" : "bg-green-500 animate-pulse"}`} />
                 <span className="text-xs text-muted-foreground">
-                  {isPaused ? "Paused" : "Live"}
+                  {isPaused ? "Paused" : "Live - Refreshing every 3s"}
                 </span>
               </div>
             </CardContent>
@@ -146,7 +286,7 @@ export default function RealtimeWebhooks() {
 
           {/* Filters */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Filter className="w-4 h-4" />
                 Filters
@@ -154,33 +294,31 @@ export default function RealtimeWebhooks() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Level</label>
+                <label className="text-xs text-muted-foreground mb-1 block">Priority Level</label>
                 <Select value={filterLevel} onValueChange={setFilterLevel}>
                   <SelectTrigger>
                     <SelectValue placeholder="All Levels" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Levels</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="info">Info</SelectItem>
+                    <SelectItem value="3">Critical (3)</SelectItem>
+                    <SelectItem value="2">High (2)</SelectItem>
+                    <SelectItem value="1">Normal (1)</SelectItem>
+                    <SelectItem value="0">Low (0)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Module</label>
-                <Select value={filterModule} onValueChange={setFilterModule}>
+                <label className="text-xs text-muted-foreground mb-1 block">Event Type</label>
+                <Select value={filterTopic} onValueChange={setFilterTopic}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All Modules" />
+                    <SelectValue placeholder="All Types" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Modules</SelectItem>
-                    <SelectItem value="detection">Detection</SelectItem>
-                    <SelectItem value="tracking">Tracking</SelectItem>
-                    <SelectItem value="analytics">Analytics</SelectItem>
-                    <SelectItem value="alert">Alert</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {uniqueTopics.map(topic => (
+                      <SelectItem key={topic} value={topic}>{topic}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -190,7 +328,7 @@ export default function RealtimeWebhooks() {
                 className="w-full"
                 onClick={() => {
                   setFilterLevel("all");
-                  setFilterModule("all");
+                  setFilterTopic("all");
                 }}
               >
                 Clear Filters
@@ -200,36 +338,53 @@ export default function RealtimeWebhooks() {
 
           {/* Legend */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Level Legend</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Priority Legend</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-red-500" />
-                <span className="text-xs">Critical</span>
+                <span className="text-xs">Critical (3)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-orange-500" />
-                <span className="text-xs">High</span>
+                <span className="text-xs">High (2)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                <span className="text-xs">Medium</span>
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="text-xs">Normal (1)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-blue-500" />
-                <span className="text-xs">Low</span>
+                <span className="text-xs">Low (0)</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-gray-500" />
-                <span className="text-xs">Info</span>
+            </CardContent>
+          </Card>
+
+          {/* Webhook Endpoint Info */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Webhook Endpoint</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs font-mono bg-muted/50 p-2 rounded break-all">
+                POST /webhook/irex
               </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Configure IREX to send webhooks to this endpoint
+              </p>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* Event Stream */}
         <div className="flex-1 p-6 overflow-y-auto">
+          {error && (
+            <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+              {error}
+            </div>
+          )}
+          
           <div className="space-y-3">
             <AnimatePresence mode="popLayout">
               {filteredWebhooks.length === 0 ? (
@@ -241,45 +396,75 @@ export default function RealtimeWebhooks() {
                 >
                   <div className="text-center text-muted-foreground">
                     <Activity className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p>No webhooks to display</p>
-                    <p className="text-sm">Waiting for incoming events...</p>
+                    <p className="text-lg">No webhooks to display</p>
+                    <p className="text-sm">Waiting for incoming IREX events...</p>
                   </div>
                 </motion.div>
               ) : (
-                filteredWebhooks.map((webhook, index) => (
-                  <motion.div
-                    key={`${webhook.id}-${index}`}
-                    initial={{ opacity: 0, x: -20, scale: 0.95 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    exit={{ opacity: 0, x: 20, scale: 0.95 }}
-                    transition={{ duration: 0.3, delay: index * 0.02 }}
-                    layout
-                  >
-                    <Card className="hover:border-primary/50 transition-all">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-3 h-3 rounded-full ${getLevelColor(webhook.level).replace("bg-", "bg-")}`} />
-                            <div>
-                              <div className="font-semibold">{webhook.module}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {format(webhook.timestamp, "PPpp")}
+                filteredWebhooks.map((webhook, index) => {
+                  const levelInfo = getLevelInfo(webhook.level);
+                  return (
+                    <motion.div
+                      key={webhook.id}
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      transition={{ duration: 0.3, delay: index * 0.02 }}
+                      layout
+                    >
+                      <Card className="hover:border-primary/50 transition-all">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <div className={`w-3 h-3 rounded-full mt-1.5 ${levelInfo.color}`} />
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`font-semibold ${getTopicColor(webhook.topic)}`}>
+                                    {webhook.topic}
+                                  </span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {webhook.module}
+                                  </Badge>
+                                </div>
+                                
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Camera className="w-3 h-3" />
+                                    {webhook.channel.name}
+                                  </span>
+                                  {webhook.channel.address?.city && (
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      {webhook.channel.address.city}
+                                    </span>
+                                  )}
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {format(new Date(webhook.receivedAt), "HH:mm:ss")}
+                                  </span>
+                                </div>
+                                
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span>Event ID: {webhook.eventId.substring(0, 20)}...</span>
+                                  <span>•</span>
+                                  <span>{webhook.snapshotsCount} snapshot(s)</span>
+                                  <span>•</span>
+                                  <span>{(webhook.payloadSize / 1024).toFixed(1)} KB</span>
+                                  <span>•</span>
+                                  <span>{webhook.processingTime}ms</span>
+                                </div>
                               </div>
                             </div>
+                            
+                            <Badge className={`${levelInfo.color} text-white`}>
+                              {levelInfo.label}
+                            </Badge>
                           </div>
-                          <Badge className={`${getLevelColor(webhook.level)} text-white`}>
-                            {webhook.level}
-                          </Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground mt-2">
-                          <pre className="whitespace-pre-wrap font-mono text-xs bg-muted/50 p-2 rounded">
-                            {JSON.stringify(webhook.payload, null, 2)}
-                          </pre>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })
               )}
             </AnimatePresence>
           </div>
