@@ -179,37 +179,122 @@ The application uses Peru's national colors:
 
 ## 🔌 API Endpoints
 
-### Authentication
+### Authentication (tRPC)
 - `POST /api/trpc/auth.login` - Login with admin/admin
 - `POST /api/trpc/auth.logout` - Logout
 - `GET /api/trpc/auth.me` - Get current user
 
-### Dashboard
+### Dashboard (tRPC)
 - `GET /api/trpc/dashboard.metrics` - Get KPIs and statistics
 
-### Events
+### Events (tRPC)
 - `GET /api/trpc/events.list` - List events with pagination
 - `GET /api/trpc/events.byId` - Get event by ID
 
-### Webhooks
-- `POST /webhook/irex` - Receive IREX webhook events
-- `GET /api/trpc/webhook.recent` - Get recent webhook requests
-
-### Configuration
+### Configuration (tRPC)
 - `GET /api/trpc/config.get` - Get system configuration
 - `POST /api/trpc/config.set` - Update system configuration
 
+### Database-Integrated REST APIs (Vercel Serverless)
+
+These endpoints query real data from the PostgreSQL/TiDB database:
+
+| Endpoint | Method | Description | Database Tables |
+|----------|--------|-------------|-----------------|
+| `/api/webhook/irex` | POST | Receives IREX webhook events and persists to database | `events`, `channels`, `snapshots`, `webhook_requests` |
+| `/api/webhooks/recent` | GET | Returns recent webhook requests from database | `webhook_requests` |
+| `/api/data/cameras` | GET | Returns camera/channel data with statistics | `channels` |
+| `/api/data/events` | GET | Returns surveillance events with filtering | `events` |
+| `/api/data/stats` | GET | Returns aggregated dashboard statistics | `events`, `channels` |
+| `/api/data/incidents` | GET | Returns incident management data | `incidents` |
+
+**Query Parameters:**
+- `limit` - Maximum number of records to return
+- `region` - Filter by region (e.g., `Lima`, `Cusco`)
+- `status` - Filter by status (e.g., `active`, `inactive`, `alert`)
+- `level` - Filter by priority level (0-3)
+- `topic` - Filter by event topic (e.g., `FaceMatched`, `PlateMatched`)
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "count": 150,
+  "dbConnected": true,
+  "cameras": [...] // or events, incidents, etc.
+}
+```
+
 ---
 
-## 🎬 Demo Data
+## 🔗 IREX Webhook Integration
 
-The application includes mock data for demonstration:
+The application receives and persists real-time surveillance events from IREX systems.
 
-- **3,084 cameras** across 25 Peru regions
-- **8 major regions**: Lima, Cusco, Arequipa, Trujillo, Piura, Chiclayo, Iquitos, Huancayo
-- **Mock incidents** with priorities and statuses
-- **POLE entities**: People, Objects, Locations, Events
-- **Network graph** with 87 nodes and 80 edges
+### Webhook Endpoint
+```
+POST /api/webhook/irex
+```
+
+### Supported Event Types
+- `FaceMatched` - Face recognition matches from KX.Faces module
+- `PlateMatched` - License plate matches from KX.PDD module
+- `Motion`, `Intrusion`, `Loitering`, `Crowd` - Analytics events
+
+### Payload Structure
+```json
+{
+  "monitor_id": 114,
+  "id": "203:1691055920965:4829655691653739",
+  "event_id": "4829655691653739",
+  "topic": "FaceMatched",
+  "module": "KX.Faces",
+  "level": 1,
+  "start_time": 1685973361368,
+  "end_time": 1685973369197,
+  "params": { ... },
+  "snapshots": [
+    { "type": "FULLSCREEN", "path": "/api/v1/media/snapshot/..." },
+    { "type": "THUMBNAIL", "path": "/api/v1/media/snapshot/..." }
+  ],
+  "channel": {
+    "id": 274,
+    "channel_type": "STREAM",
+    "name": "CAM-001",
+    "latitude": -12.0464,
+    "longitude": -77.0428,
+    "address": { "country": "Peru", "region": "Lima", "city": "Lima" },
+    "tags": [{ "id": 170, "name": "Face" }]
+  }
+}
+```
+
+### Data Persistence
+When a webhook is received, the system:
+1. **Upserts the channel** - Creates or updates camera info in `channels` table
+2. **Inserts the event** - Stores event details in `events` table
+3. **Inserts snapshots** - Stores snapshot paths in `snapshots` table
+4. **Logs the request** - Records full payload in `webhook_requests` table
+
+See `Webhooks json description.md` for complete payload documentation.
+
+---
+
+## 📊 Data Sources
+
+The application uses **real database integration** for all surveillance data:
+
+| Component | Data Source | Notes |
+|-----------|-------------|-------|
+| Real-time Webhooks | `webhook_requests` table | Live IREX events |
+| Geographic Map | `channels` table | Camera locations |
+| Executive Dashboard | `events` + `channels` tables | Aggregated statistics |
+| Event Timeline | `events` table | Historical events |
+| Incident Management | `incidents` table | Incident tracking |
+| POLE Analytics | Simulated data | Clearly labeled as demo |
+
+**Empty State Handling:**
+When no data exists in the database, the UI displays appropriate "No data yet" messages instead of mock data.
 
 ---
 
@@ -224,9 +309,15 @@ The application includes mock data for demonstration:
 
 ### Environment Variables
 
+#### Required for Database Integration
+
+- `DATABASE_URL` - **Required** - MySQL/TiDB connection string for all data storage
+  - Format: `mysql://user:password@host:port/database?ssl={"rejectUnauthorized":true}`
+  - Used by: Vercel serverless functions (`/api/*`) and tRPC backend
+  - Without this, all database-backed endpoints will return empty data with `dbConnected: false`
+
 #### Platform-Provided (Auto-configured)
 
-- `DATABASE_URL` - MySQL/TiDB connection string
 - `JWT_SECRET` - Session cookie signing secret
 - `VITE_APP_ID` - Manus OAuth application ID
 - `OAUTH_SERVER_URL` - Manus OAuth backend
@@ -234,31 +325,19 @@ The application includes mock data for demonstration:
 - `VITE_APP_TITLE` - Application title
 - `VITE_APP_LOGO` - Application logo URL
 
-#### External Services (User-Configured via Settings → Secrets)
+#### External Services (Optional - User-Configured via Settings → Secrets)
 
-**PostgreSQL Database:**
-- `POSTGRES_URL` - PostgreSQL connection string for primary data storage
-
-**Neo4j Graph Database:**
-- `NEO4J_PROJECT_NAME` - Project name
-- `NEO4J_ID` - Instance ID
+**Neo4j Graph Database (Future):**
 - `NEO4J_URI` - Connection URI (neo4j+s://...)
 - `NEO4J_USERNAME` - Database username
 - `NEO4J_PASSWORD` - Database password
 - `NEO4J_DATABASE` - Database name
 
-**Cloudinary (Image Storage):**
+**Cloudinary (Future - Image Storage):**
 - `CLOUDINARY_URL` - Full connection URL
 - `CLOUDINARY_CLOUD_NAME` - Cloud name
 - `CLOUDINARY_API_KEY` - API key
 - `CLOUDINARY_API_SECRET` - API secret
-
-**Google Services:**
-- `GOOGLE_API_KEY` - For Maps and location services
-
-**Recraft (Icon Generation):**
-- `RECRAFT_API_KEY` - API key
-- `ICON_GENERATION_API` - Set to "recraft"
 
 **Note:** All external service credentials are managed through the Manus platform's Settings → Secrets panel. Never commit credentials to version control.
 
@@ -361,9 +440,19 @@ Edit `client/src/index.css` to change colors:
 
 ## 📝 TODO
 
+### Completed ✅
+- [x] Database integration for all API endpoints
+- [x] IREX webhook ingestion with snapshot persistence
+- [x] Real camera/channel data from database
+- [x] Real event data from database
+- [x] Aggregated statistics from database
+- [x] Empty state handling in frontend
+
 ### High Priority
+- [ ] Test webhook endpoint with real IREX surveillance data
+- [ ] Create database seeding script for demo data
 - [ ] Connect Neo4j for topology graph real data
-- [ ] Connect Cloudinary for image storage
+- [ ] Connect Cloudinary for snapshot image storage
 - [ ] Implement actual data purge logic
 - [ ] Add WebSocket for true real-time updates
 

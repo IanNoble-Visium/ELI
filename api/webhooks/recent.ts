@@ -1,86 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getRecentWebhooks, getDb } from "../lib/db";
 
-// Note: In a real production setup, this would read from a database
-// For the serverless demo, we'll return mock data since each function instance
-// has its own memory space
-
-// Mock recent webhooks for demo
-const generateMockWebhooks = () => {
-  const topics = ["FaceMatched", "PlateMatched", "Motion", "Intrusion", "Loitering"];
-  const modules = ["KX.Faces", "KX.PDD", "KX.Motion", "KX.Analytics"];
-  const levels = [0, 1, 2, 3];
-  const cities = ["Lima", "Cusco", "Arequipa", "Trujillo", "Piura"];
-  const streets = ["Av. Javier Prado", "Av. Arequipa", "Av. La Marina", "Calle Los Olivos", "Jr. Union"];
-
-  return Array.from({ length: 50 }, (_, i) => {
-    const topic = topics[Math.floor(Math.random() * topics.length)];
-    const now = Date.now();
-    const receivedAt = new Date(now - Math.random() * 3600000).toISOString(); // Last hour
-    
-    return {
-      id: `webhook_${now}_${Math.random().toString(36).substr(2, 9)}`,
-      receivedAt,
-      processingTime: Math.floor(Math.random() * 100) + 10,
-      status: "success",
-      
-      eventId: `${100 + i}:${now}:${Math.floor(Math.random() * 1000000000)}`,
-      monitorId: Math.floor(Math.random() * 200) + 1,
-      topic,
-      module: modules[Math.floor(Math.random() * modules.length)],
-      level: levels[Math.floor(Math.random() * levels.length)],
-      startTime: now - Math.floor(Math.random() * 60000),
-      endTime: now,
-      
-      channel: {
-        id: Math.floor(Math.random() * 3000) + 1,
-        name: `CAM-${String(Math.floor(Math.random() * 999) + 1).padStart(3, "0")}`,
-        type: "STREAM",
-        latitude: -12.0464 + (Math.random() - 0.5) * 2,
-        longitude: -77.0428 + (Math.random() - 0.5) * 2,
-        address: {
-          country: "Peru",
-          city: cities[Math.floor(Math.random() * cities.length)],
-          street: streets[Math.floor(Math.random() * streets.length)],
-        },
-      },
-      
-      params: topic === "FaceMatched" ? {
-        identities: [{
-          faces: [{
-            id: Math.floor(Math.random() * 10000),
-            similarity: 0.8 + Math.random() * 0.2,
-            first_name: "Unknown",
-            last_name: "Person",
-          }],
-          list: {
-            id: Math.floor(Math.random() * 10),
-            name: "Watch List",
-            level: levels[Math.floor(Math.random() * levels.length)],
-          },
-        }],
-      } : topic === "PlateMatched" ? {
-        identities: [{
-          plates: [{
-            id: Math.floor(Math.random() * 10000),
-            number: `${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${String.fromCharCode(65 + Math.floor(Math.random() * 26))}-${Math.floor(Math.random() * 999)}`,
-            state: "PE",
-          }],
-          list: {
-            id: Math.floor(Math.random() * 10),
-            name: "Vehicle Watch List",
-            level: levels[Math.floor(Math.random() * levels.length)],
-          },
-        }],
-      } : {},
-      
-      snapshotsCount: Math.floor(Math.random() * 3) + 1,
-      hasImages: Math.random() > 0.3,
-      payloadSize: Math.floor(Math.random() * 50000) + 1000,
-    };
-  });
-};
-
-// Vercel serverless handler
+/**
+ * API endpoint to retrieve recent webhook requests from the database
+ * Returns real data from webhook_requests table
+ */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
   const origin = req.headers.origin || "*";
@@ -101,12 +25,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const limit = parseInt(req.query.limit as string) || 100;
-    const webhooks = generateMockWebhooks().slice(0, limit);
+
+    // Check if database is available
+    const db = await getDb();
+    if (!db) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        webhooks: [],
+        message: "Database not configured. No webhook data available.",
+        dbConnected: false,
+      });
+    }
+
+    // Query real webhook data from database
+    const webhookRecords = await getRecentWebhooks(limit);
+
+    // Transform database records to match frontend expected format
+    const webhooks = webhookRecords.map((record: any) => {
+      const payload = record.payload || {};
+      const channel = payload.channel || {};
+
+      return {
+        id: `webhook_${record.id}`,
+        receivedAt: record.createdAt,
+        processingTime: record.processingTime || 0,
+        status: record.status || "success",
+
+        eventId: record.eventId || payload.event_id || payload.id,
+        monitorId: payload.monitor_id,
+        topic: payload.topic || "Unknown",
+        module: record.module || payload.module || "Unknown",
+        level: parseInt(record.level) || payload.level || 1,
+        startTime: payload.start_time,
+        endTime: payload.end_time,
+
+        channel: {
+          id: channel.id,
+          name: channel.name,
+          type: channel.channel_type || "STREAM",
+          latitude: channel.latitude,
+          longitude: channel.longitude,
+          address: channel.address || {},
+        },
+
+        params: payload.params || {},
+        snapshotsCount: payload.snapshots?.length || 0,
+        hasImages: payload.snapshots?.some((s: any) => s.image) || false,
+        payloadSize: JSON.stringify(payload).length,
+      };
+    });
 
     return res.status(200).json({
       success: true,
       count: webhooks.length,
       webhooks,
+      dbConnected: true,
     });
 
   } catch (error: any) {
@@ -114,6 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({
       success: false,
       error: error.message || "Internal server error",
+      webhooks: [],
     });
   }
 }

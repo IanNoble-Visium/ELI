@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,53 +7,71 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User, Search } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User, Search, Database } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 
-// Mock incident data
-const generateMockIncidents = () => {
-  const priorities = ["critical", "high", "medium", "low"];
-  const statuses = ["open", "investigating", "resolved", "closed"];
-  const types = ["Intrusion", "Loitering", "Vehicle Theft", "Assault", "Vandalism", "Suspicious Activity"];
-  const regions = ["Lima", "Cusco", "Arequipa", "Trujillo", "Piura"];
-  
-  return Array.from({ length: 25 }, (_, i) => ({
-    id: `INC-${String(i + 1).padStart(4, "0")}`,
-    type: types[Math.floor(Math.random() * types.length)],
-    priority: priorities[Math.floor(Math.random() * priorities.length)],
-    status: statuses[Math.floor(Math.random() * statuses.length)],
-    location: `${regions[Math.floor(Math.random() * regions.length)]}, Peru`,
-    region: regions[Math.floor(Math.random() * regions.length)],
-    description: "Suspicious activity detected by surveillance system",
-    assignedOfficer: `Officer ${Math.floor(Math.random() * 50) + 1}`,
-    assignedUnit: `Unit ${Math.floor(Math.random() * 20) + 1}`,
-    responseTime: Math.floor(Math.random() * 30) + 5,
-    createdAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-    videoUrl: `https://example.com/video-${i + 1}.mp4`,
-    hasVideo: Math.random() > 0.3,
-  }));
-};
+interface IncidentData {
+  id: string;
+  type: string;
+  priority: string;
+  status: string;
+  location: string;
+  region: string;
+  description: string;
+  assignedOfficer: string;
+  assignedUnit: string;
+  responseTime: number;
+  createdAt: string;
+  videoUrl: string;
+  hasVideo: boolean;
+}
 
 export default function IncidentManagement() {
   const [, setLocation] = useLocation();
-  const [incidents] = useState(generateMockIncidents());
+  const [incidents, setIncidents] = useState<IncidentData[]>([]);
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
   const [noteText, setNoteText] = useState("");
   const [tagText, setTagText] = useState("");
   const [tagColor, setTagColor] = useState("#D91023");
   const [isLoading, setIsLoading] = useState(true);
+  const [dbConnected, setDbConnected] = useState(true);
 
-  // Simulate loading for incident data
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  // Fetch incidents from database
+  const fetchIncidents = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch("/api/data/incidents?limit=100", {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setIncidents(data.incidents || []);
+        setDbConnected(data.dbConnected !== false);
+      } else {
+        setIncidents([]);
+      }
+    } catch (err) {
+      console.error("[Incidents] Fetch error:", err);
+      setIncidents([]);
+    } finally {
       setIsLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
+    }
   }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchIncidents();
+  }, [fetchIncidents]);
 
   // Fetch notes and tags for selected incident
   const { data: notes, refetch: refetchNotes } = trpc.incidents.getNotes.useQuery(

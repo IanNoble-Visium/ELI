@@ -44,6 +44,36 @@ export { and, desc, eq, gte, lte, sql, count };
 // Re-export schema tables
 export { events, channels, webhookRequests, snapshots, incidents };
 
+// ========== Snapshots ==========
+
+export async function insertSnapshots(eventId: string, snapshotsData: Array<{
+  type?: string;
+  path?: string;
+  image?: string; // base64 image data - we store path only, not the actual image
+}>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (!snapshotsData || snapshotsData.length === 0) return;
+
+  const snapshotRecords = snapshotsData.map((snap, index) => ({
+    id: `snap_${eventId}_${index}_${Date.now()}`,
+    eventId,
+    type: snap.type || "UNKNOWN",
+    path: snap.path || null,
+    // Note: We don't store base64 image data to save DB space
+    // Images should be fetched from the original IREX path
+    imageUrl: snap.path || null,
+    cloudinaryPublicId: null,
+  }));
+
+  for (const record of snapshotRecords) {
+    await db.insert(snapshots).values(record).onDuplicateKeyUpdate({
+      set: record,
+    });
+  }
+}
+
 // ========== Webhook Requests ==========
 
 export async function insertWebhookRequest(data: {

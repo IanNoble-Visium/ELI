@@ -1,11 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-
-// In-memory store for recent webhooks (will be replaced with DB in production)
-// Note: This will reset on each cold start, but works for demo purposes
-const recentWebhooks: any[] = [];
-const MAX_WEBHOOKS = 1000;
+import {
+  insertWebhookRequest,
+  insertEvent,
+  insertSnapshots,
+  upsertChannel,
+  getDb
+} from "../lib/db";
 
 // Vercel serverless handler for IREX webhooks
+// Persists all incoming webhooks to PostgreSQL/TiDB database
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
   const origin = req.headers.origin || "*";
@@ -24,8 +27,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const startTime = Date.now();
+  let eventId: string | undefined;
+  let dbPersisted = false;
+
   try {
-    const startTime = Date.now();
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
     // Log the incoming webhook
@@ -33,79 +39,123 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Validate required fields
     if (!body.id || !body.channel) {
-      return res.status(400).json({ 
-        error: "Missing required fields: id and channel are required" 
+      return res.status(400).json({
+        error: "Missing required fields: id and channel are required"
       });
     }
 
-    // Extract key information
-    const webhookData = {
-      id: `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      receivedAt: new Date().toISOString(),
-      processingTime: 0,
-      status: "success",
-      
-      // Event data
-      eventId: body.event_id || body.id,
-      monitorId: body.monitor_id,
-      topic: body.topic || "Unknown",
-      module: body.module || "Unknown",
-      level: body.level ?? 1,
-      startTime: body.start_time,
-      endTime: body.end_time,
-      
-      // Channel/Camera data
-      channel: {
-        id: body.channel?.id,
-        name: body.channel?.name || body.channel_name,
-        type: body.channel?.channel_type || body.channel_type,
-        latitude: body.channel?.latitude || body.channel_latitude,
-        longitude: body.channel?.longitude || body.channel_longitude,
-        address: body.channel?.address || body.channel_address,
-        tags: body.channel?.tags,
-      },
-      
-      // Params (identities, attributes, etc.)
-      params: body.params || {},
-      
-      // Snapshots count (don't store full images in memory)
-      snapshotsCount: body.snapshots?.length || 0,
-      hasImages: body.snapshots?.some((s: any) => s.image) || false,
-      
-      // Raw payload size
-      payloadSize: JSON.stringify(body).length,
+    // Extract event and channel data
+    eventId = body.event_id || body.id;
+    const topic = body.topic || "Unknown";
+    const module = body.module || "Unknown";
+    const level = String(body.level ?? 1);
+
+    const channelData = {
+      id: String(body.channel?.id || body.channel_id || `ch_${Date.now()}`),
+      name: body.channel?.name || body.channel_name,
+      channelType: body.channel?.channel_type || body.channel_type || "STREAM",
+      latitude: body.channel?.latitude || body.channel_latitude,
+      longitude: body.channel?.longitude || body.channel_longitude,
+      address: body.channel?.address || body.channel_address,
+      tags: body.channel?.tags,
+      status: "active",
+      region: body.channel?.address?.city || body.channel?.address?.region || null,
     };
 
     // Calculate processing time
-    webhookData.processingTime = Date.now() - startTime;
+    const processingTime = Date.now() - startTime;
 
-    // Store in memory (at the beginning for most recent first)
-    recentWebhooks.unshift(webhookData);
-    
-    // Keep only the last MAX_WEBHOOKS entries
-    if (recentWebhooks.length > MAX_WEBHOOKS) {
-      recentWebhooks.pop();
+    // Try to persist to database
+    const db = await getDb();
+    if (db) {
+      try {
+        // 1. Upsert the channel/camera
+        await upsertChannel(channelData);
+
+        // 2. Insert the event
+        const eventDbId = `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await insertEvent({
+          id: eventDbId,
+          eventId,
+          monitorId: body.monitor_id,
+          topic,
+          module,
+          level,
+          startTime: body.start_time,
+          endTime: body.end_time,
+          latitude: channelData.latitude,
+          longitude: channelData.longitude,
+          channelId: channelData.id,
+          channelType: channelData.channelType,
+          channelName: channelData.name,
+          channelAddress: channelData.address,
+          params: body.params || null,
+          tags: body.channel?.tags || null,
+        });
+
+        // 3. Insert snapshots if present
+        if (body.snapshots && Array.isArray(body.snapshots) && body.snapshots.length > 0) {
+          await insertSnapshots(eventDbId, body.snapshots);
+        }
+
+        // 4. Insert webhook request log
+        await insertWebhookRequest({
+          endpoint: "/api/webhook/irex",
+          method: "POST",
+          payload: body,
+          eventId,
+          level,
+          module,
+          status: "success",
+          processingTime,
+        });
+
+        dbPersisted = true;
+        console.log(`[Webhook IREX] Persisted to DB in ${processingTime}ms - Event: ${eventId}, Topic: ${topic}`);
+      } catch (dbError: any) {
+        console.error("[Webhook IREX] Database error (continuing):", dbError.message);
+        // Still return success to the caller - don't fail the webhook due to DB issues
+      }
+    } else {
+      console.warn("[Webhook IREX] Database not available - webhook not persisted");
     }
 
-    console.log(`[Webhook IREX] Processed in ${webhookData.processingTime}ms - Event: ${webhookData.eventId}, Topic: ${webhookData.topic}`);
-
-    // Return success response (matching old API format)
+    // Return success response
     return res.status(200).json({
       status: "success",
-      eventId: webhookData.eventId,
-      processingTime: webhookData.processingTime,
-      message: "Webhook received and processed successfully",
+      eventId,
+      processingTime,
+      persisted: dbPersisted,
+      message: dbPersisted
+        ? "Webhook received and persisted to database"
+        : "Webhook received (database unavailable)",
     });
 
   } catch (error: any) {
     console.error("[Webhook IREX] Error:", error);
+
+    // Try to log the error to database
+    const db = await getDb();
+    if (db) {
+      try {
+        await insertWebhookRequest({
+          endpoint: "/api/webhook/irex",
+          method: "POST",
+          payload: null,
+          eventId,
+          status: "error",
+          error: error.message,
+          processingTime: Date.now() - startTime,
+        });
+      } catch (logError) {
+        console.error("[Webhook IREX] Failed to log error:", logError);
+      }
+    }
+
     return res.status(500).json({
       status: "error",
       error: error.message || "Internal server error",
     });
   }
 }
-
-// Export the recent webhooks for the API to access
-export { recentWebhooks };
 

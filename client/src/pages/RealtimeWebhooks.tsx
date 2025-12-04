@@ -48,82 +48,36 @@ export default function RealtimeWebhooks() {
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  // Fetch webhooks
+  // Fetch webhooks from real database
   const fetchWebhooks = useCallback(async () => {
     try {
       const response = await fetch("/api/webhooks/recent?limit=100", {
         credentials: "include",
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
-      if (data.success && data.webhooks) {
-        setWebhooks(data.webhooks);
-        setError(null);
+
+      if (data.success) {
+        setWebhooks(data.webhooks || []);
+        setError(data.dbConnected === false ? "Database not configured" : null);
       } else {
-        // Fallback to mock data if API returns unexpected format
-        setWebhooks(generateMockWebhooks());
+        setWebhooks([]);
+        setError(data.message || "Failed to fetch webhooks");
       }
-      
+
       setLastRefresh(new Date());
       setIsLoading(false);
     } catch (err) {
       console.error("[Webhooks] Fetch error:", err);
-      // Use mock data on error (for local development or initial setup)
-      setWebhooks(generateMockWebhooks());
-      setError(null);
+      setWebhooks([]);
+      setError("Failed to connect to API");
       setIsLoading(false);
     }
   }, []);
-
-  // Generate mock webhooks for demo
-  const generateMockWebhooks = (): WebhookData[] => {
-    const topics = ["FaceMatched", "PlateMatched", "Motion", "Intrusion", "Loitering"];
-    const modules = ["KX.Faces", "KX.PDD", "KX.Motion", "KX.Analytics"];
-    const levels = [0, 1, 2, 3];
-    const cities = ["Lima", "Cusco", "Arequipa", "Trujillo", "Piura"];
-    const streets = ["Av. Javier Prado", "Av. Arequipa", "Av. La Marina", "Calle Los Olivos", "Jr. Union"];
-
-    return Array.from({ length: 50 }, (_, i) => {
-      const topic = topics[Math.floor(Math.random() * topics.length)];
-      const now = Date.now();
-      const receivedAt = new Date(now - Math.random() * 3600000).toISOString();
-      
-      return {
-        id: `webhook_${now}_${Math.random().toString(36).substr(2, 9)}`,
-        receivedAt,
-        processingTime: Math.floor(Math.random() * 100) + 10,
-        status: "success",
-        eventId: `${100 + i}:${now}:${Math.floor(Math.random() * 1000000000)}`,
-        monitorId: Math.floor(Math.random() * 200) + 1,
-        topic,
-        module: modules[Math.floor(Math.random() * modules.length)],
-        level: levels[Math.floor(Math.random() * levels.length)],
-        startTime: now - Math.floor(Math.random() * 60000),
-        endTime: now,
-        channel: {
-          id: Math.floor(Math.random() * 3000) + 1,
-          name: `CAM-${String(Math.floor(Math.random() * 999) + 1).padStart(3, "0")}`,
-          type: "STREAM",
-          latitude: -12.0464 + (Math.random() - 0.5) * 2,
-          longitude: -77.0428 + (Math.random() - 0.5) * 2,
-          address: {
-            country: "Peru",
-            city: cities[Math.floor(Math.random() * cities.length)],
-            street: streets[Math.floor(Math.random() * streets.length)],
-          },
-        },
-        params: {},
-        snapshotsCount: Math.floor(Math.random() * 3) + 1,
-        hasImages: Math.random() > 0.3,
-        payloadSize: Math.floor(Math.random() * 50000) + 1000,
-      };
-    }).sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-  };
 
   // Initial fetch
   useEffect(() => {

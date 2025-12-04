@@ -1,11 +1,11 @@
-# ELI Unified Dashboard - Demo Preparation TODO
+﻿# ELI Unified Dashboard - Demo Preparation TODO
 
 > **Demo Date:** This Week
 > **Goal:** Impress the Peruvian Government with a professional, polished national surveillance platform
 
 ---
 
-## 🎯 DEMO PRIORITY MATRIX
+## ðŸŽ¯ DEMO PRIORITY MATRIX
 
 | Priority | Impact | Effort | Focus Area |
 |----------|--------|--------|------------|
@@ -16,7 +16,7 @@
 
 ---
 
-## 🚨 P0 - CRITICAL FOR DEMO (Must Complete)
+## ðŸš¨ P0 - CRITICAL FOR DEMO (Must Complete)
 *High impact, reasonable effort - complete these first*
 
 ### Loading States & Polish
@@ -27,6 +27,15 @@
   - [x] IncidentManagement (list skeleton)
   - [x] POLEAnalytics (cards + chart skeletons)
 
+### Database Integration âœ… COMPLETED
+- [x] **Webhook ingestion** - `/api/webhook/irex` persists to database (events, channels, snapshots, webhook_requests)
+- [x] **Real camera data** - `/api/data/cameras` queries `channels` table
+- [x] **Real event data** - `/api/data/events` queries `events` table
+- [x] **Real statistics** - `/api/data/stats` aggregates from database
+- [x] **Real webhook feed** - `/api/webhooks/recent` queries `webhook_requests` table
+- [x] **Incident data** - `/api/data/incidents` queries `incidents` table
+- [x] **Empty state handling** - Frontend shows "No data yet" instead of mock fallback
+
 ### Data & Content
 - [x] **Ensure realistic demo data displays** - Verify all mock data shows Peru-specific content
 - [x] **Test video backgrounds on Landing** - Confirm all 18 b-roll videos load smoothly (fixed path)
@@ -34,7 +43,7 @@
 
 ---
 
-## ⭐ P1 - HIGH IMPACT VISUAL POLISH
+## â­ P1 - HIGH IMPACT VISUAL POLISH
 *These will create the "wow factor" for the demo*
 
 ### Smooth Page Transitions
@@ -70,7 +79,7 @@
 
 ---
 
-## 🎨 P2 - PROFESSIONAL ENHANCEMENTS
+## ðŸŽ¨ P2 - PROFESSIONAL ENHANCEMENTS
 *Additional polish to elevate the demo experience*
 
 ### Real-time Updates Visual Feedback
@@ -100,12 +109,12 @@
 
 ---
 
-## ✨ WOW FACTOR - DEMO HIGHLIGHTS
+## âœ¨ WOW FACTOR - DEMO HIGHLIGHTS
 *Features specifically designed to impress government stakeholders*
 
 ### Landing Page
-- [x] ✅ Peru b-roll video background with smooth transitions
-- [x] ✅ Animated statistics counters
+- [x] âœ… Peru b-roll video background with smooth transitions
+- [x] âœ… Animated statistics counters
 - [ ] **Add "SISTEMA NACIONAL" government seal/badge**
 - [ ] **Typing effect on subtitle** - "Peru's National Surveillance & Intelligence Platform"
 
@@ -131,7 +140,7 @@
 
 ---
 
-## 🔧 TECHNICAL IMPROVEMENTS
+## ðŸ”§ TECHNICAL IMPROVEMENTS
 *Performance and reliability for smooth demo*
 
 ### Performance
@@ -140,8 +149,8 @@
 - [ ] **Chart data caching** - TanStack Query with stale time
 
 ### Error Handling
-- [x] ✅ Error boundary wrapper in App.tsx
-- [x] ✅ Toast notifications via Sonner
+- [x] âœ… Error boundary wrapper in App.tsx
+- [x] âœ… Toast notifications via Sonner
 - [ ] **Graceful fallbacks** - Show placeholder on data fetch failure
 - [ ] **Offline detection** - Show "Reconnecting..." on network loss
 
@@ -152,70 +161,99 @@
 
 ---
 
-## ✅ COMPLETED PHASES
+## âœ… COMPLETED PHASES
 
-### Phase 1: Core Infrastructure ✅
+### Phase 1: Core Infrastructure âœ…
 - [x] Database schema (events, snapshots, channels, AI jobs)
 - [x] Hardcoded admin/admin authentication
 - [x] Peru theme colors (red #D91023, white, dark gray)
 - [x] All dashboard routes configured
 - [x] JWT token and cookie settings
 
-### Phase 2-3: Backend APIs ⚙️ (Partial)
-- [x] Webhook ingestion endpoint
-- [x] PostgreSQL integration
-- [x] Dashboard metrics endpoint
-- [x] Events, snapshots, cameras endpoints
-- [ ] Neo4j integration (future)
-- [ ] Cloudinary integration (future)
+### Phase 2-3: Backend APIs âœ…
+- [x] Webhook ingestion endpoint (persists to PostgreSQL)
+- [x] PostgreSQL integration (full database persistence)
+- [x] Dashboard metrics endpoint (real aggregated data)
+- [x] Events, snapshots, cameras endpoints (real DB queries)
+- [x] Snapshots persistence from webhooks
+- [x] Timeline data with proper date range queries
+- [ ] Neo4j integration (future - post-demo)
+- [ ] Cloudinary integration (future - post-demo)
 
-### Phase 4: Landing Page ✅
+### Phase 4: Landing Page âœ…
 - [x] Video background with 17 Peru b-roll clips
 - [x] Animated stats (3,084 cameras, 25 regions, 107 stations)
 - [x] Framer Motion animations
 - [x] Professional government appearance
 
-### Phase 5: Executive Dashboard ✅
+### Phase 5: Executive Dashboard âœ…
 - [x] KPI cards with trend indicators
 - [x] Recharts line/bar/pie charts
 - [x] Time-range selector
 - [x] Motion animations on cards
 
-### Phase 6: Geographic Map ✅
+### Phase 6: Geographic Map âœ…
 - [x] Leaflet integration
-- [x] Mock 3,084 camera markers
+- [x] Real camera markers from database (no more mock)
 - [x] Click-to-view details
 - [x] Legend and controls
+- [x] Loading skeleton
 
-### Phase 7: Topology Graph ✅
+### Phase 7: Topology Graph âœ…
 - [x] react-force-graph-2d
 - [x] 5 layout modes
 - [x] Node/edge filtering
 - [x] Search functionality
 
-### Phase 8: Incident Management ✅
-- [x] Incident list with filtering
+### Phase 8: Incident Management âœ…
+- [x] Incident list from database (no more mock)
 - [x] Status/priority badges
-- [x] Notes and tags system
+- [x] Notes and tags system (real tRPC endpoints)
 - [x] Video evidence placeholders
+- [x] Loading skeleton
+- [x] Empty state handling
 
-### Phase 9: POLE Analytics ✅
+### Phase 9: POLE Analytics âœ…
 - [x] People/Objects/Locations/Events tabs
 - [x] Timeline charts
 - [x] Pattern recognition display
 - [x] Entity tracking tables
 
-### Phase 10: Real-time Webhooks ✅
-- [x] Live event feed
+### Phase 10: Real-time Webhooks âœ…
+- [x] Live event feed (from real database)
 - [x] AnimatePresence transitions
 - [x] Pause/play controls
 - [x] Filtering by level/module
+- [x] Empty state when no data
+- [x] Auto-refresh every 5 seconds
 
-### Phase 11: Settings ✅
+### Phase 11: Settings âœ…
 - [x] Data retention slider
 - [x] Purge confirmation modal
 - [x] Storage statistics display
 - [x] System information
+
+---
+
+## 🚀 RECOMMENDED NEXT STEPS
+
+*Priority tasks based on completed database integration*
+
+### Pre-Demo Testing (High Priority)
+- [ ] **Test webhook with real IREX data** - Send actual surveillance events to `/api/webhook/irex`
+- [ ] **Verify DATABASE_URL is configured** - Ensure Vercel/production has correct connection string
+- [ ] **Populate demo data** - Create seeding script or send test webhooks to have data visible
+
+### Database Enhancements
+- [ ] **Snapshot image retrieval** - Currently storing paths only; add Cloudinary upload for images
+- [ ] **Database migration scripts** - Add production migration tooling
+- [ ] **Incident auto-creation** - Automatically create incidents from high-priority events
+- [ ] **POLE entity extraction** - Parse identities from webhook params into pole_entities table
+
+### Performance & Reliability
+- [ ] **Add database connection pooling** - Optimize for serverless cold starts
+- [ ] **Add request rate limiting** - Protect webhook endpoint from overload
+- [ ] **Add database backup strategy** - Ensure data persistence
 
 ---
 
@@ -224,8 +262,8 @@
 *Lower priority items for after the demo*
 
 ### Backend Integrations
-- [ ] Neo4j graph database connection
-- [ ] Cloudinary image storage
+- [ ] Neo4j graph database connection (for topology visualization)
+- [ ] Cloudinary image storage (for snapshot thumbnails)
 - [ ] Full purge logic implementation
 - [ ] Predictive/behavior/anomaly AI endpoints
 
@@ -239,14 +277,14 @@
 - [ ] Bulk operations
 
 ### Documentation
-- [ ] Environment variables docs
+- [x] Database integration documented in README.md
+- [x] API endpoints documented in README.md
 - [ ] Local development guide
-- [ ] API endpoint documentation
 - [ ] Deployment instructions
 
 ---
 
-## 📊 DEMO CHECKLIST
+## ðŸ“Š DEMO CHECKLIST
 
 Before the demo, verify:
 
@@ -268,3 +306,4 @@ Before the demo, verify:
 
 *Last Updated: December 2024*
 *Target: Peruvian Government Demo*
+
