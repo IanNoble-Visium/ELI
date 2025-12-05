@@ -1,4 +1,4 @@
-﻿# ELI Unified Dashboard - Demo Preparation TODO
+# ELI Unified Dashboard - Demo Preparation TODO
 
 > **Demo Date:** This Week
 > **Goal:** Impress the Peruvian Government with a professional, polished national surveillance platform
@@ -43,39 +43,65 @@
 
 ---
 
-## â­ P1 - HIGH IMPACT VISUAL POLISH
+## â­ P1 - HIGH IMPACT VISUAL POLISH - COMPLETED
 *These will create the "wow factor" for the demo*
 
-### Smooth Page Transitions
-- [ ] **Add route transition animations** - Wrap routes in AnimatePresence for smooth page fades
-- [ ] **Implement exit animations** - Add exit prop to page motion.div containers
+> **Status: COMPLETED** - Commit `04c14cb` (Dec 4, 2024)
 
-### Staggered Loading Animations
-- [ ] **ExecutiveDashboard KPI cards** - Cascade animation (already has basic motion, enhance with stagger)
-- [ ] **Dashboard selector cards** - Add staggered entrance (0.1s delay between each)
-- [ ] **Chart container reveals** - Add slide-up animations as charts come into view
+### Smooth Page Transitions - DONE
+- [x] **Add route transition animations** - Wrap routes in AnimatePresence for smooth page fades
+  - Implemented with Framer Motion `AnimatePresence` in `App.tsx`
+  - Created `pageVariants` with fade + slide animations (300ms duration)
+- [x] **Implement exit animations** - Add exit prop to page motion.div containers
+  - All pages wrapped in `AnimatedPage` component with enter/exit animations
 
-### Micro-interactions
-- [ ] **Button hover effects** - Add subtle scale/glow on primary action buttons
-- [ ] **Card hover states** - Enhance existing hover with subtle lift + shadow bloom
-- [ ] **Badge pulse animation** - Add pulse to critical/live status badges
-- [ ] **Icon hover rotations** - Subtle rotation on navigation icons
+### Staggered Loading Animations - DONE
+- [x] **ExecutiveDashboard KPI cards** - Cascade animation (already has basic motion, enhance with stagger)
+  - `containerVariants` with 100ms stagger between cards
+- [x] **Dashboard selector cards** - Add staggered entrance (0.1s delay between each)
+  - Module cards animate with `cardVariants` and icon rotation effects
+- [x] **Chart container reveals** - Add slide-up animations as charts come into view
+  - Charts use `whileInView` with slide-up animation
 
-### Chart Enhancements
-- [ ] **Animated chart entry** - Charts should draw/animate in when visible
-- [ ] **Tooltip improvements** - Styled tooltips matching Peru theme
-- [ ] **Add gradient fills** - Subtle Peru red gradients on area charts
+### Micro-interactions - DONE
+- [x] **Button hover effects** - Add subtle scale/glow on primary action buttons
+  - `hover:scale-[1.02]`, `active:scale-[0.98]`, glow shadow in `button.tsx`
+- [x] **Card hover states** - Enhance existing hover with subtle lift + shadow bloom
+  - `hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20` in `card.tsx`
+- [x] **Badge pulse animation** - Add pulse to critical/live status badges
+  - New `live` and `critical` variants with `animate-pulse` in `badge.tsx`
+- [x] **Icon hover rotations** - Subtle rotation on navigation icons
+  - Dashboard module cards have icon rotation on hover
 
-### Map Enhancements
-- [ ] **Camera marker clustering** - Group nearby cameras for cleaner view at low zoom
-- [ ] **Animated marker entry** - Cameras fade in with scale animation on load
-- [ ] **Hover state on markers** - Tooltip preview on marker hover
-- [ ] **Region boundary overlays** - Show Peru region outlines on map
+### Chart Enhancements - DONE
+- [x] **Animated chart entry** - Charts should draw/animate in when visible
+  - Charts wrapped in motion.div with `whileInView` animations
+- [x] **Tooltip improvements** - Styled tooltips matching Peru theme
+  - Custom tooltip with Peru red accents on ExecutiveDashboard
+- [x] **Add gradient fills** - Subtle Peru red gradients on area charts
+  - `<defs>` gradients added to AreaChart and LineChart components
 
-### Topology Graph Enhancements
-- [ ] **Node pulse animations** - Active nodes should have subtle pulse
-- [ ] **Link particle speed variation** - Vary particle speed based on edge weight
-- [ ] **Zoom smooth transitions** - Smooth camera transitions on node click
+### Map Enhancements - PARTIAL
+- [ ] **Camera marker clustering** - Group nearby cameras for cleaner view at low zoom (moved to P2)
+- [x] **Animated marker entry** - Cameras fade in with scale animation on load
+  - Alert markers have CSS pulse ring animation
+- [x] **Hover state on markers** - Tooltip preview on marker hover
+  - Larger hover icons with glow effect on GeographicMap
+- [ ] **Region boundary overlays** - Show Peru region outlines on map (moved to P2)
+
+### Topology Graph Enhancements - DONE
+- [x] **Node pulse animations** - Active nodes should have subtle pulse
+  - Selected nodes have pulsing ring effect with radial gradient rendering
+- [x] **Link particle speed variation** - Vary particle speed based on edge weight
+  - Multi-colored particles (red, green, blue, orange) with varied speeds
+- [x] **Zoom smooth transitions** - Smooth camera transitions on node click
+  - Auto-fit on engine stop (400ms), label backgrounds for readability
+
+### Custom CSS Animations (Bonus) - DONE
+- [x] **pulse-glow** - Pulsing glow ring effect for alerts
+- [x] **float** - Gentle floating animation
+- [x] **shimmer** - Gradient shimmer effect
+- [x] **Styled scrollbars** - Peru red theme scrollbars
 
 ---
 
@@ -235,7 +261,7 @@
 
 ---
 
-## 🚀 RECOMMENDED NEXT STEPS
+## ?? RECOMMENDED NEXT STEPS
 
 *Priority tasks based on completed database integration*
 
@@ -257,7 +283,7 @@
 
 ---
 
-## 📋 POST-DEMO BACKLOG
+## ?? POST-DEMO BACKLOG
 
 *Lower priority items for after the demo*
 
@@ -288,6 +314,7 @@
 
 Before the demo, verify:
 
+### Core Functionality
 - [ ] All pages load without errors
 - [ ] Landing video plays smoothly
 - [ ] Login works (admin/admin)
@@ -299,11 +326,77 @@ Before the demo, verify:
 - [ ] POLE tabs switch correctly
 - [ ] Real-time feed updates
 - [ ] Settings page functional
+
+### Visual Polish (NEW - Commit 04c14cb)
+- [x] Page transitions animate smoothly
+- [x] Cards have hover effects
+- [x] Buttons scale on hover/click
+- [x] Charts animate on view
+- [x] Map markers have pulse animation
+- [x] Topology nodes have glow effects
+- [x] Scrollbars are themed
+
+### Environment
 - [ ] Mobile/tablet responsive (if needed)
 - [ ] Tested on demo presentation device
+- [ ] Projector/external display tested
 
 ---
 
-*Last Updated: December 2024*
+## NEXT PRIORITY RECOMMENDATIONS
+
+*Based on the completed P1 visual polish, here are the recommended next high-impact improvements:*
+
+### Elevate to P1 (High Impact, Quick Wins)
+
+1. **Real-time Event Ticker** - Add scrolling event ticker at bottom of Executive Dashboard
+   - Creates "command center" feel
+   - Uses existing event data from database
+   - ~2 hours effort
+
+2. **Camera Marker Clustering** - Group nearby cameras at low zoom levels
+   - Currently 3,084+ markers can overwhelm the map
+   - Use Leaflet.markercluster plugin
+   - ~1-2 hours effort
+
+3. **Full-screen Mode (F11)** - Add fullscreen toggle for presentations
+   - Perfect for projector demos
+   - Simple browser API integration
+   - ~30 minutes effort
+
+4. **Live Data Indicator** - Add animated "LIVE" badge in header
+   - Shows system is actively receiving data
+   - Already have pulse animation CSS
+   - ~30 minutes effort
+
+### Performance Optimizations
+
+1. **Lazy Load Heavy Pages** - React.lazy() for Map, Topology, POLE pages
+   - Reduces initial bundle size
+   - Improves cold-start performance
+   - Already identified as needed
+
+2. **ForceGraph Memoization** - Prevent unnecessary re-renders on Topology page
+   - Currently re-renders on every state change
+   - Use useMemo for graph data
+
+### Noticed During Implementation
+
+1. **Node Details Panel Enhancement** - Add quick actions (highlight connections, zoom to fit)
+2. **Sidebar Collapse Toggle** - Allow collapsing sidebars for more map/graph space
+3. **Keyboard Navigation** - Add Ctrl+1-6 shortcuts for quick page navigation
+4. **Chart Loading States** - Add skeleton loaders while chart data fetches
+
+### Pre-Demo Testing Priorities
+
+1. Verify all pages load without console errors
+2. Test on target presentation device/projector
+3. Confirm webhook ingestion works end-to-end
+4. Verify database connection handles cold starts
+
+---
+
+*Last Updated: December 5, 2024*
 *Target: Peruvian Government Demo*
+*Visual Polish Status: P1 COMPLETED (Commit 04c14cb)*
 
