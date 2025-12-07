@@ -4,11 +4,16 @@ import {
   insertEvent,
   insertSnapshots,
   upsertChannel,
-  getDb
+  getDb,
+  SnapshotData,
 } from "../lib/db.js";
+import {
+  uploadImage,
+  isCloudinaryConfigured,
+} from "../lib/cloudinary.js";
 
 // Vercel serverless handler for IREX webhooks
-// Persists all incoming webhooks to PostgreSQL/TiDB database
+// Persists all incoming webhooks to PostgreSQL/TiDB database with Cloudinary image upload
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
   const origin = req.headers.origin || "*";
@@ -104,9 +109,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             tags: body.channel?.tags || null,
           });
 
-          // 3. Insert snapshots if present
+          // 3. Insert snapshots if present (with Cloudinary upload)
           if (body.snapshots && Array.isArray(body.snapshots) && body.snapshots.length > 0) {
-            await insertSnapshots(eventDbId, body.snapshots);
+            const cloudinaryEnabled = isCloudinaryConfigured();
+            const processedSnapshots: SnapshotData[] = [];
+
+            for (const snapshot of body.snapshots) {
+              const snapshotData: SnapshotData = {
+                type: snapshot.type,
+                path: snapshot.path,
+              };
+
+              // Upload to Cloudinary if configured and base64 image data is present
+              if (cloudinaryEnabled && snapshot.image) {
+                try {
+                  const uploadResult = await uploadImage(
+                    snapshot.image,
+                    eventDbId,
+                    snapshot.type || "UNKNOWN"
+                  );
+
+                  if (uploadResult.success) {
+                    snapshotData.imageUrl = uploadResult.data.secureUrl;
+                    snapshotData.cloudinaryPublicId = uploadResult.data.publicId;
+                    console.log(`[Webhook IREX] Uploaded snapshot to Cloudinary: ${uploadResult.data.publicId}`);
+                  } else {
+                    console.warn(`[Webhook IREX] Cloudinary upload failed: ${uploadResult.error}`);
+                    // Fall back to path
+                    snapshotData.imageUrl = snapshot.path || null;
+                  }
+                } catch (uploadError: any) {
+                  console.error(`[Webhook IREX] Cloudinary upload error:`, uploadError.message);
+                  snapshotData.imageUrl = snapshot.path || null;
+                }
+              } else {
+                // No Cloudinary or no image data - use path
+                snapshotData.imageUrl = snapshot.path || null;
+              }
+
+              processedSnapshots.push(snapshotData);
+            }
+
+            await insertSnapshots(eventDbId, processedSnapshots);
           }
 
           processedEventIds.push(eventId);
@@ -184,5 +228,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
+
+
 
 

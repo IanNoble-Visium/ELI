@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,11 @@ import {
   Database, 
   Trash2,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Cloud,
+  RefreshCw,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -26,11 +30,55 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+interface CloudinaryUsageData {
+  success: boolean;
+  usage?: {
+    credits: { used: number; limit: number; used_percent: number };
+    storage: { usage: number; usage_mb: number; credits_usage: number };
+    bandwidth: { usage: number; usage_mb: number; credits_usage: number };
+    transformations: { usage: number; credits_usage: number };
+    resources: number;
+  };
+  plan?: string;
+  error?: string;
+  configured?: boolean;
+}
+
+function formatBytes(bytes: number, decimals = 2): string {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+}
+
 export default function Settings() {
   const [, setLocation] = useLocation();
   const [retentionDays, setRetentionDays] = useState([7]);
+  const [cloudinaryData, setCloudinaryData] = useState<CloudinaryUsageData | null>(null);
+  const [cloudinaryLoading, setCloudinaryLoading] = useState(true);
   
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
+
+  // Fetch Cloudinary usage data
+  const fetchCloudinaryData = useCallback(async () => {
+    try {
+      setCloudinaryLoading(true);
+      const response = await fetch("/api/cloudinary/usage", { credentials: "include" });
+      const data = await response.json();
+      setCloudinaryData(data);
+    } catch (error) {
+      console.error("[Settings] Failed to fetch Cloudinary data:", error);
+      setCloudinaryData({ success: false, error: "Failed to connect" });
+    } finally {
+      setCloudinaryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCloudinaryData();
+  }, [fetchCloudinaryData]);
   const updateConfigMutation = trpc.config.set.useMutation({
     onSuccess: () => {
       toast.success("Settings saved successfully");
@@ -223,27 +271,84 @@ export default function Settings() {
         >
           <Card>
             <CardHeader>
-              <CardTitle>Storage Statistics</CardTitle>
-              <CardDescription>Current database and storage usage</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Storage Statistics</CardTitle>
+                  <CardDescription>Current database and storage usage</CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchCloudinaryData}
+                  disabled={cloudinaryLoading}
+                >
+                  <RefreshCw className={`w-4 h-4 ${cloudinaryLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="p-4 border border-border rounded-lg">
-                  <div className="text-sm text-muted-foreground mb-1">PostgreSQL</div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <Database className="w-4 h-4" />
+                    PostgreSQL
+                  </div>
                   <div className="text-2xl font-bold">~250 MB</div>
                   <div className="text-xs text-muted-foreground mt-1">Events & Snapshots</div>
                 </div>
                 <div className="p-4 border border-border rounded-lg">
-                  <div className="text-sm text-muted-foreground mb-1">Neo4j</div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <Database className="w-4 h-4" />
+                    Neo4j
+                  </div>
                   <div className="text-2xl font-bold">~180 MB</div>
                   <div className="text-xs text-muted-foreground mt-1">Graph Relationships</div>
                 </div>
-                <div className="p-4 border border-border rounded-lg">
-                  <div className="text-sm text-muted-foreground mb-1">Cloudinary</div>
-                  <div className="text-2xl font-bold">~2.4 GB</div>
-                  <div className="text-xs text-muted-foreground mt-1">Images & Videos</div>
+                <div className="p-4 border border-blue-500/20 rounded-lg bg-blue-500/5">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <Cloud className="w-4 h-4 text-blue-400" />
+                    Cloudinary
+                  </div>
+                  {cloudinaryLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">Loading...</span>
+                    </div>
+                  ) : cloudinaryData?.success && cloudinaryData.usage ? (
+                    <>
+                      <div className="text-2xl font-bold text-blue-400">
+                        {formatBytes(cloudinaryData.usage.storage.usage)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {cloudinaryData.usage.resources.toLocaleString()} images • {cloudinaryData.plan}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg font-medium text-yellow-500">Not configured</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {cloudinaryData?.error || "Add credentials in secrets"}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
+              
+              {/* Cloudinary Details Link */}
+              {cloudinaryData?.success && (
+                <div className="mt-4 pt-4 border-t border-border/50">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLocation("/dashboard/cloudinary")}
+                    className="w-full border-blue-500/30 hover:bg-blue-500/10"
+                  >
+                    <Cloud className="w-4 h-4 mr-2 text-blue-400" />
+                    View Detailed Cloudinary Metrics
+                    <ExternalLink className="w-3 h-3 ml-2" />
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>

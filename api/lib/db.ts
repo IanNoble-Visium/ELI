@@ -49,11 +49,15 @@ export { events, channels, webhookRequests, snapshots, incidents };
 
 // ========== Snapshots ==========
 
-export async function insertSnapshots(eventId: string, snapshotsData: Array<{
+export interface SnapshotData {
   type?: string;
   path?: string;
-  image?: string; // base64 image data - we store path only, not the actual image
-}>) {
+  image?: string; // base64 image data
+  imageUrl?: string; // Cloudinary URL (if uploaded)
+  cloudinaryPublicId?: string; // Cloudinary public ID (if uploaded)
+}
+
+export async function insertSnapshots(eventId: string, snapshotsData: SnapshotData[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -64,10 +68,9 @@ export async function insertSnapshots(eventId: string, snapshotsData: Array<{
     eventId,
     type: snap.type || "UNKNOWN",
     path: snap.path || null,
-    // Note: We don't store base64 image data to save DB space
-    // Images should be fetched from the original IREX path
-    imageUrl: snap.path || null,
-    cloudinaryPublicId: null,
+    // Use Cloudinary URL if available, otherwise fall back to path
+    imageUrl: snap.imageUrl || snap.path || null,
+    cloudinaryPublicId: snap.cloudinaryPublicId || null,
   }));
 
   for (const record of snapshotRecords) {
@@ -76,6 +79,38 @@ export async function insertSnapshots(eventId: string, snapshotsData: Array<{
       set: record,
     });
   }
+}
+
+/**
+ * Insert a single snapshot with Cloudinary data
+ */
+export async function insertSnapshot(data: {
+  id: string;
+  eventId: string;
+  type?: string;
+  path?: string;
+  imageUrl?: string;
+  cloudinaryPublicId?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(snapshots).values({
+    id: data.id,
+    eventId: data.eventId,
+    type: data.type || "UNKNOWN",
+    path: data.path || null,
+    imageUrl: data.imageUrl || null,
+    cloudinaryPublicId: data.cloudinaryPublicId || null,
+  }).onConflictDoUpdate({
+    target: snapshots.id,
+    set: {
+      type: data.type || "UNKNOWN",
+      path: data.path || null,
+      imageUrl: data.imageUrl || null,
+      cloudinaryPublicId: data.cloudinaryPublicId || null,
+    },
+  });
 }
 
 // ========== Webhook Requests ==========

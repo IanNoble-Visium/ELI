@@ -14,6 +14,7 @@ import IncidentManagement from "./pages/IncidentManagement";
 import POLEAnalytics from "./pages/POLEAnalytics";
 import RealtimeWebhooks from "./pages/RealtimeWebhooks";
 import Settings from "./pages/Settings";
+import CloudinaryMonitoring from "./pages/CloudinaryMonitoring";
 import { useAuth } from "./_core/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -115,6 +116,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/settings">
           {() => <AnimatedPage><ProtectedRoute component={Settings} /></AnimatedPage>}
+        </Route>
+        <Route path="/dashboard/cloudinary">
+          {() => <AnimatedPage><ProtectedRoute component={CloudinaryMonitoring} /></AnimatedPage>}
         </Route>
         <Route path="/404">
           {() => <AnimatedPage><NotFound /></AnimatedPage>}
