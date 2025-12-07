@@ -39,8 +39,12 @@ export default function Login() {
       
       <Card className="w-full max-w-md relative z-10 border-border/50 shadow-2xl">
         <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-            <Shield className="w-8 h-8 text-primary" />
+          <div className="mx-auto">
+            <img 
+              src="/images/eli-logo.jpg" 
+              alt="ELI Logo" 
+              className="h-24 w-auto mx-auto rounded-lg shadow-lg"
+            />
           </div>
           <CardTitle className="text-3xl font-bold">ELI Dashboard</CardTitle>
           <CardDescription className="text-base">

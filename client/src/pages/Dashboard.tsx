@@ -11,7 +11,8 @@ import {
   Activity,
   Settings,
   LogOut,
-  Shield
+  Shield,
+  Cloud
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -98,6 +99,13 @@ export default function Dashboard() {
       route: "/dashboard/realtime",
       color: "text-red-500",
     },
+    {
+      icon: Cloud,
+      title: "Cloudinary Monitoring",
+      description: "Media storage, bandwidth, and usage metrics",
+      route: "/dashboard/cloudinary",
+      color: "text-cyan-500",
+    },
   ];
 
   return (
@@ -109,14 +117,14 @@ export default function Dashboard() {
       <header className="border-b border-border bg-card/80 backdrop-blur-lg sticky top-1 z-40">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <motion.div 
-              className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center ring-2 ring-primary/30"
+            <motion.img 
+              src="/images/eli-logo.jpg"
+              alt="ELI Logo"
+              className="h-10 w-auto rounded shadow-md"
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5 }}
-            >
-              <Shield className="w-5 h-5 text-primary" />
-            </motion.div>
+            />
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">ELI Dashboard</h1>
               <p className="text-xs text-primary/80 font-medium">Peru Surveillance Platform</p>

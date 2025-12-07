@@ -186,14 +186,18 @@ export default function Landing() {
             transition={{ duration: 0.8 }}
             className="text-center space-y-8"
           >
-            {/* Logo/Shield with glow effect */}
+            {/* ELI Logo with glow effect */}
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.2, duration: 0.6 }}
-              className="mx-auto w-28 h-28 bg-primary/20 rounded-full flex items-center justify-center mb-8 ring-4 ring-primary/30 shadow-lg shadow-primary/20"
+              className="mx-auto mb-8"
             >
-              <Shield className="w-14 h-14 text-primary drop-shadow-lg" />
+              <img 
+                src="/images/eli-logo.jpg" 
+                alt="ELI Logo" 
+                className="h-32 w-auto mx-auto rounded-lg shadow-2xl shadow-primary/30 ring-4 ring-primary/20"
+              />
             </motion.div>
             
             <motion.h1 
