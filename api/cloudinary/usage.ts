@@ -115,22 +115,42 @@ export default async function handler(
 
     const usageData = await usageResponse.json();
 
+    // Log raw response for debugging
+    console.log("[Cloudinary Usage] Raw API response:", JSON.stringify(usageData, null, 2));
+
     // Get rate limit info from headers
     const rateLimitRemaining = usageResponse.headers.get("x-featureratelimit-remaining");
 
     // Calculate MB values for better readability
     const bytesToMB = (bytes: number) => bytes / (1024 * 1024);
 
+    // Extract credits usage from individual categories
+    const storageCredits = usageData.storage?.credits_usage || 0;
+    const bandwidthCredits = usageData.bandwidth?.credits_usage || 0;
+    const transformationsCredits = usageData.transformations?.credits_usage || 0;
+    
+    // Calculate total credits used - sum from components if credits.used is 0
+    let totalCreditsUsed = usageData.credits?.used || 0;
+    if (totalCreditsUsed === 0) {
+      totalCreditsUsed = storageCredits + bandwidthCredits + transformationsCredits;
+    }
+    
+    // Get credit limit
+    const creditLimit = usageData.credits?.limit || 600;
+    
+    // Calculate percentage
+    const creditsUsedPercent = creditLimit > 0 
+      ? (totalCreditsUsed / creditLimit) * 100 
+      : 0;
+
     // Format the response
     const response: CloudinaryUsageResponse = {
       success: true,
       usage: {
         credits: {
-          used: usageData.credits?.used || 0,
-          limit: usageData.credits?.limit || 0,
-          used_percent: usageData.credits?.limit 
-            ? ((usageData.credits?.used || 0) / usageData.credits.limit) * 100 
-            : 0,
+          used: totalCreditsUsed,
+          limit: creditLimit,
+          used_percent: creditsUsedPercent,
         },
         storage: {
           usage: usageData.storage?.usage || 0,

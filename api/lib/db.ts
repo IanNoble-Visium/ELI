@@ -373,9 +373,9 @@ export async function getChannelsWithEventCounts(options: {
   const eventCountsSubquery = db
     .select({
       channelId: events.channelId,
-      eventCount: count(),
-      alertCount: sql`CASE WHEN ${events.level} >= '2' THEN 1 ELSE 0 END`,
-      lastEventTime: sql`MAX(${events.startTime})`,
+      eventCount: count().as("event_count"),
+      alertCount: sql<number>`SUM(CASE WHEN ${events.level} >= '2' THEN 1 ELSE 0 END)`.as("alert_count"),
+      lastEventTime: sql<number>`MAX(${events.startTime})`.as("last_event_time"),
     })
     .from(events)
     .groupBy(events.channelId)
@@ -384,10 +384,21 @@ export async function getChannelsWithEventCounts(options: {
   // Main query joining channels with event counts
   let query = db
     .select({
-      ...channels,
-      eventCount: sql`COALESCE(${eventCountsSubquery.eventCount}, 0)`,
-      alertCount: sql`COALESCE(${eventCountsSubquery.alertCount}, 0)`,
-      lastEventTime: sql`COALESCE(${eventCountsSubquery.lastEventTime}, ${channels.updatedAt})`,
+      id: channels.id,
+      name: channels.name,
+      channelType: channels.channelType,
+      latitude: channels.latitude,
+      longitude: channels.longitude,
+      address: channels.address,
+      tags: channels.tags,
+      status: channels.status,
+      region: channels.region,
+      policeStation: channels.policeStation,
+      createdAt: channels.createdAt,
+      updatedAt: channels.updatedAt,
+      eventCount: sql<number>`COALESCE(${eventCountsSubquery.eventCount}, 0)`.as("event_count_result"),
+      alertCount: sql<number>`COALESCE(${eventCountsSubquery.alertCount}, 0)`.as("alert_count_result"),
+      lastEventTime: sql<number>`COALESCE(${eventCountsSubquery.lastEventTime}, 0)`.as("last_event_time_result"),
     })
     .from(channels)
     .leftJoin(eventCountsSubquery, eq(channels.id, eventCountsSubquery.channelId));
