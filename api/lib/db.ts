@@ -190,11 +190,12 @@ export async function getRecentEvents(options: {
   level?: string;
   topic?: string;
   region?: string;
+  includeSnapshots?: boolean;
 } = {}) {
   const db = await getDb();
   if (!db) return [];
 
-  const { limit = 100, level, topic, region } = options;
+  const { limit = 100, level, topic, region, includeSnapshots = false } = options;
   const conditions = [];
 
   if (level && level !== "all") {
@@ -210,7 +211,36 @@ export async function getRecentEvents(options: {
     query = query.where(and(...conditions)) as any;
   }
 
-  return query.orderBy(desc(events.startTime)).limit(limit);
+  const eventsList = await query.orderBy(desc(events.startTime)).limit(limit);
+
+  // If snapshots are requested, fetch them for each event
+  if (includeSnapshots && eventsList.length > 0) {
+    const eventIds = eventsList.map(event => event.id);
+    
+    const snapshotsData = await db
+      .select()
+      .from(snapshots)
+      .where(sql`${snapshots.eventId} IN (${sql.join(eventIds.map(id => sql`${id}`), sql`, `)})`);
+
+    // Group snapshots by event ID
+    const snapshotsByEvent: Record<string, any[]> = {};
+    snapshotsData.forEach(snap => {
+      if (!snapshotsByEvent[snap.eventId]) {
+        snapshotsByEvent[snap.eventId] = [];
+      }
+      snapshotsByEvent[snap.eventId].push(snap);
+    });
+
+    // Attach snapshots to events
+    return eventsList.map(event => ({
+      ...event,
+      snapshots: snapshotsByEvent[event.id] || [],
+      snapshotsCount: snapshotsByEvent[event.id]?.length || 0,
+      hasImages: (snapshotsByEvent[event.id]?.length || 0) > 0,
+    }));
+  }
+
+  return eventsList;
 }
 
 export async function getEventCounts(): Promise<{
@@ -309,6 +339,58 @@ export async function getChannelsList(options: {
   }
 
   let query = db.select().from(channels);
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+
+  if (limit) {
+    query = query.limit(limit) as any;
+  }
+
+  return query;
+}
+
+export async function getChannelsWithEventCounts(options: {
+  region?: string;
+  status?: string;
+  limit?: number;
+} = {}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const { region, status, limit } = options;
+  const conditions = [];
+
+  if (region && region !== "all") {
+    conditions.push(eq(channels.region, region));
+  }
+  if (status && status !== "all") {
+    conditions.push(eq(channels.status, status));
+  }
+
+  // Subquery to get event counts per channel
+  const eventCountsSubquery = db
+    .select({
+      channelId: events.channelId,
+      eventCount: count(),
+      alertCount: sql`CASE WHEN ${events.level} >= '2' THEN 1 ELSE 0 END`,
+      lastEventTime: sql`MAX(${events.startTime})`,
+    })
+    .from(events)
+    .groupBy(events.channelId)
+    .as("event_counts");
+
+  // Main query joining channels with event counts
+  let query = db
+    .select({
+      ...channels,
+      eventCount: sql`COALESCE(${eventCountsSubquery.eventCount}, 0)`,
+      alertCount: sql`COALESCE(${eventCountsSubquery.alertCount}, 0)`,
+      lastEventTime: sql`COALESCE(${eventCountsSubquery.lastEventTime}, ${channels.updatedAt})`,
+    })
+    .from(channels)
+    .leftJoin(eventCountsSubquery, eq(channels.id, eventCountsSubquery.channelId));
 
   if (conditions.length > 0) {
     query = query.where(and(...conditions)) as any;

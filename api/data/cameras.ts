@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getChannelsList, getDb, channels, count, eq } from "../lib/db.js";
+import { getChannelsWithEventCounts, getDb, channels, count, eq } from "../lib/db.js";
 
 /**
  * API endpoint to retrieve camera/channel data from the database
@@ -66,8 +66,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const status = req.query.status as string;
     const limit = parseInt(req.query.limit as string) || 500;
 
-    // Query real camera data from database
-    const channelRecords = await getChannelsList({
+    // Query real camera data with event counts from database
+    const channelRecords = await getChannelsWithEventCounts({
       region: region && region !== "all" ? region : undefined,
       status: status && status !== "all" ? status : undefined,
       limit,
@@ -90,9 +90,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           street: address.street,
         },
         status: (record.status as "active" | "inactive" | "alert") || "active",
-        lastEventTime: record.updatedAt || new Date().toISOString(),
-        eventCount: 0, // Would need to aggregate from events table
-        alertCount: record.status === "alert" ? 1 : 0,
+        lastEventTime: record.lastEventTime || record.updatedAt || new Date().toISOString(),
+        eventCount: record.eventCount || 0, // Real event count from aggregation
+        alertCount: record.alertCount || 0, // Real alert count from aggregation
         tags: record.tags || [],
       };
     });

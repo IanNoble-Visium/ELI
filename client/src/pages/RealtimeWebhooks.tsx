@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Activity, Filter, Pause, Play, RefreshCw, Camera, MapPin, Clock, Database, Cloud, Share2, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Activity, Filter, Pause, Play, RefreshCw, Camera, MapPin, Clock, Database, Cloud, Share2, CheckCircle2, XCircle, AlertCircle, Loader2, Image, Eye } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 
@@ -73,6 +73,13 @@ interface WebhookData {
   snapshotsCount: number;
   hasImages: boolean;
   payloadSize: number;
+  snapshots?: Array<{
+    id: string;
+    type?: string;
+    path?: string;
+    imageUrl?: string;
+    cloudinaryPublicId?: string;
+  }>;
 }
 
 interface ServiceStatus {
@@ -103,6 +110,9 @@ export default function RealtimeWebhooks() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [servicesLoading, setServicesLoading] = useState(true);
+  const [selectedEvent, setSelectedEvent] = useState<WebhookData | null>(null);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Fetch events from real database (events have full topic/level data)
   const fetchWebhooks = useCallback(async () => {
@@ -135,6 +145,7 @@ export default function RealtimeWebhooks() {
           params: event.params || {},
           snapshotsCount: event.snapshotsCount || 0,
           hasImages: event.hasImages || false,
+          snapshots: event.snapshots || [],
           payloadSize: 0,
         }));
         setWebhooks(webhookData);
@@ -234,6 +245,35 @@ export default function RealtimeWebhooks() {
 
   // Unique topics for filter
   const uniqueTopics = Array.from(new Set(webhooks.map(w => w.topic)));
+
+  // Image viewer functions
+  const openImageViewer = (webhook: WebhookData, imageIndex: number = 0) => {
+    setSelectedEvent(webhook);
+    setCurrentImageIndex(imageIndex);
+    setShowImageViewer(true);
+  };
+
+  const closeImageViewer = () => {
+    setShowImageViewer(false);
+    setSelectedEvent(null);
+    setCurrentImageIndex(0);
+  };
+
+  const nextImage = () => {
+    if (selectedEvent && selectedEvent.snapshots) {
+      setCurrentImageIndex((prev) => 
+        prev < selectedEvent.snapshots!.length - 1 ? prev + 1 : 0
+      );
+    }
+  };
+
+  const prevImage = () => {
+    if (selectedEvent && selectedEvent.snapshots) {
+      setCurrentImageIndex((prev) => 
+        prev > 0 ? prev - 1 : selectedEvent.snapshots!.length - 1
+      );
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -656,6 +696,47 @@ export default function RealtimeWebhooks() {
                                   <span>•</span>
                                   <span>{webhook.processingTime}ms</span>
                                 </div>
+
+                                {/* Image Preview */}
+                                {webhook.hasImages && webhook.snapshots && webhook.snapshots.length > 0 && (
+                                  <div className="mt-2">
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => openImageViewer(webhook, 0)}
+                                        className="h-6 px-2 text-xs hover:border-primary/50 hover:bg-primary/10"
+                                      >
+                                        <Eye className="w-3 h-3 mr-1" />
+                                        View {webhook.snapshotsCount} Image{webhook.snapshotsCount > 1 ? 's' : ''}
+                                      </Button>
+                                      {webhook.snapshots.slice(0, 3).map((snapshot, index) => (
+                                        <div
+                                          key={snapshot.id}
+                                          className="relative w-8 h-8 rounded cursor-pointer hover:opacity-80 transition-opacity"
+                                          onClick={() => openImageViewer(webhook, index)}
+                                        >
+                                          {snapshot.imageUrl ? (
+                                            <img
+                                              src={snapshot.imageUrl}
+                                              alt={`Snapshot ${index + 1}`}
+                                              className="w-full h-full object-cover rounded"
+                                            />
+                                          ) : (
+                                            <div className="w-full h-full bg-muted rounded flex items-center justify-center">
+                                              <Image className="w-4 h-4 text-muted-foreground" />
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                      {webhook.snapshots.length > 3 && (
+                                        <div className="w-8 h-8 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
+                                          +{webhook.snapshots.length - 3}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -678,6 +759,115 @@ export default function RealtimeWebhooks() {
           </div>
         </div>
       </div>
+
+      {/* Image Viewer Modal */}
+      <AnimatePresence>
+        {showImageViewer && selectedEvent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+            onClick={closeImageViewer}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-6xl max-h-[90vh] bg-background rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedEvent.topic} Event</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedEvent.channel.name} • {format(new Date(selectedEvent.receivedAt), "MMM dd, HH:mm:ss")}
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={closeImageViewer}>
+                  ×
+                </Button>
+              </div>
+
+              {/* Image Display */}
+              <div className="relative p-4">
+                {selectedEvent.snapshots && selectedEvent.snapshots.length > 0 && (
+                  <>
+                    <div className="flex items-center justify-center">
+                      {selectedEvent.snapshots[currentImageIndex]?.imageUrl ? (
+                        <img
+                          src={selectedEvent.snapshots[currentImageIndex].imageUrl}
+                          alt={`Event snapshot ${currentImageIndex + 1}`}
+                          className="max-w-full max-h-[60vh] object-contain rounded"
+                        />
+                      ) : (
+                        <div className="w-96 h-64 bg-muted rounded flex items-center justify-center">
+                          <Image className="w-16 h-16 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Navigation */}
+                    {selectedEvent.snapshots.length > 1 && (
+                      <div className="flex items-center justify-between mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={prevImage}
+                          className="hover:border-primary/50 hover:bg-primary/10"
+                        >
+                          ← Previous
+                        </Button>
+                        <div className="text-sm text-muted-foreground">
+                          {currentImageIndex + 1} / {selectedEvent.snapshots.length}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={nextImage}
+                          className="hover:border-primary/50 hover:bg-primary/10"
+                        >
+                          Next →
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Thumbnail Strip */}
+                    {selectedEvent.snapshots.length > 1 && (
+                      <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+                        {selectedEvent.snapshots.map((snapshot, index) => (
+                          <div
+                            key={snapshot.id}
+                            className={`flex-shrink-0 w-16 h-16 rounded cursor-pointer border-2 transition-all ${
+                              index === currentImageIndex
+                                ? 'border-primary'
+                                : 'border-transparent hover:border-border'
+                            }`}
+                            onClick={() => setCurrentImageIndex(index)}
+                          >
+                            {snapshot.imageUrl ? (
+                              <img
+                                src={snapshot.imageUrl}
+                                alt={`Thumbnail ${index + 1}`}
+                                className="w-full h-full object-cover rounded"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-muted rounded flex items-center justify-center">
+                                <Image className="w-6 h-6 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -68,11 +68,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const topic = req.query.topic as string;
     const region = req.query.region as string;
 
-    // Query real events from database
+    // Query real events from database with snapshots
     const eventRecords = await getRecentEvents({
       limit: limit * 2, // Get extra for filtering
       level: level && level !== "all" ? level : undefined,
       topic: topic && topic !== "all" ? topic : undefined,
+      includeSnapshots: true, // Include snapshot data for images
     });
 
     // Transform database records to event format
@@ -100,8 +101,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           },
         },
         params: record.params || {},
-        snapshotsCount: 0, // Would need to count from snapshots table
-        hasImages: false,
+        snapshotsCount: record.snapshotsCount || 0, // Real snapshot count
+        hasImages: record.hasImages || false, // Real image flag
+        snapshots: record.snapshots || [], // Include actual snapshot data
         receivedAt: record.createdAt || new Date().toISOString(),
         processingTime: 0,
       };
