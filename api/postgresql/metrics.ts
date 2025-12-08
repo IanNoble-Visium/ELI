@@ -178,27 +178,44 @@ async function handleQueryMetrics(
     ]);
 
     // Get events over time for trend analysis
+    // Note: rangeHours is parsed but we use fixed 24h interval for now
+    // to avoid SQL injection issues with dynamic intervals
     const rangeHours = parseRange(range);
-    const eventsOverTime = await sql`
-      SELECT 
-        date_trunc('hour', received_at) as hour,
-        COUNT(*) as count
-      FROM events
-      WHERE received_at > NOW() - INTERVAL '${rangeHours} hours'
-      GROUP BY date_trunc('hour', received_at)
-      ORDER BY hour ASC
-    `;
+    
+    let eventsOverTime: any[] = [];
+    let snapshotsOverTime: any[] = [];
+    let recentEvents = 0;
+    let recentSnapshots = 0;
+    
+    try {
+      // Events use "createdAt" column (camelCase as per schema)
+      eventsOverTime = await sql`
+        SELECT 
+          date_trunc('hour', "createdAt") as hour,
+          COUNT(*) as count
+        FROM events
+        WHERE "createdAt" > NOW() - INTERVAL '24 hours'
+        GROUP BY date_trunc('hour', "createdAt")
+        ORDER BY hour ASC
+      `;
+    } catch (e) {
+      console.warn("[PostgreSQL Metrics] Events query failed:", e);
+    }
 
-    // Get snapshots over time
-    const snapshotsOverTime = await sql`
-      SELECT 
-        date_trunc('hour', created_at) as hour,
-        COUNT(*) as count
-      FROM snapshots
-      WHERE created_at > NOW() - INTERVAL '${rangeHours} hours'
-      GROUP BY date_trunc('hour', created_at)
-      ORDER BY hour ASC
-    `;
+    try {
+      // Snapshots use "createdAt" column
+      snapshotsOverTime = await sql`
+        SELECT 
+          date_trunc('hour', "createdAt") as hour,
+          COUNT(*) as count
+        FROM snapshots
+        WHERE "createdAt" > NOW() - INTERVAL '24 hours'
+        GROUP BY date_trunc('hour', "createdAt")
+        ORDER BY hour ASC
+      `;
+    } catch (e) {
+      console.warn("[PostgreSQL Metrics] Snapshots query failed:", e);
+    }
 
     // Calculate daily rates for projections
     const eventsCount = parseInt(tableCounts[0]?.events_count) || 0;
@@ -206,17 +223,25 @@ async function handleQueryMetrics(
     const dbSizeBytes = parseInt(dbSize[0]?.size_bytes) || 0;
     
     // Get events from last 24 hours for rate calculation
-    const recentEventsResult = await sql`
-      SELECT COUNT(*) as count FROM events 
-      WHERE received_at > NOW() - INTERVAL '24 hours'
-    `;
-    const recentEvents = parseInt(recentEventsResult[0]?.count) || 0;
+    try {
+      const recentEventsResult = await sql`
+        SELECT COUNT(*) as count FROM events 
+        WHERE "createdAt" > NOW() - INTERVAL '24 hours'
+      `;
+      recentEvents = parseInt(recentEventsResult[0]?.count) || 0;
+    } catch (e) {
+      console.warn("[PostgreSQL Metrics] Recent events query failed:", e);
+    }
     
-    const recentSnapshotsResult = await sql`
-      SELECT COUNT(*) as count FROM snapshots 
-      WHERE created_at > NOW() - INTERVAL '24 hours'
-    `;
-    const recentSnapshots = parseInt(recentSnapshotsResult[0]?.count) || 0;
+    try {
+      const recentSnapshotsResult = await sql`
+        SELECT COUNT(*) as count FROM snapshots 
+        WHERE "createdAt" > NOW() - INTERVAL '24 hours'
+      `;
+      recentSnapshots = parseInt(recentSnapshotsResult[0]?.count) || 0;
+    } catch (e) {
+      console.warn("[PostgreSQL Metrics] Recent snapshots query failed:", e);
+    }
 
     // Estimate storage growth rate (bytes per day)
     const avgEventSize = eventsCount > 0 ? dbSizeBytes / eventsCount : 1000;

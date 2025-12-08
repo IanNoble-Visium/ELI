@@ -12,7 +12,8 @@ import {
   Settings,
   LogOut,
   Shield,
-  Cloud
+  Cloud,
+  Database
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -105,6 +106,13 @@ export default function Dashboard() {
       description: "Media storage, bandwidth, and usage metrics",
       route: "/dashboard/cloudinary",
       color: "text-cyan-500",
+    },
+    {
+      icon: Database,
+      title: "PostgreSQL Monitoring",
+      description: "Database storage and performance metrics",
+      route: "/dashboard/postgresql",
+      color: "text-green-500",
     },
   ];
 
