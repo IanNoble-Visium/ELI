@@ -67,12 +67,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const level = req.query.level as string;
     const topic = req.query.topic as string;
     const region = req.query.region as string;
+    const channelId = req.query.channelId as string;
 
     // Query real events from database with snapshots
     const eventRecords = await getRecentEvents({
       limit: limit * 2, // Get extra for filtering
       level: level && level !== "all" ? level : undefined,
       topic: topic && topic !== "all" ? topic : undefined,
+      channelId: channelId || undefined, // Filter by camera/channel ID
       includeSnapshots: true, // Include snapshot data for images
     });
 

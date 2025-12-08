@@ -190,12 +190,13 @@ export async function getRecentEvents(options: {
   level?: string;
   topic?: string;
   region?: string;
+  channelId?: string;
   includeSnapshots?: boolean;
 } = {}) {
   const db = await getDb();
   if (!db) return [];
 
-  const { limit = 100, level, topic, region, includeSnapshots = false } = options;
+  const { limit = 100, level, topic, region, channelId, includeSnapshots = false } = options;
   const conditions = [];
 
   if (level && level !== "all") {
@@ -203,6 +204,9 @@ export async function getRecentEvents(options: {
   }
   if (topic && topic !== "all") {
     conditions.push(eq(events.topic, topic));
+  }
+  if (channelId) {
+    conditions.push(eq(events.channelId, parseInt(channelId)));
   }
 
   let query = db.select().from(events);

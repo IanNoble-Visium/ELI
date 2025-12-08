@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, MapPin, Camera, AlertTriangle, RefreshCw, Activity, Clock } from "lucide-react";
+import { ArrowLeft, MapPin, Camera, AlertTriangle, RefreshCw, Activity, Clock, Eye, X, ChevronLeft, ChevronRight, Image, List } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -155,6 +155,29 @@ interface CameraStats {
   byRegion: Record<string, number>;
 }
 
+// Event data interface for drill-down
+interface EventSnapshot {
+  id: string;
+  type: string;
+  path?: string;
+  imageUrl?: string;
+  cloudinaryPublicId?: string;
+}
+
+interface CameraEvent {
+  id: string;
+  eventId: string;
+  topic: string;
+  module: string;
+  level: number;
+  startTime: number;
+  endTime?: number;
+  receivedAt: string;
+  snapshots?: EventSnapshot[];
+  snapshotsCount: number;
+  hasImages: boolean;
+}
+
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
@@ -173,6 +196,13 @@ export default function GeographicMap() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [mapCenter, setMapCenter] = useState<[number, number]>([-9.19, -75.0152]); // Center of Peru
   const [mapZoom, setMapZoom] = useState(6);
+
+  // Drill-down state
+  const [showEventPanel, setShowEventPanel] = useState(false);
+  const [cameraEvents, setCameraEvents] = useState<CameraEvent[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [selectedEventForViewer, setSelectedEventForViewer] = useState<CameraEvent | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Fetch real camera data
   const fetchCameras = useCallback(async () => {
@@ -236,6 +266,82 @@ export default function GeographicMap() {
     } else {
       setMapCenter([-9.19, -75.0152]);
       setMapZoom(6);
+    }
+  };
+
+  // Fetch events for a specific camera
+  const fetchCameraEvents = useCallback(async (cameraId: string) => {
+    try {
+      setIsLoadingEvents(true);
+      const response = await fetch(`/api/data/events?channelId=${cameraId}&limit=50`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) throw new Error("Failed to fetch events");
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setCameraEvents(data.events || []);
+      }
+    } catch (error) {
+      console.error("[Map] Fetch events error:", error);
+      setCameraEvents([]);
+    } finally {
+      setIsLoadingEvents(false);
+    }
+  }, []);
+
+  // Handle drill-down to camera events
+  const handleViewEvents = (camera: CameraData) => {
+    setSelectedCamera(camera);
+    setShowEventPanel(true);
+    fetchCameraEvents(camera.id);
+  };
+
+  // Close event panel
+  const closeEventPanel = () => {
+    setShowEventPanel(false);
+    setCameraEvents([]);
+    setSelectedEventForViewer(null);
+  };
+
+  // Open image viewer for an event
+  const openImageViewer = (event: CameraEvent, imageIndex: number = 0) => {
+    setSelectedEventForViewer(event);
+    setCurrentImageIndex(imageIndex);
+  };
+
+  // Close image viewer
+  const closeImageViewer = () => {
+    setSelectedEventForViewer(null);
+    setCurrentImageIndex(0);
+  };
+
+  // Navigate images
+  const nextImage = () => {
+    if (selectedEventForViewer?.snapshots) {
+      setCurrentImageIndex((prev) => 
+        prev < selectedEventForViewer.snapshots!.length - 1 ? prev + 1 : 0
+      );
+    }
+  };
+
+  const prevImage = () => {
+    if (selectedEventForViewer?.snapshots) {
+      setCurrentImageIndex((prev) => 
+        prev > 0 ? prev - 1 : selectedEventForViewer.snapshots!.length - 1
+      );
+    }
+  };
+
+  // Get level info for event badges
+  const getLevelInfo = (level: number) => {
+    switch (level) {
+      case 3: return { label: "Critical", color: "bg-red-600" };
+      case 2: return { label: "High", color: "bg-orange-500" };
+      case 1: return { label: "Medium", color: "bg-yellow-500" };
+      default: return { label: "Low", color: "bg-blue-500" };
     }
   };
 
@@ -475,6 +581,17 @@ export default function GeographicMap() {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Drill-down button */}
+                  {selectedCamera.eventCount > 0 && (
+                    <Button
+                      className="w-full mt-3"
+                      onClick={() => handleViewEvents(selectedCamera)}
+                    >
+                      <List className="w-4 h-4 mr-2" />
+                      View {selectedCamera.eventCount} Event{selectedCamera.eventCount !== 1 ? 's' : ''}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -568,6 +685,289 @@ export default function GeographicMap() {
             ))}
           </MapContainer>
         </div>
+
+        {/* Event Panel Slide-out */}
+        <AnimatePresence>
+          {showEventPanel && selectedCamera && (
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="absolute top-0 right-0 h-full w-[450px] bg-card border-l border-border shadow-2xl z-30 overflow-hidden flex flex-col"
+            >
+              {/* Panel Header */}
+              <div className="p-4 border-b border-border bg-card/95 backdrop-blur">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={closeEventPanel}
+                      className="hover:bg-muted"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <div>
+                      <h3 className="font-semibold text-lg">Camera Events</h3>
+                      <p className="text-sm text-muted-foreground truncate max-w-[280px]">
+                        {selectedCamera.name}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={closeEventPanel}
+                    className="hover:bg-muted"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <Badge variant="outline" className="text-xs">
+                    <MapPin className="w-3 h-3 mr-1" />
+                    {selectedCamera.address.region || selectedCamera.address.city}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    <Activity className="w-3 h-3 mr-1" />
+                    {cameraEvents.length} events loaded
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Events List */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {isLoadingEvents ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground">Loading events...</p>
+                  </div>
+                ) : cameraEvents.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Camera className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                    <p className="text-sm text-muted-foreground">No events found for this camera</p>
+                  </div>
+                ) : (
+                  cameraEvents.map((event, index) => {
+                    const levelInfo = getLevelInfo(event.level);
+                    return (
+                      <motion.div
+                        key={event.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                      >
+                        <Card className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-3">
+                            {/* Event Header */}
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Badge className={`${levelInfo.color} text-white text-xs`}>
+                                  {levelInfo.label}
+                                </Badge>
+                                <span className="text-sm font-medium">{event.topic}</span>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {(() => {
+                                  try {
+                                    const date = new Date(event.startTime);
+                                    if (isNaN(date.getTime())) return "N/A";
+                                    return format(date, "MM/dd HH:mm:ss");
+                                  } catch {
+                                    return "N/A";
+                                  }
+                                })()}
+                              </span>
+                            </div>
+
+                            {/* Event Details */}
+                            <div className="text-xs text-muted-foreground mb-2">
+                              <span>Module: {event.module}</span>
+                              <span className="mx-2">•</span>
+                              <span>ID: {event.eventId.substring(0, 12)}...</span>
+                            </div>
+
+                            {/* Image Thumbnails */}
+                            {event.hasImages && event.snapshots && event.snapshots.length > 0 && (
+                              <div className="mt-2">
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openImageViewer(event, 0)}
+                                    className="h-7 px-2 text-xs"
+                                  >
+                                    <Eye className="w-3 h-3 mr-1" />
+                                    View {event.snapshotsCount} Image{event.snapshotsCount > 1 ? 's' : ''}
+                                  </Button>
+                                </div>
+                                <div className="flex gap-1 mt-2 overflow-x-auto pb-1">
+                                  {event.snapshots.slice(0, 4).map((snapshot, idx) => (
+                                    <div
+                                      key={snapshot.id}
+                                      className="flex-shrink-0 w-16 h-12 rounded cursor-pointer hover:opacity-80 transition-opacity border border-border overflow-hidden"
+                                      onClick={() => openImageViewer(event, idx)}
+                                    >
+                                      {snapshot.imageUrl ? (
+                                        <img
+                                          src={snapshot.imageUrl}
+                                          alt={`Snapshot ${idx + 1}`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full bg-muted flex items-center justify-center">
+                                          <Image className="w-4 h-4 text-muted-foreground" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {event.snapshots.length > 4 && (
+                                    <div
+                                      className="flex-shrink-0 w-16 h-12 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground cursor-pointer hover:bg-muted/80"
+                                      onClick={() => openImageViewer(event, 4)}
+                                    >
+                                      +{event.snapshots.length - 4}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* No images indicator */}
+                            {!event.hasImages && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                                <Image className="w-3 h-3" />
+                                <span>No images</span>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Image Viewer Modal */}
+        <AnimatePresence>
+          {selectedEventForViewer && selectedEventForViewer.snapshots && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+              onClick={closeImageViewer}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="relative max-w-5xl max-h-[90vh] bg-background rounded-lg overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between p-4 border-b border-border">
+                  <div>
+                    <h3 className="text-lg font-semibold">{selectedEventForViewer.topic} Event</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedCamera?.name} • {(() => {
+                        try {
+                          const date = new Date(selectedEventForViewer.startTime);
+                          if (isNaN(date.getTime())) return "N/A";
+                          return format(date, "MMM dd, HH:mm:ss");
+                        } catch {
+                          return "N/A";
+                        }
+                      })()}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={closeImageViewer}>
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+
+                {/* Image Display */}
+                <div className="relative p-4">
+                  <div className="flex items-center justify-center min-h-[400px]">
+                    {selectedEventForViewer.snapshots[currentImageIndex]?.imageUrl ? (
+                      <img
+                        src={selectedEventForViewer.snapshots[currentImageIndex].imageUrl}
+                        alt={`Event snapshot ${currentImageIndex + 1}`}
+                        className="max-w-full max-h-[60vh] object-contain rounded"
+                      />
+                    ) : (
+                      <div className="w-96 h-64 bg-muted rounded flex items-center justify-center">
+                        <Image className="w-16 h-16 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Navigation Arrows */}
+                  {selectedEventForViewer.snapshots.length > 1 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="absolute left-6 top-1/2 -translate-y-1/2"
+                        onClick={prevImage}
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="absolute right-6 top-1/2 -translate-y-1/2"
+                        onClick={nextImage}
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {/* Thumbnail Strip */}
+                {selectedEventForViewer.snapshots.length > 1 && (
+                  <div className="p-4 border-t border-border">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-sm text-muted-foreground mr-2">
+                        {currentImageIndex + 1} / {selectedEventForViewer.snapshots.length}
+                      </span>
+                      <div className="flex gap-2 overflow-x-auto max-w-[600px] pb-1">
+                        {selectedEventForViewer.snapshots.map((snapshot, index) => (
+                          <div
+                            key={snapshot.id}
+                            className={`flex-shrink-0 w-16 h-12 rounded cursor-pointer border-2 transition-all overflow-hidden ${
+                              index === currentImageIndex
+                                ? 'border-primary'
+                                : 'border-transparent hover:border-border'
+                            }`}
+                            onClick={() => setCurrentImageIndex(index)}
+                          >
+                            {snapshot.imageUrl ? (
+                              <img
+                                src={snapshot.imageUrl}
+                                alt={`Thumbnail ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-muted flex items-center justify-center">
+                                <Image className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

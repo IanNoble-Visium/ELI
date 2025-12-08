@@ -60,7 +60,26 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Data retention policy configuration (1-30 days)
    - Manual data purge with confirmation
    - Storage statistics (PostgreSQL, Neo4j, Cloudinary)
+   - CRON job management and monitoring
    - System information
+
+8. **Cloudinary Monitoring Dashboard**
+   - Real-time credit usage tracking with visual progress bars
+   - Storage, bandwidth, and transformation metrics
+   - Historical trends with interactive time-series charts (1H, 12H, 24H, 7D, 30D)
+   - Usage projections and exhaustion date forecasting
+   - InfluxDB integration for time-series data storage
+   - Credit breakdown analysis by category
+
+9. **Image Processing Throttle Control**
+   - Configurable throttle to prevent exceeding Cloudinary limits during demo
+   - Processing ratio slider (10 to 10,000 images per 100K incoming)
+   - Maximum per hour hard limit (10 to 1,000 images)
+   - Multiple sampling methods: Random, Interval, First N
+   - Real-time statistics: processed vs skipped images
+   - Hourly processing charts with stacked area visualization
+   - Production forecasting for capacity planning
+   - Throttle enabled by default for demo safety
 
 ### Technical Features
 
@@ -128,11 +147,29 @@ eli-unified-dashboard/
 │   │   │   ├── IncidentManagement.tsx
 │   │   │   ├── POLEAnalytics.tsx
 │   │   │   ├── RealtimeWebhooks.tsx
-│   │   │   └── Settings.tsx
+│   │   │   ├── Settings.tsx    # Settings with CRON job management
+│   │   │   └── CloudinaryMonitoring.tsx  # Usage monitoring & throttle control
 │   │   ├── components/         # Reusable UI components (shadcn/ui)
 │   │   ├── lib/                # Utilities and tRPC client
 │   │   ├── App.tsx             # Routes and layout
 │   │   └── index.css           # Global styles (Peru theme)
+├── api/                         # Vercel Serverless Functions
+│   ├── cloudinary/             # Cloudinary monitoring endpoints
+│   │   ├── usage.ts            # Usage statistics endpoint
+│   │   ├── metrics.ts          # InfluxDB time-series metrics
+│   │   ├── throttle.ts         # Image processing throttle config
+│   │   └── test-influxdb.ts    # InfluxDB configuration testing
+│   ├── cron/                   # Scheduled job endpoints
+│   │   ├── status.ts           # CRON job management API
+│   │   ├── record-cloudinary-metrics.ts  # Every 15 min
+│   │   └── record-throttle-metrics.ts    # Every 5 min
+│   ├── lib/                    # Shared utilities
+│   │   ├── db.ts               # Database helpers
+│   │   ├── cloudinary.ts       # Cloudinary upload utilities
+│   │   └── influxdb.ts         # InfluxDB client library
+│   ├── webhook/                # Webhook ingestion
+│   │   └── irex.ts             # IREX event processor (with throttle)
+│   └── data/                   # Data query endpoints
 ├── server/                      # Backend Express + tRPC
 │   ├── auth.ts                 # Hardcoded authentication
 │   ├── db.ts                   # Database helpers
@@ -140,8 +177,10 @@ eli-unified-dashboard/
 │   └── _core/                  # Framework plumbing
 ├── drizzle/                     # Database schema and migrations
 │   └── schema.ts               # 13 tables for surveillance data
+├── vercel.json                  # Vercel config with CRON jobs
 ├── package.json
-└── README.md
+├── README.md
+└── TODO.md                      # Development task tracking
 ```
 
 ---
@@ -207,6 +246,31 @@ These endpoints query real data from the PostgreSQL/TiDB database:
 | `/api/data/events` | GET | Returns surveillance events with filtering | `events` |
 | `/api/data/stats` | GET | Returns aggregated dashboard statistics | `events`, `channels` |
 | `/api/data/incidents` | GET | Returns incident management data | `incidents` |
+
+**Cloudinary & Monitoring APIs:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/cloudinary/usage` | GET | Returns current Cloudinary account usage (credits, storage, bandwidth) |
+| `/api/cloudinary/metrics` | GET | Queries historical usage from InfluxDB with time range filtering |
+| `/api/cloudinary/metrics` | POST | Records current Cloudinary usage to InfluxDB |
+| `/api/cloudinary/throttle` | GET | Returns current throttle configuration and processing stats |
+| `/api/cloudinary/throttle` | POST | Updates throttle settings (enabled, ratio, maxPerHour, samplingMethod) |
+| `/api/cloudinary/throttle?action=stats` | GET | Returns detailed processing statistics |
+| `/api/cloudinary/test-influxdb` | GET | Tests InfluxDB connection and configuration |
+| `/api/cloudinary/test-influxdb?action=write` | GET | Writes test data to InfluxDB |
+| `/api/cloudinary/test-influxdb?action=debug` | GET | Returns raw InfluxDB query results for debugging |
+
+**CRON Job Management APIs:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/cron/status` | GET | Lists all configured CRON jobs with status |
+| `/api/cron/status?action=trigger&jobId=xxx` | POST | Manually triggers a specific CRON job |
+| `/api/cron/status?action=seed` | POST | Seeds InfluxDB with initial Cloudinary data points |
+| `/api/cron/status?action=history&jobId=xxx` | GET | Returns execution history for a job |
+| `/api/cron/record-cloudinary-metrics` | GET | CRON: Records Cloudinary usage (every 15 min) |
+| `/api/cron/record-throttle-metrics` | GET | CRON: Records throttle statistics (every 5 min) |
 
 **Query Parameters:**
 - `limit` - Maximum number of records to return
@@ -280,6 +344,44 @@ See `Webhooks json description.md` for complete payload documentation.
 
 ---
 
+## ⏰ Scheduled CRON Jobs
+
+The application uses Vercel CRON jobs for automated background tasks:
+
+| Job | Schedule | Description |
+|-----|----------|-------------|
+| `record-cloudinary-metrics` | Every 15 min | Records Cloudinary usage to InfluxDB for historical tracking |
+| `record-throttle-metrics` | Every 5 min | Records image processing statistics (processed/skipped) |
+
+### CRON Job Management
+
+Access via **Settings** → **Scheduled Jobs**:
+
+- **View Status** - See all jobs with enabled/disabled status and dependencies
+- **Last Run** - View when each job last executed and its result
+- **Next Run** - See scheduled next execution time
+- **Run Now** - Manually trigger any job immediately
+- **Seed Data** - Populate InfluxDB with initial data points
+
+### Configuration in `vercel.json`:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/record-cloudinary-metrics",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/record-throttle-metrics",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
+```
+
+---
+
 ## 📊 Data Sources
 
 The application uses **real database integration** for all surveillance data:
@@ -292,9 +394,17 @@ The application uses **real database integration** for all surveillance data:
 | Event Timeline | `events` table | Historical events |
 | Incident Management | `incidents` table | Incident tracking |
 | POLE Analytics | Simulated data | Clearly labeled as demo |
+| Cloudinary Monitoring | Cloudinary API + InfluxDB | Real-time usage + historical |
+| Historical Trends | InfluxDB `cloudinary_metrics` bucket | Time-series data |
+| Throttle Statistics | In-memory + InfluxDB | Processed vs skipped counts |
 
 **Empty State Handling:**
 When no data exists in the database, the UI displays appropriate "No data yet" messages instead of mock data.
+
+**InfluxDB Time-Series Data:**
+The `cloudinary_metrics` bucket stores:
+- `cloudinary_usage` measurement: credits, storage, bandwidth, transformations, resources
+- `image_throttle` measurement: received, processed, skipped, projected counts
 
 ---
 
@@ -333,11 +443,17 @@ When no data exists in the database, the UI displays appropriate "No data yet" m
 - `NEO4J_PASSWORD` - Database password
 - `NEO4J_DATABASE` - Database name
 
-**Cloudinary (Future - Image Storage):**
+**Cloudinary (Image Storage & Monitoring):**
 - `CLOUDINARY_URL` - Full connection URL
 - `CLOUDINARY_CLOUD_NAME` - Cloud name
 - `CLOUDINARY_API_KEY` - API key
 - `CLOUDINARY_API_SECRET` - API secret
+
+**InfluxDB (Time-Series Metrics):**
+- `INFLUXDB_HOST` - InfluxDB Cloud host URL (e.g., `https://us-east-1-1.aws.cloud2.influxdata.com`)
+- `INFLUXDB_TOKEN` - API token with read/write permissions
+- `INFLUXDB_ORG` - Organization name
+- `INFLUXDB_ORG_ID` - Organization ID
 
 **Note:** All external service credentials are managed through the Manus platform's Settings → Secrets panel. Never commit credentials to version control.
 
@@ -447,12 +563,22 @@ Edit `client/src/index.css` to change colors:
 - [x] Real event data from database
 - [x] Aggregated statistics from database
 - [x] Empty state handling in frontend
+- [x] **Cloudinary Monitoring Dashboard** - Full usage tracking with credits, storage, bandwidth
+- [x] **InfluxDB Time-Series Integration** - Historical data storage and querying
+- [x] **Historical Trends Charts** - Interactive time-series visualization (1H-30D ranges)
+- [x] **Usage Projections & Forecasting** - Credit exhaustion date prediction
+- [x] **Image Processing Throttle** - Configurable ratio, max per hour, sampling methods
+- [x] **Throttle Statistics & Charts** - Processed vs skipped tracking with hourly visualization
+- [x] **Production Forecasting** - Resource requirements for full processing
+- [x] **CRON Job Management UI** - View, trigger, and monitor scheduled jobs
+- [x] **CRON Job: Record Cloudinary Metrics** - Every 15 minutes to InfluxDB
+- [x] **CRON Job: Record Throttle Metrics** - Every 5 minutes to InfluxDB
+- [x] **InfluxDB Test Endpoint** - Configuration verification and debugging
 
 ### High Priority
 - [ ] Test webhook endpoint with real IREX surveillance data
 - [ ] Create database seeding script for demo data
 - [ ] Connect Neo4j for topology graph real data
-- [ ] Connect Cloudinary for snapshot image storage
 - [ ] Implement actual data purge logic
 - [ ] Add WebSocket for true real-time updates
 
@@ -461,6 +587,7 @@ Edit `client/src/index.css` to change colors:
 - [ ] Implement global search across all entities
 - [ ] Add export functionality (PDF, CSV)
 - [ ] Implement role-based access control
+- [ ] Persist throttle configuration to database (currently in-memory)
 
 ### Low Priority
 - [ ] Add identity image carousel
@@ -494,6 +621,14 @@ MIT License - See LICENSE file for details
 **For**: Peru National Surveillance Program  
 **Based on**: ELI-DEMO, eli-dashboard, IREX-DEMO repositories  
 **Demo Date**: December 2024
+
+### Recent Updates (December 8, 2024)
+- Cloudinary Monitoring Dashboard with usage tracking
+- InfluxDB integration for time-series metrics
+- Historical trends visualization (1H-30D)
+- Image processing throttle for demo protection
+- CRON job management UI
+- Usage projections and forecasting
 
 ---
 

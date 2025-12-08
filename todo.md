@@ -343,30 +343,97 @@ Before the demo, verify:
 
 ---
 
+## ✅ CLOUDINARY MONITORING & THROTTLE - COMPLETED (December 8, 2024)
+
+### Cloudinary Usage Monitoring ✅
+- [x] **Real-time Usage Dashboard** - Credits, storage, bandwidth, transformations display
+- [x] **Credit Usage Progress Bar** - Visual indicator with color-coded thresholds
+- [x] **Credit Breakdown Analysis** - Storage, bandwidth, transformations breakdown
+- [x] **Account Information Panel** - Plan limits, media limits, rate limit status
+- [x] **Auto-refresh** - 60-second refresh with manual refresh button
+
+### InfluxDB Time-Series Integration ✅
+- [x] **InfluxDB Client Library** - `api/lib/influxdb.ts` with write/query functions
+- [x] **Bucket Management** - Auto-creates `cloudinary_metrics` bucket
+- [x] **Line Protocol Writing** - Efficient metric point writing
+- [x] **Flux Query Parsing** - CSV response parsing with metric categorization
+- [x] **Test Endpoint** - `/api/cloudinary/test-influxdb` for configuration verification
+
+### Historical Trends Tab ✅
+- [x] **Credits Usage Over Time Chart** - Area chart with limit reference line
+- [x] **Storage Usage Chart** - Line chart with byte formatting
+- [x] **Bandwidth Usage Chart** - Line chart with byte formatting
+- [x] **Time Range Selector** - 1H, 12H, 24H, 7D, 30D quick selects
+- [x] **Usage Projections Card** - Days remaining, daily rates, exhaustion date
+
+### Image Processing Throttle ✅
+- [x] **Throttle Configuration API** - `api/cloudinary/throttle.ts`
+- [x] **Enable/Disable Toggle** - Throttle on by default for demo safety
+- [x] **Processing Ratio Slider** - 10 to 10,000 images per 100K incoming
+- [x] **Maximum Per Hour Slider** - 10 to 1,000 hard limit
+- [x] **Sampling Method Select** - Random, Interval, First N options
+- [x] **Webhook Integration** - Throttle applied in `api/webhook/irex.ts`
+- [x] **Processing Statistics** - Total received/processed/skipped tracking
+- [x] **Hourly Stats Chart** - Stacked area chart for processed vs skipped
+- [x] **Production Forecasting** - Projected usage at 100% processing
+
+### CRON Job Management ✅
+- [x] **CRON Status API** - `api/cron/status.ts` for job listing and management
+- [x] **Record Cloudinary Metrics Job** - Every 15 minutes to InfluxDB
+- [x] **Record Throttle Metrics Job** - Every 5 minutes to InfluxDB
+- [x] **Settings Page UI** - View all jobs with status, last run, next run
+- [x] **Manual Trigger** - "Run Now" button for each job
+- [x] **Seed Data Button** - Populate InfluxDB with initial data points
+- [x] **Execution History Tracking** - Success/error/skipped status recording
+
+---
+
+## 🔧 KNOWN LIMITATIONS & FUTURE IMPROVEMENTS
+
+### Current Limitations
+1. **Throttle Config In-Memory** - Configuration resets on serverless cold start
+   - **Suggestion**: Persist to database or use Vercel KV
+2. **Processing Stats In-Memory** - Statistics reset on cold start
+   - **Suggestion**: Store in InfluxDB or PostgreSQL
+3. **CRON Execution History In-Memory** - History resets on cold start
+   - **Suggestion**: Store in PostgreSQL `cron_executions` table
+4. **InfluxDB Bucket Manual Creation** - May need manual bucket creation if auto-create fails
+   - **Workaround**: Use InfluxDB Cloud UI to create `cloudinary_metrics` bucket
+
+### Suggested Improvements
+1. **Persist Throttle Config to Database** - Add `throttle_config` table to PostgreSQL
+2. **Add Throttle Config History** - Track config changes over time
+3. **Email Alerts on Threshold** - Send notifications when usage exceeds 80%
+4. **Custom Date Range Picker** - Allow arbitrary date ranges for historical data
+5. **Export Metrics to CSV** - Download historical data for analysis
+6. **Grafana Dashboard** - Create Grafana dashboard using InfluxDB data source
+7. **Webhook Rate Limiting** - Add rate limiting to prevent webhook flooding
+
+---
+
 ## NEXT PRIORITY RECOMMENDATIONS
 
-*Based on the completed P1 visual polish, here are the recommended next high-impact improvements:*
+*Based on the completed Cloudinary monitoring features:*
 
 ### Elevate to P1 (High Impact, Quick Wins)
 
-1. **Real-time Event Ticker** - Add scrolling event ticker at bottom of Executive Dashboard
+1. **Persist Throttle Configuration** - Store in database instead of memory
+   - Prevents config loss on cold starts
+   - ~1-2 hours effort
+
+2. **Real-time Event Ticker** - Add scrolling event ticker at bottom of Executive Dashboard
    - Creates "command center" feel
    - Uses existing event data from database
    - ~2 hours effort
 
-2. **Camera Marker Clustering** - Group nearby cameras at low zoom levels
+3. **Camera Marker Clustering** - Group nearby cameras at low zoom levels
    - Currently 3,084+ markers can overwhelm the map
    - Use Leaflet.markercluster plugin
    - ~1-2 hours effort
 
-3. **Full-screen Mode (F11)** - Add fullscreen toggle for presentations
+4. **Full-screen Mode (F11)** - Add fullscreen toggle for presentations
    - Perfect for projector demos
    - Simple browser API integration
-   - ~30 minutes effort
-
-4. **Live Data Indicator** - Add animated "LIVE" badge in header
-   - Shows system is actively receiving data
-   - Already have pulse animation CSS
    - ~30 minutes effort
 
 ### Performance Optimizations
@@ -393,10 +460,16 @@ Before the demo, verify:
 2. Test on target presentation device/projector
 3. Confirm webhook ingestion works end-to-end
 4. Verify database connection handles cold starts
+5. **NEW**: Verify InfluxDB connection and data recording
+6. **NEW**: Test throttle settings persist correctly
+7. **NEW**: Confirm CRON jobs execute on schedule
 
 ---
 
-*Last Updated: December 5, 2024*
+*Last Updated: December 8, 2024*
 *Target: Peruvian Government Demo*
 *Visual Polish Status: P1 COMPLETED (Commit 04c14cb)*
+*Cloudinary Monitoring Status: COMPLETED*
+*Image Throttle Status: COMPLETED*
+*CRON Management Status: COMPLETED*
 
