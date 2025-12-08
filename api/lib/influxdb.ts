@@ -347,54 +347,101 @@ function parseInfluxCSV(csv: string): {
     resources: [] as TimeSeriesData[],
   };
 
+  // InfluxDB CSV format includes annotation rows starting with #
+  // and data rows with headers
   const lines = csv.split("\n");
   let headers: string[] = [];
+  let headerIndices: Record<string, number> = {};
 
   for (const line of lines) {
-    if (!line || line.startsWith("#")) continue;
+    // Skip empty lines and annotation lines (starting with #)
+    if (!line.trim() || line.startsWith("#")) continue;
     
-    const values = line.split(",");
+    // Parse CSV values, handling potential commas in values
+    const values = parseCSVLine(line);
     
-    if (line.startsWith(",result")) {
+    // Header row detection - look for common InfluxDB header patterns
+    if (values.includes("_time") || values.includes("_value") || 
+        line.includes(",result,") || line.startsWith(",result")) {
       headers = values;
+      // Build index map for faster lookup
+      headers.forEach((header, index) => {
+        headerIndices[header.trim()] = index;
+      });
       continue;
     }
 
+    // Skip if no headers found yet
     if (headers.length === 0) continue;
 
-    const row: Record<string, string> = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index] || "";
-    });
+    // Parse data row
+    const getVal = (key: string): string => {
+      const idx = headerIndices[key];
+      return idx !== undefined ? (values[idx] || "").trim() : "";
+    };
 
-    const timestamp = row["_time"];
-    const metricType = row["metric"];
-    const value = parseFloat(row["_value"]) || 0;
-    const field = row["_field"];
+    const timestamp = getVal("_time");
+    const metricType = getVal("metric");
+    const valueStr = getVal("_value");
+    const field = getVal("_field");
 
-    if (!timestamp || !metricType) continue;
+    // Skip rows without required fields
+    if (!timestamp) continue;
 
+    const value = parseFloat(valueStr) || 0;
     const dataPoint: TimeSeriesData = { timestamp, value };
 
-    switch (metricType) {
-      case "credits":
-        if (field === "used") result.credits.push(dataPoint);
-        break;
-      case "storage":
-        if (field === "bytes") result.storage.push(dataPoint);
-        break;
-      case "bandwidth":
-        if (field === "bytes") result.bandwidth.push(dataPoint);
-        break;
-      case "transformations":
-        if (field === "count") result.transformations.push(dataPoint);
-        break;
-      case "resources":
-        if (field === "count") result.resources.push(dataPoint);
-        break;
+    // Map to appropriate result array based on metric type and field
+    if (metricType === "credits" && field === "used") {
+      result.credits.push(dataPoint);
+    } else if (metricType === "storage" && field === "bytes") {
+      result.storage.push(dataPoint);
+    } else if (metricType === "bandwidth" && field === "bytes") {
+      result.bandwidth.push(dataPoint);
+    } else if (metricType === "transformations" && field === "count") {
+      result.transformations.push(dataPoint);
+    } else if (metricType === "resources" && field === "count") {
+      result.resources.push(dataPoint);
     }
   }
 
+  // Sort all arrays by timestamp
+  const sortByTimestamp = (a: TimeSeriesData, b: TimeSeriesData) => 
+    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+
+  result.credits.sort(sortByTimestamp);
+  result.storage.sort(sortByTimestamp);
+  result.bandwidth.sort(sortByTimestamp);
+  result.transformations.sort(sortByTimestamp);
+  result.resources.sort(sortByTimestamp);
+
+  console.log(`[InfluxDB] Parsed CSV: credits=${result.credits.length}, storage=${result.storage.length}, bandwidth=${result.bandwidth.length}`);
+
+  return result;
+}
+
+/**
+ * Parse a CSV line, handling quoted values
+ */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current);
   return result;
 }
 

@@ -117,12 +117,21 @@ async function handleRecordMetrics(
 
     const usageData = await usageResponse.json();
 
+    // Calculate total credits used - sum individual credits if main value is 0
+    let totalCreditsUsed = usageData.credits?.used || 0;
+    if (totalCreditsUsed === 0) {
+      totalCreditsUsed = 
+        (usageData.storage?.credits_usage || 0) +
+        (usageData.bandwidth?.credits_usage || 0) +
+        (usageData.transformations?.credits_usage || 0);
+    }
+
     const metricPoint: CloudinaryMetricPoint = {
       timestamp: new Date(),
-      credits_used: usageData.credits?.used || 0,
+      credits_used: totalCreditsUsed,
       credits_limit: usageData.credits?.limit || 0,
       credits_percent: usageData.credits?.limit 
-        ? ((usageData.credits?.used || 0) / usageData.credits.limit) * 100 
+        ? (totalCreditsUsed / usageData.credits.limit) * 100 
         : 0,
       storage_bytes: usageData.storage?.usage || 0,
       storage_credits: usageData.storage?.credits_usage || 0,

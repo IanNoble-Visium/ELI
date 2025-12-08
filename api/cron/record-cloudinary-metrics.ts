@@ -19,6 +19,7 @@ import {
   ensureBucketExists,
   CloudinaryMetricPoint,
 } from "../lib/influxdb.js";
+import { recordJobExecution } from "./status.js";
 
 export default async function handler(
   req: VercelRequest,
@@ -141,6 +142,15 @@ export default async function handler(
     };
     results.duration_ms = Date.now() - startTime;
 
+    // Record execution for monitoring
+    recordJobExecution(
+      "record-cloudinary-metrics",
+      "success",
+      results.duration_ms,
+      `Recorded ${metricPoint.credits_used.toFixed(3)} credits used`,
+      results.metrics
+    );
+
     console.log(`[Cron] Recorded Cloudinary metrics: ${metricPoint.credits_used} credits used`);
     res.status(200).json(results);
 
@@ -149,6 +159,15 @@ export default async function handler(
     results.status = "error";
     results.error = error instanceof Error ? error.message : "Unknown error";
     results.duration_ms = Date.now() - startTime;
+
+    // Record failed execution
+    recordJobExecution(
+      "record-cloudinary-metrics",
+      "error",
+      results.duration_ms,
+      results.error
+    );
+
     res.status(500).json(results);
   }
 }

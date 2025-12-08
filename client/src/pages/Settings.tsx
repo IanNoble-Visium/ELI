@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { 
   ArrowLeft, 
   Database, 
@@ -14,10 +15,19 @@ import {
   RefreshCw,
   ExternalLink,
   Loader2,
+  Clock,
+  Play,
+  History,
+  Timer,
+  Zap,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { format, formatDistanceToNow } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +54,34 @@ interface CloudinaryUsageData {
   configured?: boolean;
 }
 
+interface CronJobStatus {
+  id: string;
+  name: string;
+  description: string;
+  path: string;
+  schedule: string;
+  scheduleDescription: string;
+  enabled: boolean;
+  dependenciesOk: boolean;
+  missingDependencies: string[];
+  lastRun?: string;
+  lastStatus?: "success" | "error" | "skipped";
+  lastError?: string;
+  lastDuration?: number;
+  nextRun?: string;
+}
+
+interface CronJobsData {
+  success: boolean;
+  jobs?: CronJobStatus[];
+  influxdb_status?: {
+    configured: boolean;
+    host: string;
+    org: string;
+  };
+  error?: string;
+}
+
 function formatBytes(bytes: number, decimals = 2): string {
   if (bytes === 0) return "0 Bytes";
   const k = 1024;
@@ -58,6 +96,10 @@ export default function Settings() {
   const [retentionDays, setRetentionDays] = useState([7]);
   const [cloudinaryData, setCloudinaryData] = useState<CloudinaryUsageData | null>(null);
   const [cloudinaryLoading, setCloudinaryLoading] = useState(true);
+  const [cronJobsData, setCronJobsData] = useState<CronJobsData | null>(null);
+  const [cronJobsLoading, setCronJobsLoading] = useState(true);
+  const [triggeringJob, setTriggeringJob] = useState<string | null>(null);
+  const [seedingData, setSeedingData] = useState(false);
   
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
 
@@ -76,9 +118,82 @@ export default function Settings() {
     }
   }, []);
 
+  // Fetch CRON jobs status
+  const fetchCronJobs = useCallback(async () => {
+    try {
+      setCronJobsLoading(true);
+      const response = await fetch("/api/cron/status", { credentials: "include" });
+      const data = await response.json();
+      setCronJobsData(data);
+    } catch (error) {
+      console.error("[Settings] Failed to fetch CRON jobs:", error);
+      setCronJobsData({ success: false, error: "Failed to connect" });
+    } finally {
+      setCronJobsLoading(false);
+    }
+  }, []);
+
+  // Trigger a CRON job manually
+  const triggerCronJob = useCallback(async (jobId: string) => {
+    try {
+      setTriggeringJob(jobId);
+      const response = await fetch(`/api/cron/status?action=trigger&jobId=${jobId}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success("Job triggered successfully", {
+          description: `${jobId} completed in ${data.duration}ms`,
+        });
+      } else {
+        toast.error("Job failed", {
+          description: data.error || "Unknown error",
+        });
+      }
+      
+      // Refresh job status
+      await fetchCronJobs();
+    } catch (error) {
+      console.error("[Settings] Failed to trigger CRON job:", error);
+      toast.error("Failed to trigger job");
+    } finally {
+      setTriggeringJob(null);
+    }
+  }, [fetchCronJobs]);
+
+  // Seed InfluxDB with initial data
+  const seedInfluxDB = useCallback(async () => {
+    try {
+      setSeedingData(true);
+      const response = await fetch("/api/cron/status?action=seed", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success("InfluxDB seeded", {
+          description: "Historical data points have been recorded",
+        });
+      } else {
+        toast.error("Seeding failed", {
+          description: data.error || "Unknown error",
+        });
+      }
+    } catch (error) {
+      console.error("[Settings] Failed to seed InfluxDB:", error);
+      toast.error("Failed to seed data");
+    } finally {
+      setSeedingData(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCloudinaryData();
-  }, [fetchCloudinaryData]);
+    fetchCronJobs();
+  }, [fetchCloudinaryData, fetchCronJobs]);
   const updateConfigMutation = trpc.config.set.useMutation({
     onSuccess: () => {
       toast.success("Settings saved successfully");
@@ -353,11 +468,197 @@ export default function Settings() {
           </Card>
         </motion.div>
 
-        {/* System Info */}
+        {/* CRON Jobs Management */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.4 }}
+        >
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    Scheduled Jobs
+                  </CardTitle>
+                  <CardDescription>
+                    Manage and monitor automated tasks
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchCronJobs}
+                  disabled={cronJobsLoading}
+                >
+                  <RefreshCw className={`w-4 h-4 ${cronJobsLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {cronJobsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : cronJobsData?.success && cronJobsData.jobs ? (
+                <>
+                  {/* InfluxDB Status */}
+                  {cronJobsData.influxdb_status && (
+                    <div className={`p-3 rounded-lg flex items-center gap-3 ${
+                      cronJobsData.influxdb_status.configured 
+                        ? "bg-green-500/10 border border-green-500/20" 
+                        : "bg-yellow-500/10 border border-yellow-500/20"
+                    }`}>
+                      {cronJobsData.influxdb_status.configured ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-yellow-500" />
+                      )}
+                      <div className="flex-1">
+                        <span className={`text-sm font-medium ${
+                          cronJobsData.influxdb_status.configured ? "text-green-400" : "text-yellow-400"
+                        }`}>
+                          InfluxDB: {cronJobsData.influxdb_status.configured ? "Connected" : "Not Configured"}
+                        </span>
+                        {cronJobsData.influxdb_status.configured && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {cronJobsData.influxdb_status.org} @ {cronJobsData.influxdb_status.host.replace("https://", "")}
+                          </span>
+                        )}
+                      </div>
+                      {cronJobsData.influxdb_status.configured && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={seedInfluxDB}
+                          disabled={seedingData}
+                          className="border-green-500/30 hover:bg-green-500/10"
+                        >
+                          {seedingData ? (
+                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                          ) : (
+                            <Zap className="w-3 h-3 mr-1" />
+                          )}
+                          Seed Data
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Job List */}
+                  <div className="space-y-3">
+                    {cronJobsData.jobs.map((job) => (
+                      <div
+                        key={job.id}
+                        className="p-4 border border-border rounded-lg hover:border-blue-500/30 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium truncate">{job.name}</h4>
+                              {job.enabled && job.dependenciesOk ? (
+                                <Badge variant="outline" className="border-green-500/30 text-green-400 text-xs">
+                                  Active
+                                </Badge>
+                              ) : !job.dependenciesOk ? (
+                                <Badge variant="outline" className="border-yellow-500/30 text-yellow-400 text-xs">
+                                  Missing Config
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="border-gray-500/30 text-gray-400 text-xs">
+                                  Disabled
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {job.description}
+                            </p>
+                            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Timer className="w-3 h-3" />
+                                <span>{job.scheduleDescription}</span>
+                                <code className="ml-1 px-1 bg-muted/50 rounded">{job.schedule}</code>
+                              </div>
+                              {job.lastRun && (
+                                <div className="flex items-center gap-1">
+                                  <History className="w-3 h-3" />
+                                  <span>
+                                    Last: {formatDistanceToNow(new Date(job.lastRun), { addSuffix: true })}
+                                  </span>
+                                  {job.lastStatus === "success" && (
+                                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                                  )}
+                                  {job.lastStatus === "error" && (
+                                    <XCircle className="w-3 h-3 text-red-500" />
+                                  )}
+                                  {job.lastStatus === "skipped" && (
+                                    <AlertCircle className="w-3 h-3 text-yellow-500" />
+                                  )}
+                                </div>
+                              )}
+                              {job.nextRun && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>
+                                    Next: {format(new Date(job.nextRun), "HH:mm:ss")}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            {job.missingDependencies.length > 0 && (
+                              <div className="mt-2 text-xs text-yellow-400">
+                                Missing: {job.missingDependencies.join(", ")}
+                              </div>
+                            )}
+                            {job.lastError && (
+                              <div className="mt-2 text-xs text-red-400 truncate">
+                                Error: {job.lastError}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => triggerCronJob(job.id)}
+                            disabled={triggeringJob === job.id || !job.dependenciesOk}
+                            className="shrink-0"
+                          >
+                            {triggeringJob === job.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Play className="w-4 h-4" />
+                            )}
+                            <span className="ml-1 hidden sm:inline">Run Now</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {cronJobsData.jobs.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No scheduled jobs configured
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <AlertTriangle className="w-8 h-8 mx-auto text-yellow-500 mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {cronJobsData?.error || "Failed to load CRON jobs"}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* System Info */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
         >
           <Card>
             <CardHeader>

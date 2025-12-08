@@ -975,7 +975,7 @@ export default function CloudinaryMonitoring() {
                               <div className="p-4 rounded-lg bg-muted/30">
                                 <div className="text-xs text-muted-foreground mb-1">Daily Storage Rate</div>
                                 <div className="text-lg font-bold text-cyan-400">
-                                  {formatBytes(projections.daily_rates?.storage || 0)} / day
+                                  {(projections.daily_rates?.storage || 0).toFixed(3)} credits / day
                                 </div>
                               </div>
                             </div>
