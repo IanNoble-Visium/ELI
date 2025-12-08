@@ -51,6 +51,7 @@ interface ProcessingStats {
   lastHourProcessed: number;
   lastHourSkipped: number;
   projectedIfNoThrottle: number;
+  lastEventAt: string | null;  // ISO timestamp of last webhook event received
   hourlyStats: Array<{
     hour: string;
     received: number;
@@ -67,6 +68,7 @@ let processingStats: ProcessingStats = {
   lastHourProcessed: 0,
   lastHourSkipped: 0,
   projectedIfNoThrottle: 0,
+  lastEventAt: null,
   hourlyStats: [],
 };
 
@@ -123,15 +125,19 @@ export function shouldProcessImage(imageIndex: number, batchSize: number): boole
  * Record an image processing decision
  */
 export function recordProcessingDecision(processed: boolean): void {
-  const currentHour = new Date().toISOString().substring(0, 13);
-  
+  const now = new Date();
+  const currentHour = now.toISOString().substring(0, 13);
+
+  // Update last event timestamp (this is the actual webhook receive time)
+  processingStats.lastEventAt = now.toISOString();
+
   // Update hourly bucket
   let hourBucket = hourlyBuckets.get(currentHour);
   if (!hourBucket) {
     hourBucket = { received: 0, processed: 0, skipped: 0 };
     hourlyBuckets.set(currentHour, hourBucket);
   }
-  
+
   hourBucket.received++;
   if (processed) {
     hourBucket.processed++;
@@ -212,6 +218,11 @@ export default async function handler(
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  // Disable caching to ensure fresh data on every poll
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
 
   if (req.method === "OPTIONS") {
     res.status(200).end();
@@ -315,6 +326,7 @@ export default async function handler(
       lastHourProcessed: 0,
       lastHourSkipped: 0,
       projectedIfNoThrottle: 0,
+      lastEventAt: null,
       hourlyStats: [],
     };
     hourlyBuckets.clear();
