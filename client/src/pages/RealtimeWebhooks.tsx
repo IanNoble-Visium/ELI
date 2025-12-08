@@ -3,8 +3,9 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Activity, Filter, Pause, Play, RefreshCw, Camera, MapPin, Clock, Database, Cloud, Share2, CheckCircle2, XCircle, AlertCircle, Loader2, Image, Eye } from "lucide-react";
+import { ArrowLeft, Activity, Filter, Pause, Play, RefreshCw, Camera, MapPin, Clock, Database, Cloud, Share2, CheckCircle2, XCircle, AlertCircle, Loader2, Image, Eye, TrendingUp, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 
@@ -98,6 +99,31 @@ interface EventStats {
   plates: number;
 }
 
+interface ThrottleStats {
+  totalReceived: number;
+  totalProcessed: number;
+  totalSkipped: number;
+  lastHourReceived: number;
+  lastHourProcessed: number;
+  lastHourSkipped: number;
+  projectedIfNoThrottle: number;
+}
+
+interface ThrottleConfig {
+  enabled: boolean;
+  processRatio: number;
+  maxPerHour: number;
+  samplingMethod: string;
+  description: string;
+}
+
+interface ThrottleData {
+  success: boolean;
+  stats?: ThrottleStats;
+  config?: ThrottleConfig;
+  timestamp?: string;
+}
+
 export default function RealtimeWebhooks() {
   const [, setLocation] = useLocation();
   const [isPaused, setIsPaused] = useState(false);
@@ -113,6 +139,22 @@ export default function RealtimeWebhooks() {
   const [selectedEvent, setSelectedEvent] = useState<WebhookData | null>(null);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [throttleData, setThrottleData] = useState<ThrottleData | null>(null);
+
+  // Fetch throttle stats to show batch processing progress
+  const fetchThrottleStats = useCallback(async () => {
+    try {
+      const response = await fetch("/api/cloudinary/throttle?action=stats", {
+        credentials: "include",
+      });
+      const data = await response.json();
+      if (data.success) {
+        setThrottleData(data);
+      }
+    } catch (error) {
+      console.error("[Webhooks] Failed to fetch throttle stats:", error);
+    }
+  }, []);
 
   // Fetch events from real database (events have full topic/level data)
   const fetchWebhooks = useCallback(async () => {
@@ -194,15 +236,19 @@ export default function RealtimeWebhooks() {
   useEffect(() => {
     fetchWebhooks();
     fetchServiceHealth();
-  }, [fetchWebhooks, fetchServiceHealth]);
+    fetchThrottleStats();
+  }, [fetchWebhooks, fetchServiceHealth, fetchThrottleStats]);
 
-  // Auto-refresh webhooks every 3 seconds when not paused
+  // Auto-refresh webhooks and throttle stats every 3 seconds when not paused
   useEffect(() => {
     if (!isPaused) {
-      const interval = setInterval(fetchWebhooks, 3000);
+      const interval = setInterval(() => {
+        fetchWebhooks();
+        fetchThrottleStats();
+      }, 3000);
       return () => clearInterval(interval);
     }
-  }, [isPaused, fetchWebhooks]);
+  }, [isPaused, fetchWebhooks, fetchThrottleStats]);
 
   // Auto-refresh service health every 30 seconds
   useEffect(() => {
@@ -426,6 +472,117 @@ export default function RealtimeWebhooks() {
             </CardContent>
             </Card>
           </motion.div>
+
+          {/* Batch Processing Progress */}
+          {throttleData?.config?.enabled && (
+            <motion.div
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              transition={{ delay: 0.05 }}
+            >
+              <Card className="hover:shadow-lg hover:shadow-cyan-500/5 transition-shadow duration-300 border-cyan-500/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-cyan-500" />
+                    Batch Processing Progress
+                    <motion.div
+                      className="w-2 h-2 bg-cyan-500 rounded-full ml-auto"
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(() => {
+                    const stats = throttleData?.stats;
+                    const config = throttleData?.config;
+                    if (!stats || !config) return null;
+
+                    // Calculate progress toward next batch
+                    // 100,000 events = 1 full cycle, 250 images processed per cycle
+                    const cycleSize = 100000;
+                    const imagesPerCycle = Math.round(config.processRatio * cycleSize);
+                    const currentInCycle = stats.totalReceived % cycleSize;
+                    const progressPercent = (currentInCycle / cycleSize) * 100;
+                    const eventsUntilNextBatch = cycleSize - currentInCycle;
+                    const skippedInCycle = Math.round(currentInCycle * (1 - config.processRatio));
+
+                    return (
+                      <>
+                        {/* Current cycle progress */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">Cycle Progress</span>
+                            <span className="font-mono text-cyan-500">{progressPercent.toFixed(1)}%</span>
+                          </div>
+                          <Progress value={progressPercent} className="h-2 bg-cyan-500/10" />
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{currentInCycle.toLocaleString()} / {cycleSize.toLocaleString()}</span>
+                            <span>{eventsUntilNextBatch.toLocaleString()} until next batch</span>
+                          </div>
+                        </div>
+
+                        <div className="h-px bg-border" />
+
+                        {/* Stats grid */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-2 bg-cyan-500/10 rounded">
+                            <div className="flex items-center gap-1.5">
+                              <Zap className="w-3 h-3 text-cyan-500" />
+                              <span className="text-lg font-bold text-cyan-500">
+                                {stats.totalReceived.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">Total Received</div>
+                          </div>
+                          <div className="p-2 bg-orange-500/10 rounded">
+                            <div className="text-lg font-bold text-orange-500">
+                              {stats.totalSkipped.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Skipped</div>
+                          </div>
+                          <div className="p-2 bg-green-500/10 rounded">
+                            <div className="text-lg font-bold text-green-500">
+                              {stats.totalProcessed.toLocaleString()}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Images Saved</div>
+                          </div>
+                          <div className="p-2 bg-purple-500/10 rounded">
+                            <div className="text-lg font-bold text-purple-500">
+                              {imagesPerCycle}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Per 100K Events</div>
+                          </div>
+                        </div>
+
+                        {/* Last hour stats */}
+                        {(stats.lastHourReceived > 0) && (
+                          <>
+                            <div className="h-px bg-border" />
+                            <div className="text-xs space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Last Hour</span>
+                                <span className="font-mono">{stats.lastHourReceived.toLocaleString()} events</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Processed</span>
+                                <span className="font-mono text-green-500">{stats.lastHourProcessed.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        <div className="text-xs text-muted-foreground italic">
+                          {config.description}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
           {/* Filters */}
           <motion.div
