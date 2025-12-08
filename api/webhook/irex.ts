@@ -11,6 +11,12 @@ import {
   uploadImage,
   isCloudinaryConfigured,
 } from "../lib/cloudinary.js";
+import {
+  shouldProcessImage,
+  recordProcessingDecision,
+  recordThrottleMetrics,
+  getThrottleConfig,
+} from "../cloudinary/throttle.js";
 
 // Vercel serverless handler for IREX webhooks
 // Persists all incoming webhooks to PostgreSQL/TiDB database with Cloudinary image upload
@@ -109,19 +115,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             tags: body.channel?.tags || null,
           });
 
-          // 3. Insert snapshots if present (with Cloudinary upload)
+          // 3. Insert snapshots if present (with Cloudinary upload + throttling)
           if (body.snapshots && Array.isArray(body.snapshots) && body.snapshots.length > 0) {
             const cloudinaryEnabled = isCloudinaryConfigured();
+            const throttleConfig = getThrottleConfig();
             const processedSnapshots: SnapshotData[] = [];
+            let imagesProcessed = 0;
+            let imagesSkipped = 0;
 
-            for (const snapshot of body.snapshots) {
+            for (let i = 0; i < body.snapshots.length; i++) {
+              const snapshot = body.snapshots[i];
               const snapshotData: SnapshotData = {
                 type: snapshot.type,
                 path: snapshot.path,
               };
 
-              // Upload to Cloudinary if configured and base64 image data is present
-              if (cloudinaryEnabled && snapshot.image) {
+              // Check if this image should be processed (throttle check)
+              const shouldUpload = cloudinaryEnabled && 
+                                   snapshot.image && 
+                                   shouldProcessImage(i, body.snapshots.length);
+
+              // Record the decision for metrics
+              recordProcessingDecision(shouldUpload);
+
+              if (shouldUpload) {
+                // Upload to Cloudinary
                 try {
                   const uploadResult = await uploadImage(
                     snapshot.image,
@@ -132,10 +150,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   if (uploadResult.success) {
                     snapshotData.imageUrl = uploadResult.data.secureUrl;
                     snapshotData.cloudinaryPublicId = uploadResult.data.publicId;
+                    imagesProcessed++;
                     console.log(`[Webhook IREX] Uploaded snapshot to Cloudinary: ${uploadResult.data.publicId}`);
                   } else {
                     console.warn(`[Webhook IREX] Cloudinary upload failed: ${uploadResult.error}`);
-                    // Fall back to path
                     snapshotData.imageUrl = snapshot.path || null;
                   }
                 } catch (uploadError: any) {
@@ -143,14 +161,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   snapshotData.imageUrl = snapshot.path || null;
                 }
               } else {
-                // No Cloudinary or no image data - use path
+                // Image skipped due to throttle or no Cloudinary/image data
                 snapshotData.imageUrl = snapshot.path || null;
+                if (cloudinaryEnabled && snapshot.image) {
+                  imagesSkipped++;
+                }
               }
 
               processedSnapshots.push(snapshotData);
             }
 
             await insertSnapshots(eventDbId, processedSnapshots);
+
+            // Log throttle summary for this batch
+            if (throttleConfig.enabled && (imagesProcessed > 0 || imagesSkipped > 0)) {
+              console.log(`[Webhook IREX] Throttle: ${imagesProcessed} uploaded, ${imagesSkipped} skipped (${throttleConfig.description})`);
+            }
           }
 
           processedEventIds.push(eventId);
@@ -166,6 +192,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Calculate processing time
     const processingTime = Date.now() - startTime;
+
+    // Record throttle metrics to InfluxDB (async, don't wait)
+    recordThrottleMetrics().catch(err => 
+      console.warn("[Webhook IREX] Failed to record throttle metrics:", err)
+    );
 
     // Log the webhook batch request
     if (db && dbPersisted) {

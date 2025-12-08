@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ArrowLeft,
   Cloud,
@@ -23,9 +33,17 @@ import {
   LineChart as LineChartIcon,
   AlertTriangle,
   Calendar,
+  Shield,
+  ShieldCheck,
+  ShieldOff,
+  ImageOff,
+  ImagePlus,
+  Settings2,
+  Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, addDays } from "date-fns";
+import { toast } from "sonner";
 import {
   LineChart,
   Line,
@@ -139,6 +157,38 @@ interface MetricsData {
   error?: string;
 }
 
+interface ThrottleConfig {
+  enabled: boolean;
+  processRatio: number;
+  maxPerHour: number;
+  samplingMethod: 'random' | 'interval' | 'first';
+  lastUpdated: string;
+  description: string;
+}
+
+interface ThrottleStats {
+  totalReceived: number;
+  totalProcessed: number;
+  totalSkipped: number;
+  lastHourReceived: number;
+  lastHourProcessed: number;
+  lastHourSkipped: number;
+  projectedIfNoThrottle: number;
+  hourlyStats: Array<{
+    hour: string;
+    received: number;
+    processed: number;
+    skipped: number;
+  }>;
+}
+
+interface ThrottleData {
+  success: boolean;
+  config?: ThrottleConfig;
+  stats?: ThrottleStats;
+  error?: string;
+}
+
 const TIME_RANGES = [
   { label: "1H", value: "1h" },
   { label: "12H", value: "12h" },
@@ -190,6 +240,15 @@ export default function CloudinaryMonitoring() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedRange, setSelectedRange] = useState("24h");
+  
+  // Throttle state
+  const [throttleData, setThrottleData] = useState<ThrottleData | null>(null);
+  const [isThrottleLoading, setIsThrottleLoading] = useState(true);
+  const [isThrottleSaving, setIsThrottleSaving] = useState(false);
+  const [throttleEnabled, setThrottleEnabled] = useState(true);
+  const [processRatio, setProcessRatio] = useState(0.0025);
+  const [maxPerHour, setMaxPerHour] = useState(100);
+  const [samplingMethod, setSamplingMethod] = useState<'random' | 'interval' | 'first'>('random');
 
   const fetchUsageData = useCallback(async () => {
     try {
@@ -221,6 +280,65 @@ export default function CloudinaryMonitoring() {
     }
   }, []);
 
+  // Fetch throttle configuration
+  const fetchThrottleConfig = useCallback(async () => {
+    try {
+      setIsThrottleLoading(true);
+      const response = await fetch("/api/cloudinary/throttle?action=stats", {
+        credentials: "include",
+      });
+      const data = await response.json();
+      setThrottleData(data);
+      
+      if (data.success && data.config) {
+        setThrottleEnabled(data.config.enabled);
+        setProcessRatio(data.config.processRatio);
+        setMaxPerHour(data.config.maxPerHour);
+        setSamplingMethod(data.config.samplingMethod);
+      }
+    } catch (error) {
+      console.error("[Cloudinary] Failed to fetch throttle config:", error);
+      setThrottleData({ success: false, error: "Failed to fetch" });
+    } finally {
+      setIsThrottleLoading(false);
+    }
+  }, []);
+
+  // Update throttle configuration
+  const updateThrottleConfig = useCallback(async () => {
+    try {
+      setIsThrottleSaving(true);
+      const response = await fetch("/api/cloudinary/throttle", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: throttleEnabled,
+          processRatio,
+          maxPerHour,
+          samplingMethod,
+        }),
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success("Throttle settings saved", {
+          description: data.config?.description,
+        });
+        await fetchThrottleConfig();
+      } else {
+        toast.error("Failed to save settings", {
+          description: data.error,
+        });
+      }
+    } catch (error) {
+      console.error("[Cloudinary] Failed to update throttle:", error);
+      toast.error("Failed to save throttle settings");
+    } finally {
+      setIsThrottleSaving(false);
+    }
+  }, [throttleEnabled, processRatio, maxPerHour, samplingMethod, fetchThrottleConfig]);
+
   const fetchMetricsData = useCallback(async (range: string) => {
     try {
       setIsMetricsLoading(true);
@@ -242,7 +360,8 @@ export default function CloudinaryMonitoring() {
 
   useEffect(() => {
     fetchUsageData();
-  }, [fetchUsageData]);
+    fetchThrottleConfig();
+  }, [fetchUsageData, fetchThrottleConfig]);
 
   useEffect(() => {
     if (activeTab === "historical") {
@@ -382,7 +501,7 @@ export default function CloudinaryMonitoring() {
 
         {usageData?.success && usageData.usage && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full max-w-md grid-cols-2 bg-card/50">
+            <TabsList className="grid w-full max-w-2xl grid-cols-3 bg-card/50">
               <TabsTrigger value="current" className="gap-2">
                 <Gauge className="w-4 h-4" />
                 Current Usage
@@ -390,6 +509,14 @@ export default function CloudinaryMonitoring() {
               <TabsTrigger value="historical" className="gap-2">
                 <LineChartIcon className="w-4 h-4" />
                 Historical Trends
+              </TabsTrigger>
+              <TabsTrigger value="throttle" className="gap-2">
+                {throttleEnabled ? (
+                  <ShieldCheck className="w-4 h-4 text-green-400" />
+                ) : (
+                  <ShieldOff className="w-4 h-4 text-yellow-400" />
+                )}
+                Throttle Control
               </TabsTrigger>
             </TabsList>
 
@@ -999,6 +1126,445 @@ export default function CloudinaryMonitoring() {
                     </p>
                   </motion.div>
                 )}
+              </motion.div>
+            </TabsContent>
+
+            {/* Throttle Control Tab */}
+            <TabsContent value="throttle">
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="space-y-6"
+              >
+                {/* Throttle Status Banner */}
+                <motion.div variants={itemVariants}>
+                  <Card className={`border-2 ${throttleEnabled ? 'border-green-500/30 bg-green-500/5' : 'border-yellow-500/30 bg-yellow-500/5'}`}>
+                    <CardContent className="py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {throttleEnabled ? (
+                            <ShieldCheck className="w-6 h-6 text-green-500" />
+                          ) : (
+                            <ShieldOff className="w-6 h-6 text-yellow-500" />
+                          )}
+                          <div>
+                            <div className={`font-medium ${throttleEnabled ? 'text-green-400' : 'text-yellow-400'}`}>
+                              {throttleEnabled ? 'Throttle Active - Demo Mode Protected' : 'Throttle Disabled - Full Processing'}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {throttleData?.config?.description || 'Loading...'}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant={throttleEnabled ? "default" : "destructive"} className="ml-4">
+                          {throttleEnabled ? 'Protected' : 'Unprotected'}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Configuration Card */}
+                <motion.div variants={itemVariants}>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Settings2 className="w-5 h-5 text-blue-400" />
+                        Throttle Configuration
+                      </CardTitle>
+                      <CardDescription>
+                        Configure image processing limits to protect against exceeding Cloudinary usage
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* Enable/Disable Toggle */}
+                      <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                        <div className="space-y-1">
+                          <Label htmlFor="throttle-toggle" className="text-base font-medium">
+                            Enable Throttle Mode
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            When enabled, only a fraction of incoming images will be processed
+                          </p>
+                        </div>
+                        <Switch
+                          id="throttle-toggle"
+                          checked={throttleEnabled}
+                          onCheckedChange={setThrottleEnabled}
+                        />
+                      </div>
+
+                      {/* Processing Ratio Slider */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-base font-medium">Processing Ratio</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Images to process per 100,000 incoming
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-blue-400">
+                              {Math.round(processRatio * 100000)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              per 100K ({(processRatio * 100).toFixed(3)}%)
+                            </div>
+                          </div>
+                        </div>
+                        <Slider
+                          value={[processRatio * 100000]}
+                          min={10}
+                          max={10000}
+                          step={10}
+                          onValueChange={(value) => setProcessRatio(value[0] / 100000)}
+                          disabled={!throttleEnabled}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>10 (0.01%)</span>
+                          <span>250 (0.25%)</span>
+                          <span>1000 (1%)</span>
+                          <span>10K (10%)</span>
+                        </div>
+                      </div>
+
+                      {/* Max Per Hour */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-base font-medium">Maximum Per Hour</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Hard limit on images processed per hour
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-purple-400">
+                              {maxPerHour}
+                            </div>
+                            <div className="text-xs text-muted-foreground">images/hour</div>
+                          </div>
+                        </div>
+                        <Slider
+                          value={[maxPerHour]}
+                          min={10}
+                          max={1000}
+                          step={10}
+                          onValueChange={(value) => setMaxPerHour(value[0])}
+                          disabled={!throttleEnabled}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>10</span>
+                          <span>100</span>
+                          <span>500</span>
+                          <span>1000</span>
+                        </div>
+                      </div>
+
+                      {/* Sampling Method */}
+                      <div className="space-y-2">
+                        <Label className="text-base font-medium">Sampling Method</Label>
+                        <Select
+                          value={samplingMethod}
+                          onValueChange={(v) => setSamplingMethod(v as any)}
+                          disabled={!throttleEnabled}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="random">
+                              Random Sampling - Randomly select images to process
+                            </SelectItem>
+                            <SelectItem value="interval">
+                              Interval Sampling - Process every Nth image
+                            </SelectItem>
+                            <SelectItem value="first">
+                              First N - Process first N images of each batch
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Save Button */}
+                      <div className="flex gap-3 pt-4">
+                        <Button
+                          onClick={updateThrottleConfig}
+                          disabled={isThrottleSaving}
+                          className="flex-1"
+                        >
+                          {isThrottleSaving ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                          )}
+                          Save Configuration
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={fetchThrottleConfig}
+                          disabled={isThrottleLoading}
+                        >
+                          <RefreshCw className={`w-4 h-4 ${isThrottleLoading ? 'animate-spin' : ''}`} />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Processing Statistics */}
+                <motion.div variants={itemVariants}>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-cyan-400" />
+                        Processing Statistics
+                      </CardTitle>
+                      <CardDescription>
+                        Images processed vs skipped with throttle active
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {throttleData?.stats ? (
+                        <div className="space-y-6">
+                          {/* Summary Stats */}
+                          <div className="grid gap-4 md:grid-cols-4">
+                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                                <FileImage className="w-3 h-3" />
+                                Total Received
+                              </div>
+                              <div className="text-2xl font-bold text-blue-400">
+                                {formatNumber(throttleData.stats.totalReceived)}
+                              </div>
+                            </div>
+                            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                                <ImagePlus className="w-3 h-3" />
+                                Processed
+                              </div>
+                              <div className="text-2xl font-bold text-green-400">
+                                {formatNumber(throttleData.stats.totalProcessed)}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {throttleData.stats.totalReceived > 0 
+                                  ? ((throttleData.stats.totalProcessed / throttleData.stats.totalReceived) * 100).toFixed(2)
+                                  : 0}% of received
+                              </div>
+                            </div>
+                            <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                                <ImageOff className="w-3 h-3" />
+                                Skipped
+                              </div>
+                              <div className="text-2xl font-bold text-orange-400">
+                                {formatNumber(throttleData.stats.totalSkipped)}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {throttleData.stats.totalReceived > 0 
+                                  ? ((throttleData.stats.totalSkipped / throttleData.stats.totalReceived) * 100).toFixed(2)
+                                  : 0}% saved
+                              </div>
+                            </div>
+                            <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                                <TrendingUp className="w-3 h-3" />
+                                Projected Full
+                              </div>
+                              <div className="text-2xl font-bold text-purple-400">
+                                {formatNumber(throttleData.stats.projectedIfNoThrottle)}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                if all processed
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Last Hour Stats */}
+                          <div className="p-4 bg-muted/30 rounded-lg">
+                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                              <Clock className="w-4 h-4" />
+                              Last Hour
+                            </h4>
+                            <div className="grid gap-4 md:grid-cols-3">
+                              <div>
+                                <div className="text-xs text-muted-foreground">Received</div>
+                                <div className="text-lg font-bold">
+                                  {throttleData.stats.lastHourReceived}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground">Processed</div>
+                                <div className="text-lg font-bold text-green-400">
+                                  {throttleData.stats.lastHourProcessed}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted-foreground">Skipped</div>
+                                <div className="text-lg font-bold text-orange-400">
+                                  {throttleData.stats.lastHourSkipped}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Hourly Chart */}
+                          {throttleData.stats.hourlyStats.length > 0 && (
+                            <div className="h-[250px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart
+                                  data={throttleData.stats.hourlyStats}
+                                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                                >
+                                  <defs>
+                                    <linearGradient id="colorProcessed" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
+                                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                                    </linearGradient>
+                                    <linearGradient id="colorSkipped" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                                      <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                  <XAxis 
+                                    dataKey="hour" 
+                                    tickFormatter={(value) => format(new Date(value + ":00:00"), "HH:mm")}
+                                    stroke="#666"
+                                    fontSize={10}
+                                  />
+                                  <YAxis stroke="#666" fontSize={10} />
+                                  <Tooltip 
+                                    content={({ active, payload, label }) => {
+                                      if (active && payload && payload.length) {
+                                        return (
+                                          <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-xl">
+                                            <p className="text-xs text-muted-foreground mb-2">
+                                              {format(new Date(label + ":00:00"), "PPp")}
+                                            </p>
+                                            {payload.map((entry: any, index: number) => (
+                                              <p key={index} className="text-sm" style={{ color: entry.color }}>
+                                                {entry.name}: {entry.value}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    }}
+                                  />
+                                  <Area
+                                    type="monotone"
+                                    dataKey="processed"
+                                    name="Processed"
+                                    stroke="#22c55e"
+                                    fillOpacity={1}
+                                    fill="url(#colorProcessed)"
+                                    stackId="1"
+                                  />
+                                  <Area
+                                    type="monotone"
+                                    dataKey="skipped"
+                                    name="Skipped"
+                                    stroke="#f97316"
+                                    fillOpacity={1}
+                                    fill="url(#colorSkipped)"
+                                    stackId="1"
+                                  />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          )}
+                        </div>
+                      ) : isThrottleLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                        </div>
+                      ) : (
+                        <div className="text-center py-12">
+                          <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+                          <p className="text-muted-foreground">No processing data available</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Statistics will appear as images are received
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Forecasting Card */}
+                <motion.div variants={itemVariants}>
+                  <Card className="border-purple-500/20 bg-gradient-to-br from-card to-purple-950/10">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-purple-400" />
+                        Production Forecasting
+                      </CardTitle>
+                      <CardDescription>
+                        Estimated resource requirements for full production (100% processing)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {throttleData?.stats && throttleData.stats.totalReceived > 0 ? (
+                        <div className="space-y-4">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="p-4 rounded-lg bg-muted/30">
+                              <div className="text-xs text-muted-foreground mb-1">
+                                Current Cloudinary Usage (Throttled)
+                              </div>
+                              <div className="text-lg font-bold text-green-400">
+                                {usageData?.usage?.credits.used.toFixed(2) || 0} credits
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {usageData?.usage?.credits.used_percent.toFixed(2) || 0}% of limit
+                              </div>
+                            </div>
+                            <div className="p-4 rounded-lg bg-muted/30">
+                              <div className="text-xs text-muted-foreground mb-1">
+                                Projected Usage (100% Processing)
+                              </div>
+                              <div className="text-lg font-bold text-purple-400">
+                                {throttleData.stats.totalReceived > 0 && throttleData.stats.totalProcessed > 0
+                                  ? ((usageData?.usage?.credits.used || 0) * (throttleData.stats.totalReceived / throttleData.stats.totalProcessed)).toFixed(2)
+                                  : 0} credits
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                ~{throttleData.stats.totalReceived > 0 && throttleData.stats.totalProcessed > 0
+                                  ? (((usageData?.usage?.credits.used || 0) * (throttleData.stats.totalReceived / throttleData.stats.totalProcessed)) / (usageData?.usage?.credits.limit || 1) * 100).toFixed(1)
+                                  : 0}% of limit
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5" />
+                              <div>
+                                <p className="font-medium text-yellow-400">Production Planning</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  At current image volume with 100% processing, you would use approximately{" "}
+                                  <span className="font-bold text-yellow-400">
+                                    {throttleData.stats.totalReceived > 0 && throttleData.stats.totalProcessed > 0
+                                      ? ((throttleData.stats.totalReceived / throttleData.stats.totalProcessed)).toFixed(0)
+                                      : 1}x
+                                  </span>{" "}
+                                  more Cloudinary resources. Consider upgrading your plan before disabling throttle.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p>Forecasting data will be available once images are processed</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
               </motion.div>
             </TabsContent>
           </Tabs>

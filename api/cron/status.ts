@@ -22,6 +22,16 @@ const CRON_JOBS = [
     enabled: true,
     dependencies: ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET", "INFLUXDB_TOKEN", "INFLUXDB_ORG_ID"],
   },
+  {
+    id: "record-throttle-metrics",
+    name: "Record Throttle Metrics",
+    description: "Records image processing throttle statistics (processed vs skipped) to InfluxDB",
+    path: "/api/cron/record-throttle-metrics",
+    schedule: "*/5 * * * *",
+    scheduleDescription: "Every 5 minutes",
+    enabled: true,
+    dependencies: ["INFLUXDB_TOKEN", "INFLUXDB_ORG_ID"],
+  },
 ];
 
 interface CronJobStatus {
