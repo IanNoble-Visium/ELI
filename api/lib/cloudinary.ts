@@ -135,21 +135,16 @@ export async function uploadImage(
     // Build the upload URL
     const uploadUrl = `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`;
 
-    // Upload options for analysis
+    // Upload options - simplified to avoid add-on requirements
     const uploadTimestamp = Math.floor(Date.now() / 1000);
     const params = {
       folder: CLOUDINARY_FOLDER,
       public_id: `${sanitizedEventId}_${snapshotType}_${timestamp}`,
       timestamp: uploadTimestamp,
-      // Analysis parameters
-      detection: "coco|lvis|unidet",
-      ocr: "adv_ocr",
-      tagging: "google_tagging",
-      quality_analysis: "true",
+      // Core features only (no add-ons required)
       colors: "true",
       image_metadata: "true",
       phash: "true",
-      return_delete_token: "true"
     };
 
     // Generate signature using SHA-1
@@ -231,21 +226,16 @@ export async function uploadImageFromUrl(
     const sanitizedEventId = eventId.replace(/[^a-zA-Z0-9_-]/g, "_");
     const uploadUrl = `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`;
 
-    // Upload options for analysis
+    // Upload options - simplified to avoid add-on requirements
     const uploadTimestamp = Math.floor(Date.now() / 1000);
     const params = {
       folder: CLOUDINARY_FOLDER,
       public_id: `${sanitizedEventId}_${snapshotType}_${timestamp}`,
       timestamp: uploadTimestamp,
-      // Analysis parameters
-      detection: "coco|lvis|unidet",
-      ocr: "adv_ocr",
-      tagging: "google_tagging",
-      quality_analysis: "true",
+      // Core features only (no add-ons required)
       colors: "true",
       image_metadata: "true",
       phash: "true",
-      return_delete_token: "true"
     };
 
     const signature = await generateSignature(params, config.apiSecret);

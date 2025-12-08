@@ -186,7 +186,8 @@ export default function TopologyGraph() {
         setStats(data.stats);
         setDbConnected(data.dbConnected);
         setNeo4jConnected(data.neo4jConnected || false);
-        setError(data.dbConnected ? null : "Database not configured");
+        // Neo4j is required for topology graph - show specific message
+        setError(data.neo4jConnected ? null : "Neo4j not configured - Topology graph requires Neo4j database");
       } else {
         setError("Failed to fetch topology data");
       }
@@ -532,22 +533,22 @@ export default function TopologyGraph() {
                   Network visualization and relationships
                 </p>
               </div>
-              {/* Database connection indicators */}
+              {/* Neo4j connection indicator - topology graph requires Neo4j */}
               <div className="flex items-center gap-2">
                 <div
                   className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
-                    dbConnected
-                      ? "bg-green-500/10 text-green-500"
+                    neo4jConnected
+                      ? "bg-purple-500/10 text-purple-500"
                       : "bg-red-500/10 text-red-500"
                   }`}
                 >
-                  <Database className="w-3 h-3" />
-                  {dbConnected ? "Live Data" : "No DB"}
+                  <Network className="w-3 h-3" />
+                  {neo4jConnected ? "Neo4j" : "Neo4j Required"}
                 </div>
-                {neo4jConnected && (
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs bg-purple-500/10 text-purple-500">
-                    <Network className="w-3 h-3" />
-                    Neo4j
+                {neo4jConnected && dbConnected && (
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs bg-green-500/10 text-green-500">
+                    <Database className="w-3 h-3" />
+                    Live Data
                   </div>
                 )}
               </div>
