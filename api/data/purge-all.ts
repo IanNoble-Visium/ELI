@@ -43,8 +43,8 @@ interface PurgeResult {
 }
 
 /**
- * Purge old images from Cloudinary in batches
- * Based on ELI-DEMO implementation for handling timeouts
+ * Purge images from Cloudinary using delete_resources_by_prefix for bulk deletion
+ * This is much faster than deleting individual resources
  */
 async function purgeCloudinaryImages(
   cloudName: string,
@@ -69,95 +69,74 @@ async function purgeCloudinaryImages(
   let hasMore = true;
   const errors: string[] = [];
 
+  console.log(`[Purge] Starting Cloudinary bulk delete with prefix: ${prefix}`);
+
   while (hasMore) {
-    // Check if we're approaching time limit (leave 20 second buffer)
+    // Check if we're approaching time limit (leave 10 second buffer)
     const elapsed = Date.now() - startTime;
-    if (elapsed > maxTimeMs - 20000) {
+    if (elapsed > maxTimeMs - 10000) {
       console.log(`[Purge] Cloudinary stopping: approaching time limit (${elapsed}ms elapsed)`);
       break;
     }
 
     try {
-      // Fetch resources in batches of 100
-      let cursor: string | undefined;
-      const toDelete: string[] = [];
-      let fetchBatches = 0;
-      const maxFetchBatches = 10; // Fetch up to 1000 images per cycle
+      // Use delete_resources_by_prefix API - deletes up to 1000 resources at once
+      const deleteUrl = `https://api.cloudinary.com/v1_1/${cloudName}/resources/image/upload`;
+      
+      const deleteResponse = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prefix: prefix,
+          keep_original: false,
+          invalidate: true,
+          all: true, // Delete all matching resources
+        }),
+      });
 
-      do {
-        const listUrl = new URL(`https://api.cloudinary.com/v1_1/${cloudName}/resources/image/upload`);
-        listUrl.searchParams.set('max_results', '100');
-        if (prefix) listUrl.searchParams.set('prefix', prefix);
-        if (cursor) listUrl.searchParams.set('next_cursor', cursor);
-
-        const listResponse = await fetch(listUrl.toString(), {
-          method: 'GET',
-          headers: {
-            Authorization: `Basic ${auth}`,
-          },
-        });
-
-        if (!listResponse.ok) {
-          const errorText = await listResponse.text();
-          console.error(`[Purge] Cloudinary list failed: ${listResponse.status} - ${errorText}`);
-          errors.push(`List failed: ${listResponse.status} - ${errorText}`);
-          break;
-        }
-
-        const listData = await listResponse.json();
-        const resources = listData.resources || [];
+      if (!deleteResponse.ok) {
+        const errorText = await deleteResponse.text();
+        console.error(`[Purge] Cloudinary delete failed: ${deleteResponse.status} - ${errorText}`);
         
-        console.log(`[Purge] Cloudinary list response: ${resources.length} resources found, next_cursor: ${listData.next_cursor ? 'yes' : 'no'}`);
-        
-        toDelete.push(...resources.map((r: any) => r.public_id));
-        cursor = listData.next_cursor;
-        fetchBatches++;
-
-        if (fetchBatches >= maxFetchBatches) break;
-      } while (cursor);
-
-      hasMore = !!cursor;
-
-      if (toDelete.length === 0) {
-        hasMore = false;
+        // If bulk delete fails, fall back to individual deletion
+        console.log(`[Purge] Falling back to individual resource deletion...`);
+        const fallbackResult = await purgeCloudinaryIndividual(cloudName, apiKey, apiSecret, prefix, maxTimeMs - elapsed - 10000);
+        totalDeleted += fallbackResult.deleted;
+        batchesRun += fallbackResult.batches;
+        if (fallbackResult.error) errors.push(fallbackResult.error);
+        hasMore = fallbackResult.hasMore;
         break;
       }
 
-      // Delete in batches of 100 (Cloudinary API limit)
-      for (let i = 0; i < toDelete.length; i += 100) {
-        const batch = toDelete.slice(i, i + 100);
-        
-        const deleteUrl = `https://api.cloudinary.com/v1_1/${cloudName}/resources/image/upload`;
-        const deleteResponse = await fetch(deleteUrl, {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Basic ${auth}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            public_ids: batch,
-            invalidate: true,
-          }),
-        });
+      const deleteData = await deleteResponse.json();
+      console.log(`[Purge] Cloudinary delete response:`, JSON.stringify(deleteData));
+      
+      // Count deleted resources
+      const deleted = deleteData.deleted
+        ? Object.values(deleteData.deleted).filter((v: any) => v === 'deleted').length
+        : (deleteData.deleted_counts?.original || 0);
+      
+      totalDeleted += deleted;
+      batchesRun++;
+      
+      // Check if there are more resources (partial: true means more to delete)
+      hasMore = deleteData.partial === true || (deleteData.next_cursor !== undefined);
+      
+      console.log(`[Purge] Cloudinary batch ${batchesRun}: deleted ${deleted}, total ${totalDeleted}, hasMore: ${hasMore}`);
 
-        if (deleteResponse.ok) {
-          const deleteData = await deleteResponse.json();
-          const deleted = deleteData.deleted
-            ? Object.values(deleteData.deleted).filter((v: any) => v === 'deleted' || v === 'not_found').length
-            : 0;
-          totalDeleted += deleted;
-        } else {
-          errors.push(`Delete batch failed: ${deleteResponse.status}`);
-        }
+      if (deleted === 0 && !hasMore) {
+        // No more resources to delete
+        break;
       }
 
-      batchesRun++;
-      console.log(`[Purge] Cloudinary batch ${batchesRun}: deleted ${toDelete.length}, total ${totalDeleted}, hasMore: ${hasMore}`);
-
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Small delay between batches
+      await new Promise(resolve => setTimeout(resolve, 200));
 
     } catch (err) {
+      console.error(`[Purge] Cloudinary error:`, err);
       errors.push(err instanceof Error ? err.message : 'Unknown error');
       break;
     }
@@ -171,6 +150,86 @@ async function purgeCloudinaryImages(
     completed: !hasMore,
     errors,
   };
+}
+
+/**
+ * Fallback: Delete Cloudinary resources individually by listing and deleting
+ */
+async function purgeCloudinaryIndividual(
+  cloudName: string,
+  apiKey: string,
+  apiSecret: string,
+  prefix: string,
+  maxTimeMs: number
+): Promise<{ deleted: number; batches: number; hasMore: boolean; error?: string }> {
+  const startTime = Date.now();
+  const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
+  
+  let totalDeleted = 0;
+  let batchesRun = 0;
+  let cursor: string | undefined;
+  let hasMore = true;
+
+  while (hasMore && (Date.now() - startTime) < maxTimeMs - 5000) {
+    try {
+      // List resources
+      const listUrl = new URL(`https://api.cloudinary.com/v1_1/${cloudName}/resources/image/upload`);
+      listUrl.searchParams.set('max_results', '500');
+      if (prefix) listUrl.searchParams.set('prefix', prefix);
+      if (cursor) listUrl.searchParams.set('next_cursor', cursor);
+
+      const listResponse = await fetch(listUrl.toString(), {
+        method: 'GET',
+        headers: { Authorization: `Basic ${auth}` },
+      });
+
+      if (!listResponse.ok) {
+        return { deleted: totalDeleted, batches: batchesRun, hasMore: true, error: `List failed: ${listResponse.status}` };
+      }
+
+      const listData = await listResponse.json();
+      const resources = listData.resources || [];
+      cursor = listData.next_cursor;
+      hasMore = !!cursor;
+
+      if (resources.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const publicIds = resources.map((r: any) => r.public_id);
+      
+      // Delete in batches of 100
+      for (let i = 0; i < publicIds.length; i += 100) {
+        const batch = publicIds.slice(i, i + 100);
+        
+        const deleteResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/resources/image/upload`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ public_ids: batch }),
+        });
+
+        if (deleteResponse.ok) {
+          const deleteData = await deleteResponse.json();
+          const deleted = deleteData.deleted
+            ? Object.values(deleteData.deleted).filter((v: any) => v === 'deleted').length
+            : 0;
+          totalDeleted += deleted;
+        }
+      }
+
+      batchesRun++;
+      console.log(`[Purge] Individual batch ${batchesRun}: deleted ${resources.length}, total ${totalDeleted}`);
+
+    } catch (err) {
+      return { deleted: totalDeleted, batches: batchesRun, hasMore: true, error: err instanceof Error ? err.message : 'Unknown error' };
+    }
+  }
+
+  return { deleted: totalDeleted, batches: batchesRun, hasMore };
 }
 
 /**
@@ -392,7 +451,7 @@ export default async function handler(
         apiKey,
         apiSecret,
         folder,
-        180 // 3 minutes max for Cloudinary
+        250 // ~4 minutes max for Cloudinary (Vercel Pro allows 300s)
       );
       console.log(`[Purge] Cloudinary: deleted ${result.cloudinary.totalDeleted} images`);
     } else {
