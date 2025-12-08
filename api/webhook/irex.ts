@@ -17,6 +17,8 @@ import {
   recordThrottleMetrics,
   getThrottleConfig,
 } from "../cloudinary/throttle.js";
+import { isNeo4jConfigured } from "../lib/neo4j.js";
+import { syncCamera, syncEvent } from "../data/topology-neo4j.js";
 
 // Vercel serverless handler for IREX webhooks
 // Persists all incoming webhooks to PostgreSQL/TiDB database with Cloudinary image upload
@@ -177,6 +179,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (throttleConfig.enabled && (imagesProcessed > 0 || imagesSkipped > 0)) {
               console.log(`[Webhook IREX] Throttle: ${imagesProcessed} uploaded, ${imagesSkipped} skipped (${throttleConfig.description})`);
             }
+
+            // Get the first uploaded image URL for Neo4j event sync
+            const firstImageUrl = processedSnapshots.find(s => s.imageUrl)?.imageUrl;
+            if (firstImageUrl) {
+              // Sync event with image to Neo4j immediately (async, don't block)
+              syncEvent({
+                id: eventDbId,
+                eventId,
+                topic,
+                channelId: channelData.id,
+                startTime: body.start_time,
+                params: body.params,
+                imageUrl: firstImageUrl,
+              }).catch(err => console.warn("[Webhook IREX] Neo4j event sync failed:", err));
+            }
+          }
+
+          // 4. Sync camera/channel to Neo4j immediately for topology graph
+          if (isNeo4jConfigured()) {
+            syncCamera({
+              id: channelData.id,
+              name: channelData.name,
+              latitude: channelData.latitude,
+              longitude: channelData.longitude,
+              region: channelData.region,
+              status: channelData.status,
+            }).catch(err => console.warn("[Webhook IREX] Neo4j camera sync failed:", err));
+
+            // Sync event to Neo4j (even without image, for relationships)
+            syncEvent({
+              id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              eventId,
+              topic,
+              channelId: channelData.id,
+              startTime: body.start_time,
+              params: body.params,
+            }).catch(err => console.warn("[Webhook IREX] Neo4j event sync failed:", err));
           }
 
           processedEventIds.push(eventId);

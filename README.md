@@ -97,6 +97,14 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Production forecasting for capacity planning
    - Throttle enabled by default for demo safety
 
+11. **Image Analysis System** *(NEW)*
+   - **Cloudinary AI Analysis** - Object detection (COCO, LVIS), tagging, OCR, color analysis
+   - **Enriched Neo4j Data** - Graph nodes stored with rich metadata (tags, objects, quality score)
+   - **Analysis Dashboard** - `/dashboard/analysis` with visualization and filters
+   - **Color Histogram** - Visual distribution of dominant colors across all images
+   - **Advanced Search** - Filter images by tag, object, color, and quality score
+   - **Quality Diagnostics** - Blur detection, noise analysis, and exposure scoring
+
 ### Technical Features
 
 - **Hardcoded Authentication**: `admin/admin` for demo purposes
@@ -205,13 +213,224 @@ eli-unified-dashboard/
 
 ---
 
-## 🗄️ Database Schema
+## 🗄️ Database Architecture
 
-The application uses 13 tables:
+The application uses a **three-database architecture** with clear separation of concerns:
+
+```mermaid
+flowchart TB
+    subgraph "Data Flow"
+        WH[Webhook Events] --> API[API Layer]
+        API --> PG[(PostgreSQL)]
+        API --> NEO[(Neo4j)]
+        API --> INF[(InfluxDB)]
+    end
+    
+    subgraph "PostgreSQL - Application Data"
+        PG --> |App Config| SC[system_config]
+        PG --> |Logging| WR[webhook_requests]
+        PG --> |Users| US[users]
+        PG --> |Dashboard| EV[events]
+        PG --> |Dashboard| CH[channels]
+        PG --> |Dashboard| SN[snapshots]
+        PG --> |Incidents| IN[incidents]
+    end
+    
+    subgraph "Neo4j - Topology Graph"
+        NEO --> |Nodes| CAM[Camera]
+        NEO --> |Nodes| LOC[Location]
+        NEO --> |Nodes| VEH[Vehicle]
+        NEO --> |Nodes| PER[Person]
+        NEO --> |Nodes| EVT[Event]
+        CAM --> |LOCATED_AT| LOC
+        EVT --> |TRIGGERED| CAM
+        VEH --> |DETECTED| CAM
+        PER --> |OBSERVED| CAM
+    end
+    
+    subgraph "InfluxDB - Time Series"
+        INF --> |Metrics| CU[cloudinary_usage]
+        INF --> |Metrics| IT[image_throttle]
+    end
+```
+
+### Database Responsibilities
+
+| Database | Purpose | Data Types |
+|----------|---------|------------|
+| **Neo4j** | Topology Graph | Nodes, relationships, graph traversal, network visualization |
+| **InfluxDB** | Time-Series Metrics | Cloudinary usage, throttle stats, historical trends |
+| **PostgreSQL** | Application Data | Config, users, webhooks, dashboard metadata, incidents |
+
+---
+
+## 📊 Database Schemas
+
+### Neo4j Graph Schema
+
+```mermaid
+graph LR
+    subgraph "Node Types"
+        C((Camera))
+        L((Location))
+        V((Vehicle))
+        P((Person))
+        E((Event))
+    end
+    
+    subgraph "Relationships"
+        C -->|LOCATED_AT| L
+        E -->|TRIGGERED| C
+        V -->|DETECTED| C
+        P -->|OBSERVED| C
+    end
+    
+    style C fill:#10B981,color:#fff
+    style L fill:#8B5CF6,color:#fff
+    style V fill:#F59E0B,color:#fff
+    style P fill:#3B82F6,color:#fff
+    style E fill:#D91023,color:#fff
+```
+
+**Node Properties:**
+
+| Node Type | Properties |
+|-----------|------------|
+| **Camera** | `id`, `name`, `latitude`, `longitude`, `region`, `status`, `eventCount` |
+| **Location** | `id`, `name`, `region` |
+| **Vehicle** | `id`, `plate`, `name` |
+| **Person** | `id`, `faceId`, `name` |
+| **Event** | `id`, `eventId`, `type`, `timestamp`, `imageUrl`, `tags`, `objects`, `dominantColors`, `qualityScore`, `caption` |
+
+**Relationship Types:**
+
+| Relationship | From | To | Description |
+|--------------|------|-----|-------------|
+| `LOCATED_AT` | Camera | Location | Camera is installed at location |
+| `TRIGGERED` | Event | Camera | Event was triggered at camera |
+| `DETECTED` | Vehicle | Camera | Vehicle detected at camera |
+| `OBSERVED` | Person | Camera | Person observed at camera |
+
+---
+
+### InfluxDB Time-Series Schema
+
+```mermaid
+flowchart LR
+    subgraph "Measurements"
+        CU[cloudinary_usage]
+        IT[image_throttle]
+    end
+    
+    subgraph "cloudinary_usage Fields"
+        CU --> credits[credits: used, limit, percent]
+        CU --> storage[storage: bytes, credits]
+        CU --> bandwidth[bandwidth: bytes, credits]
+        CU --> transforms[transformations: count, credits]
+        CU --> resources[resources: count, derived]
+    end
+    
+    subgraph "image_throttle Fields"
+        IT --> received[received: count]
+        IT --> processed[processed: count]
+        IT --> skipped[skipped: count]
+    end
+```
+
+**Bucket:** `cloudinary_metrics`  
+**Retention:** 90 days
+
+---
+
+### PostgreSQL Schema
+
+```mermaid
+erDiagram
+    users {
+        int id PK
+        varchar openId
+        text name
+        varchar email
+        varchar loginMethod
+        enum role
+        timestamp createdAt
+        timestamp lastSignedIn
+    }
+    
+    channels {
+        varchar id PK
+        varchar name
+        varchar channelType
+        double latitude
+        double longitude
+        jsonb address
+        varchar status
+        varchar region
+        timestamp createdAt
+    }
+    
+    events {
+        varchar id PK
+        varchar eventId
+        varchar topic
+        varchar module
+        varchar level
+        bigint startTime
+        varchar channelId FK
+        jsonb params
+        timestamp createdAt
+    }
+    
+    snapshots {
+        varchar id PK
+        varchar eventId FK
+        varchar type
+        varchar imageUrl
+        varchar cloudinaryPublicId
+        timestamp createdAt
+    }
+    
+    incidents {
+        varchar id PK
+        varchar incidentType
+        varchar priority
+        varchar status
+        varchar region
+        double latitude
+        double longitude
+        text description
+        jsonb eventIds
+        timestamp createdAt
+    }
+    
+    webhook_requests {
+        bigint id PK
+        varchar endpoint
+        varchar method
+        jsonb payload
+        varchar eventId
+        varchar status
+        int processingTime
+        timestamp createdAt
+    }
+    
+    system_config {
+        int id PK
+        varchar key
+        text value
+        text description
+        timestamp updatedAt
+    }
+    
+    channels ||--o{ events : "has"
+    events ||--o{ snapshots : "has"
+```
+
+**PostgreSQL Tables (13 total):**
 
 1. **users** - User authentication and profiles
-2. **events** - Surveillance events
-3. **snapshots** - Event snapshots/images
+2. **events** - Surveillance events (dashboard metadata only)
+3. **snapshots** - Event snapshots/images with Cloudinary URLs
 4. **channels** - Camera/channel information (3,084 cameras)
 5. **ai_inference_jobs** - AI processing jobs
 6. **ai_detections** - AI detection results
@@ -219,9 +438,54 @@ The application uses 13 tables:
 8. **ai_baselines** - Baseline data for AI
 9. **ai_insights** - AI-generated insights
 10. **incidents** - Incident management
-11. **pole_entities** - People, Objects, Locations, Events
-12. **webhook_requests** - Incoming webhook logs
-13. **system_config** - System configuration
+11. **incident_notes** - Notes attached to incidents
+12. **incident_tags** - Tags for incidents
+13. **pole_entities** - People, Objects, Locations, Events
+14. **webhook_requests** - Incoming webhook logs
+15. **system_config** - System configuration
+
+---
+
+## 🔄 Data Flow Architecture
+
+```mermaid
+sequenceDiagram
+    participant IREX as IREX System
+    participant WH as Webhook Handler
+    participant PG as PostgreSQL
+    participant NEO as Neo4j
+    participant INF as InfluxDB
+    participant UI as Dashboard UI
+    
+    Note over IREX,UI: Event Ingestion Flow
+    IREX->>WH: POST /api/webhook/irex
+    WH->>PG: Insert event, channel, snapshots
+    WH->>NEO: Sync camera node
+    WH->>NEO: Sync event node + relationships
+    WH-->>IREX: 200 OK
+    
+    Note over IREX,UI: Topology Query Flow
+    UI->>NEO: GET /api/data/topology
+    NEO-->>UI: Graph nodes + relationships
+    
+    Note over IREX,UI: Dashboard Stats Flow
+    UI->>PG: GET /api/data/stats
+    PG-->>UI: Aggregated counts
+    
+    Note over IREX,UI: Time-Series Flow
+    UI->>INF: GET /api/cloudinary/metrics
+    INF-->>UI: Historical usage data
+```
+
+### Key Architectural Decisions
+
+1. **Neo4j for Topology**: All graph relationships and network visualization queries use Neo4j exclusively. No topology data is stored in PostgreSQL.
+
+2. **Immediate Sync**: When webhooks are received, data is synced to Neo4j immediately (non-blocking) to ensure topology is always up-to-date.
+
+3. **PostgreSQL for Metadata**: PostgreSQL stores only application configuration, user data, webhook logs, and minimal dashboard metadata for counts/stats.
+
+4. **InfluxDB for Trends**: All time-series data (Cloudinary usage, throttle metrics) is stored in InfluxDB for efficient historical queries.
 
 ---
 
@@ -253,6 +517,10 @@ The application uses Peru's national colors:
 ### Configuration (tRPC)
 - `GET /api/trpc/config.get` - Get system configuration
 - `POST /api/trpc/config.set` - Update system configuration
+
+### Image Analysis (tRPC)
+- `GET /api/trpc/analysis.search` - Search images by tag, object, color
+- `GET /api/trpc/analysis.stats` - Get aggregate analysis statistics
 
 ### Database-Integrated REST APIs (Vercel Serverless)
 
@@ -670,6 +938,7 @@ MIT License - See LICENSE file for details
 - **Settings Page Enhancement** - Dynamic PostgreSQL stats with navigation links
 - **Improved Cloudinary Bulk Delete** - Reliable batch deletion using list-then-delete approach
 - **Dashboard Menu Update** - PostgreSQL Monitoring added to main dashboard
+- **Image Analysis System** - Cloudinary AI integration, Neo4j metadata storage, Analysis Dashboard
 - Cloudinary Monitoring Dashboard with usage tracking
 - InfluxDB integration for time-series metrics
 - Historical trends visualization (1H-30D)
