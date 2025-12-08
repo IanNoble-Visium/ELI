@@ -210,11 +210,25 @@ export default function RealtimeWebhooks() {
     return () => clearInterval(interval);
   }, [fetchServiceHealth]);
 
-  // Filter webhooks
+  // Helper function to check if an event has valid images
+  const hasValidImages = (webhook: WebhookData): boolean => {
+    // Check if event has snapshots with actual image URLs
+    if (!webhook.snapshots || webhook.snapshots.length === 0) return false;
+    // Check if at least one snapshot has a valid imageUrl
+    return webhook.snapshots.some(snap => snap.imageUrl && snap.imageUrl.trim() !== '');
+  };
+
+  // Filter webhooks - exclude events without valid images, except critical events (level 3)
   const filteredWebhooks = webhooks.filter((webhook) => {
     const levelMatch = filterLevel === "all" || webhook.level === parseInt(filterLevel);
     const topicMatch = filterTopic === "all" || webhook.topic === filterTopic;
-    return levelMatch && topicMatch;
+    
+    // Critical events (level 3) are always shown regardless of image availability
+    const isCritical = webhook.level === 3;
+    // Non-critical events must have valid images to be displayed
+    const imageCheck = isCritical || hasValidImages(webhook);
+    
+    return levelMatch && topicMatch && imageCheck;
   });
 
   // Get level info

@@ -269,6 +269,12 @@ export default function GeographicMap() {
     }
   };
 
+  // Helper function to check if an event has valid images
+  const hasValidImages = (event: CameraEvent): boolean => {
+    if (!event.snapshots || event.snapshots.length === 0) return false;
+    return event.snapshots.some(snap => snap.imageUrl && snap.imageUrl.trim() !== '');
+  };
+
   // Fetch events for a specific camera
   const fetchCameraEvents = useCallback(async (cameraId: string) => {
     try {
@@ -282,7 +288,12 @@ export default function GeographicMap() {
       const data = await response.json();
       
       if (data.success) {
-        setCameraEvents(data.events || []);
+        // Filter events: show only events with valid images, except critical events (level 3)
+        const filteredEvents = (data.events || []).filter((event: CameraEvent) => {
+          const isCritical = event.level === 3;
+          return isCritical || hasValidImages(event);
+        });
+        setCameraEvents(filteredEvents);
       }
     } catch (error) {
       console.error("[Map] Fetch events error:", error);
