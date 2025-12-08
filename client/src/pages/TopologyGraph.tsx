@@ -442,44 +442,60 @@ export default function TopologyGraph() {
             cooldownTicks={100}
             onEngineStop={() => graphRef.current?.zoomToFit(400, 50)}
             nodeCanvasObject={(node: any, ctx, globalScale) => {
-              const label = node.name;
+              // Validate node coordinates - skip rendering if invalid
+              const x = node.x;
+              const y = node.y;
+              if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                return; // Skip rendering nodes with invalid positions
+              }
+
+              const label = node.name || '';
               const fontSize = 12 / globalScale;
-              const nodeRadius = node.val || 5;
+              const nodeRadius = Math.max(1, node.val || 5); // Ensure positive radius
+              const nodeColor = node.color || '#888888';
 
               // Draw outer glow for selected or hovered nodes
               if (selectedNode?.id === node.id) {
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, nodeRadius + 4, 0, 2 * Math.PI, false);
-                ctx.fillStyle = `${node.color}40`;
+                ctx.arc(x, y, nodeRadius + 4, 0, 2 * Math.PI, false);
+                ctx.fillStyle = `${nodeColor}40`;
                 ctx.fill();
 
                 // Pulsing ring effect
                 const pulseRadius = nodeRadius + 8 + Math.sin(Date.now() / 200) * 3;
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, pulseRadius, 0, 2 * Math.PI, false);
-                ctx.strokeStyle = `${node.color}60`;
+                ctx.arc(x, y, pulseRadius, 0, 2 * Math.PI, false);
+                ctx.strokeStyle = `${nodeColor}60`;
                 ctx.lineWidth = 2;
                 ctx.stroke();
               }
 
               // Draw node shadow
               ctx.beginPath();
-              ctx.arc(node.x + 1, node.y + 1, nodeRadius, 0, 2 * Math.PI, false);
+              ctx.arc(x + 1, y + 1, nodeRadius, 0, 2 * Math.PI, false);
               ctx.fillStyle = "rgba(0,0,0,0.3)";
               ctx.fill();
 
               // Draw main node circle with gradient
-              const gradient = ctx.createRadialGradient(
-                node.x - nodeRadius/3, node.y - nodeRadius/3, 0,
-                node.x, node.y, nodeRadius
-              );
-              gradient.addColorStop(0, node.color);
-              gradient.addColorStop(1, `${node.color}CC`);
+              try {
+                const gradient = ctx.createRadialGradient(
+                  x - nodeRadius/3, y - nodeRadius/3, 0,
+                  x, y, nodeRadius
+                );
+                gradient.addColorStop(0, nodeColor);
+                gradient.addColorStop(1, `${nodeColor}CC`);
 
-              ctx.beginPath();
-              ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI, false);
-              ctx.fillStyle = gradient;
-              ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x, y, nodeRadius, 0, 2 * Math.PI, false);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+              } catch (e) {
+                // Fallback to solid color if gradient fails
+                ctx.beginPath();
+                ctx.arc(x, y, nodeRadius, 0, 2 * Math.PI, false);
+                ctx.fillStyle = nodeColor;
+                ctx.fill();
+              }
 
               // Draw node border
               ctx.strokeStyle = "#ffffff40";
@@ -487,19 +503,19 @@ export default function TopologyGraph() {
               ctx.stroke();
 
               // Draw label with background
-              if (globalScale > 0.8) {
+              if (globalScale > 0.8 && label) {
                 ctx.font = `${fontSize}px Inter, Sans-Serif`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
 
                 const textWidth = ctx.measureText(label).width;
                 const padding = 4;
-                const textY = node.y + nodeRadius + fontSize + 2;
+                const textY = y + nodeRadius + fontSize + 2;
 
                 // Label background
                 ctx.fillStyle = "rgba(31, 41, 55, 0.85)";
                 ctx.fillRect(
-                  node.x - textWidth/2 - padding,
+                  x - textWidth/2 - padding,
                   textY - fontSize/2 - padding/2,
                   textWidth + padding * 2,
                   fontSize + padding
@@ -507,7 +523,7 @@ export default function TopologyGraph() {
 
                 // Label text
                 ctx.fillStyle = "#F9FAFB";
-                ctx.fillText(label, node.x, textY);
+                ctx.fillText(label, x, textY);
               }
             }}
           />
