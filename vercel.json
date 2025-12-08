@@ -3,6 +3,12 @@
   "outputDirectory": "dist/public",
   "installCommand": "pnpm install",
   "framework": null,
+  "crons": [
+    {
+      "path": "/api/cron/record-cloudinary-metrics",
+      "schedule": "*/15 * * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/trpc/:path*",
@@ -27,6 +33,14 @@
     {
       "source": "/ingest/snapshot",
       "destination": "/api/webhook/irex"
+    },
+    {
+      "source": "/api/cloudinary/test-influxdb",
+      "destination": "/api/cloudinary/test-influxdb"
+    },
+    {
+      "source": "/api/cron/:path*",
+      "destination": "/api/cron/:path*"
     },
     {
       "source": "/((?!api/|webhook/|ingest/).*)",
