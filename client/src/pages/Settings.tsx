@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   ArrowLeft, 
   Database, 
@@ -23,6 +24,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Bomb,
+  ShieldAlert,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -100,6 +103,12 @@ export default function Settings() {
   const [cronJobsLoading, setCronJobsLoading] = useState(true);
   const [triggeringJob, setTriggeringJob] = useState<string | null>(null);
   const [seedingData, setSeedingData] = useState(false);
+  
+  // Purge All Data state
+  const [isPurgingAll, setIsPurgingAll] = useState(false);
+  const [purgeAllProgress, setPurgeAllProgress] = useState<string | null>(null);
+  const [showPurgeAllDialog, setShowPurgeAllDialog] = useState(false);
+  const [includeCloudinary, setIncludeCloudinary] = useState(true);
   
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
 
@@ -189,6 +198,60 @@ export default function Settings() {
       setSeedingData(false);
     }
   }, []);
+
+  // Purge ALL data from the application
+  const purgeAllData = useCallback(async () => {
+    try {
+      setIsPurgingAll(true);
+      setPurgeAllProgress("Initializing purge...");
+      
+      // Clear local storage first
+      setPurgeAllProgress("Clearing local storage...");
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Call the purge-all API
+      setPurgeAllProgress("Purging database records...");
+      const response = await fetch("/api/data/purge-all", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          confirmPhrase: "DELETE ALL DATA",
+          includeCloudinary,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        const cloudinaryMsg = data.cloudinary?.totalDeleted > 0 
+          ? `, ${data.cloudinary.totalDeleted} Cloudinary images`
+          : "";
+        toast.success("All data purged successfully", {
+          description: `Database cleared${cloudinaryMsg}. Duration: ${data.duration_ms}ms`,
+        });
+        
+        // Refresh the page data
+        await fetchCloudinaryData();
+      } else {
+        toast.error("Purge failed", {
+          description: data.error || "Unknown error occurred",
+        });
+      }
+    } catch (error) {
+      console.error("[Settings] Failed to purge all data:", error);
+      toast.error("Purge failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setIsPurgingAll(false);
+      setPurgeAllProgress(null);
+      setShowPurgeAllDialog(false);
+    }
+  }, [includeCloudinary, fetchCloudinaryData]);
 
   useEffect(() => {
     fetchCloudinaryData();
@@ -370,6 +433,117 @@ export default function Settings() {
                       className="bg-destructive hover:bg-destructive/90"
                     >
                       Yes, Purge Data
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Purge ALL Data - Development/Testing Feature */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.4 }}
+        >
+          <Card className="border-red-500/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-500">
+                <Bomb className="w-5 h-5" />
+                Reset All Data (Development)
+              </CardTitle>
+              <CardDescription>
+                Completely reset the application to its initial state for testing
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <ShieldAlert className="w-5 h-5 text-red-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-red-500 mb-1">DANGER: This will delete ALL data</p>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      This action will permanently delete:
+                    </p>
+                    <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                      <li>All events and snapshots from the database</li>
+                      <li>All images from Cloudinary (batch deleted)</li>
+                      <li>All webhook request logs</li>
+                      <li>All AI inference jobs and detections</li>
+                      <li>Local storage and session data</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="includeCloudinary"
+                  checked={includeCloudinary}
+                  onCheckedChange={(checked) => setIncludeCloudinary(checked === true)}
+                />
+                <Label htmlFor="includeCloudinary" className="text-sm">
+                  Include Cloudinary images (may take several minutes for large datasets)
+                </Label>
+              </div>
+
+              <AlertDialog open={showPurgeAllDialog} onOpenChange={setShowPurgeAllDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="destructive" 
+                    disabled={isPurgingAll}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {isPurgingAll ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {purgeAllProgress || "Purging..."}
+                      </>
+                    ) : (
+                      <>
+                        <Bomb className="w-4 h-4 mr-2" />
+                        Purge All Data Now
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="border-red-500/30">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2 text-red-500">
+                      <ShieldAlert className="w-5 h-5" />
+                      Are you absolutely sure?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-2">
+                      <p>
+                        This will <strong>permanently delete ALL data</strong> from the application,
+                        including all events, snapshots, images, and logs.
+                      </p>
+                      <p className="text-red-400">
+                        This action cannot be undone. The application will be reset to its initial state.
+                      </p>
+                      {includeCloudinary && (
+                        <p className="text-yellow-400">
+                          ⚠️ Cloudinary purge is enabled - this may take several minutes for large image libraries.
+                        </p>
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isPurgingAll}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={purgeAllData}
+                      disabled={isPurgingAll}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {isPurgingAll ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Purging...
+                        </>
+                      ) : (
+                        "Yes, Delete Everything"
+                      )}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
