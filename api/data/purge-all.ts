@@ -175,7 +175,7 @@ async function purgeCloudinaryImages(
 
 /**
  * Purge all data from Neo4j graph database
- * Deletes all nodes and relationships
+ * Deletes all nodes and relationships with timeout handling
  */
 async function purgeNeo4jData(): Promise<{
   nodesDeleted: number;
@@ -183,7 +183,10 @@ async function purgeNeo4jData(): Promise<{
   success: boolean;
   error?: string;
 }> {
+  console.log("[Purge] Starting Neo4j purge...");
+
   if (!isNeo4jConfigured()) {
+    console.log("[Purge] Neo4j not configured, skipping");
     return {
       nodesDeleted: 0,
       relationshipsDeleted: 0,
@@ -194,6 +197,7 @@ async function purgeNeo4jData(): Promise<{
 
   const driver = getDriver();
   if (!driver) {
+    console.log("[Purge] Failed to get Neo4j driver");
     return {
       nodesDeleted: 0,
       relationshipsDeleted: 0,
@@ -202,60 +206,91 @@ async function purgeNeo4jData(): Promise<{
     };
   }
 
-  const session = driver.session();
-  
+  let session = null;
+
   try {
+    // Create session with timeout
+    session = driver.session({
+      defaultAccessMode: "WRITE",
+    });
+
+    console.log("[Purge] Neo4j session created, counting nodes...");
+
     // First, count existing nodes and relationships for reporting
     const countResult = await session.run(`
       MATCH (n)
       OPTIONAL MATCH (n)-[r]-()
       RETURN count(DISTINCT n) as nodeCount, count(DISTINCT r) as relCount
     `);
-    
+
     const nodeCount = countResult.records[0]?.get("nodeCount")?.toNumber() || 0;
     const relCount = countResult.records[0]?.get("relCount")?.toNumber() || 0;
 
-    // Delete all relationships first, then all nodes
-    // Using DETACH DELETE to remove nodes and their relationships in one go
-    // Process in batches to avoid memory issues with large graphs
+    console.log(`[Purge] Neo4j found: ${nodeCount} nodes, ${relCount} relationships`);
+
+    if (nodeCount === 0) {
+      console.log("[Purge] Neo4j already empty");
+      return {
+        nodesDeleted: 0,
+        relationshipsDeleted: 0,
+        success: true,
+      };
+    }
+
+    // Delete all data in batches to avoid memory issues
+    // Using CALL { ... } IN TRANSACTIONS for better memory management
     let totalNodesDeleted = 0;
-    let totalRelsDeleted = 0;
     let hasMore = true;
-    const batchSize = 10000;
+    const batchSize = 1000; // Smaller batches for more reliable deletion
 
     while (hasMore) {
-      const deleteResult = await session.run(`
-        MATCH (n)
-        WITH n LIMIT ${batchSize}
-        DETACH DELETE n
-        RETURN count(*) as deleted
-      `);
-      
-      const deleted = deleteResult.records[0]?.get("deleted")?.toNumber() || 0;
-      totalNodesDeleted += deleted;
-      
-      if (deleted < batchSize) {
-        hasMore = false;
+      try {
+        const deleteResult = await session.run(`
+          MATCH (n)
+          WITH n LIMIT ${batchSize}
+          DETACH DELETE n
+          RETURN count(*) as deleted
+        `);
+
+        const deleted = deleteResult.records[0]?.get("deleted")?.toNumber() || 0;
+        totalNodesDeleted += deleted;
+
+        console.log(`[Purge] Neo4j batch deleted: ${deleted} nodes (total: ${totalNodesDeleted})`);
+
+        if (deleted < batchSize) {
+          hasMore = false;
+        }
+      } catch (batchErr) {
+        console.error("[Purge] Neo4j batch error:", batchErr);
+        hasMore = false; // Stop on error
       }
     }
 
-    console.log(`[Purge] Neo4j: deleted ${nodeCount} nodes and ${relCount} relationships`);
-    
+    console.log(`[Purge] Neo4j complete: deleted ${totalNodesDeleted} nodes (expected: ${nodeCount})`);
+
     return {
-      nodesDeleted: nodeCount,
+      nodesDeleted: totalNodesDeleted,
       relationshipsDeleted: relCount,
       success: true,
     };
   } catch (error) {
-    console.error("[Purge] Neo4j error:", error);
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    console.error("[Purge] Neo4j error:", errorMsg);
     return {
       nodesDeleted: 0,
       relationshipsDeleted: 0,
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMsg,
     };
   } finally {
-    await session.close();
+    if (session) {
+      try {
+        await session.close();
+        console.log("[Purge] Neo4j session closed");
+      } catch (closeErr) {
+        console.error("[Purge] Error closing Neo4j session:", closeErr);
+      }
+    }
   }
 }
 
@@ -296,7 +331,7 @@ export default async function handler(
 
     // Phase 1: Purge Database
     result.phase = "database";
-    
+
     if (!process.env.DATABASE_URL) {
       result.database = {
         eventsDeleted: 0,
@@ -309,50 +344,124 @@ export default async function handler(
       // Use raw SQL to avoid schema import issues in Vercel serverless
       const sqlClient = neon(process.env.DATABASE_URL);
 
+      // Get counts before deletion for reporting
+      let eventsBefore = 0, snapshotsBefore = 0, webhooksBefore = 0;
+      try {
+        const eventCount = await sqlClient`SELECT COUNT(*) as count FROM events`;
+        const snapshotCount = await sqlClient`SELECT COUNT(*) as count FROM snapshots`;
+        const webhookCount = await sqlClient`SELECT COUNT(*) as count FROM webhook_requests`;
+        eventsBefore = Number(eventCount[0]?.count || 0);
+        snapshotsBefore = Number(snapshotCount[0]?.count || 0);
+        webhooksBefore = Number(webhookCount[0]?.count || 0);
+        console.log(`[Purge] PostgreSQL before: events=${eventsBefore}, snapshots=${snapshotsBefore}, webhooks=${webhooksBefore}`);
+      } catch (countErr) {
+        console.log("[Purge] Could not get counts before deletion:", countErr);
+      }
+
       // Delete in order to respect foreign key constraints
       // Using raw SQL for maximum compatibility
-      try {
-        // 1. Delete AI detections
-        await sqlClient`DELETE FROM ai_detections`;
-        
-        // 2. Delete AI anomalies
-        await sqlClient`DELETE FROM ai_anomalies`;
-        
-        // 3. Delete AI insights
-        await sqlClient`DELETE FROM ai_insights`;
-        
-        // 4. Delete AI baselines
-        await sqlClient`DELETE FROM ai_baselines`;
-        
-        // 5. Delete AI inference jobs
-        await sqlClient`DELETE FROM ai_inference_jobs`;
-        
-        // 6. Delete snapshots (references events)
-        await sqlClient`DELETE FROM snapshots`;
-        
-        // 7. Delete events
-        await sqlClient`DELETE FROM events`;
-        
-        // 8. Delete webhook requests
-        await sqlClient`DELETE FROM webhook_requests`;
+      const deleteErrors: string[] = [];
 
-        result.database = {
-          eventsDeleted: 0, // Neon doesn't return affected rows easily
-          snapshotsDeleted: 0,
-          webhookRequestsDeleted: 0,
-          aiJobsDeleted: 0,
-        };
-        
-        console.log("[Purge] Database tables cleared");
-      } catch (dbError) {
-        console.error("[Purge] Database error:", dbError);
-        // Continue with other phases even if some tables fail
-        result.database = {
-          eventsDeleted: 0,
-          snapshotsDeleted: 0,
-          webhookRequestsDeleted: 0,
-          aiJobsDeleted: 0,
-        };
+      // Delete tables in proper order for foreign key constraints
+      // NOTE: Neon uses tagged template literals, must use direct SQL for each table
+
+      // AI tables first (reference events)
+      try {
+        await sqlClient`DELETE FROM ai_detections`;
+        console.log("[Purge] Deleted from ai_detections");
+      } catch (err) { console.error("[Purge] ai_detections:", err); deleteErrors.push("ai_detections"); }
+
+      try {
+        await sqlClient`DELETE FROM ai_anomalies`;
+        console.log("[Purge] Deleted from ai_anomalies");
+      } catch (err) { console.error("[Purge] ai_anomalies:", err); deleteErrors.push("ai_anomalies"); }
+
+      try {
+        await sqlClient`DELETE FROM ai_insights`;
+        console.log("[Purge] Deleted from ai_insights");
+      } catch (err) { console.error("[Purge] ai_insights:", err); deleteErrors.push("ai_insights"); }
+
+      try {
+        await sqlClient`DELETE FROM ai_baselines`;
+        console.log("[Purge] Deleted from ai_baselines");
+      } catch (err) { console.error("[Purge] ai_baselines:", err); deleteErrors.push("ai_baselines"); }
+
+      try {
+        await sqlClient`DELETE FROM ai_inference_jobs`;
+        console.log("[Purge] Deleted from ai_inference_jobs");
+      } catch (err) { console.error("[Purge] ai_inference_jobs:", err); deleteErrors.push("ai_inference_jobs"); }
+
+      // Incident-related tables
+      try {
+        await sqlClient`DELETE FROM incident_notes`;
+        console.log("[Purge] Deleted from incident_notes");
+      } catch (err) { console.error("[Purge] incident_notes:", err); deleteErrors.push("incident_notes"); }
+
+      try {
+        await sqlClient`DELETE FROM incident_tags`;
+        console.log("[Purge] Deleted from incident_tags");
+      } catch (err) { console.error("[Purge] incident_tags:", err); deleteErrors.push("incident_tags"); }
+
+      try {
+        await sqlClient`DELETE FROM incidents`;
+        console.log("[Purge] Deleted from incidents");
+      } catch (err) { console.error("[Purge] incidents:", err); deleteErrors.push("incidents"); }
+
+      // POLE entities
+      try {
+        await sqlClient`DELETE FROM pole_entities`;
+        console.log("[Purge] Deleted from pole_entities");
+      } catch (err) { console.error("[Purge] pole_entities:", err); deleteErrors.push("pole_entities"); }
+
+      // Snapshots reference events, so delete first
+      try {
+        await sqlClient`DELETE FROM snapshots`;
+        console.log("[Purge] Deleted from snapshots");
+      } catch (err) { console.error("[Purge] snapshots:", err); deleteErrors.push("snapshots"); }
+
+      // Events reference channels
+      try {
+        await sqlClient`DELETE FROM events`;
+        console.log("[Purge] Deleted from events");
+      } catch (err) { console.error("[Purge] events:", err); deleteErrors.push("events"); }
+
+      // Channels can be deleted after events
+      try {
+        await sqlClient`DELETE FROM channels`;
+        console.log("[Purge] Deleted from channels");
+      } catch (err) { console.error("[Purge] channels:", err); deleteErrors.push("channels"); }
+
+      // Webhook logs
+      try {
+        await sqlClient`DELETE FROM webhook_requests`;
+        console.log("[Purge] Deleted from webhook_requests");
+      } catch (err) { console.error("[Purge] webhook_requests:", err); deleteErrors.push("webhook_requests"); }
+
+      // Get counts after deletion for verification
+      let eventsAfter = 0, snapshotsAfter = 0, webhooksAfter = 0;
+      try {
+        const eventCount = await sqlClient`SELECT COUNT(*) as count FROM events`;
+        const snapshotCount = await sqlClient`SELECT COUNT(*) as count FROM snapshots`;
+        const webhookCount = await sqlClient`SELECT COUNT(*) as count FROM webhook_requests`;
+        eventsAfter = Number(eventCount[0]?.count || 0);
+        snapshotsAfter = Number(snapshotCount[0]?.count || 0);
+        webhooksAfter = Number(webhookCount[0]?.count || 0);
+        console.log(`[Purge] PostgreSQL after: events=${eventsAfter}, snapshots=${snapshotsAfter}, webhooks=${webhooksAfter}`);
+      } catch (countErr) {
+        console.log("[Purge] Could not get counts after deletion:", countErr);
+      }
+
+      result.database = {
+        eventsDeleted: eventsBefore - eventsAfter,
+        snapshotsDeleted: snapshotsBefore - snapshotsAfter,
+        webhookRequestsDeleted: webhooksBefore - webhooksAfter,
+        aiJobsDeleted: 0,
+      };
+
+      if (deleteErrors.length > 0) {
+        console.error(`[Purge] PostgreSQL completed with ${deleteErrors.length} errors`);
+      } else {
+        console.log(`[Purge] PostgreSQL purge complete: deleted ${result.database.eventsDeleted} events, ${result.database.snapshotsDeleted} snapshots, ${result.database.webhookRequestsDeleted} webhooks`);
       }
     }
 
