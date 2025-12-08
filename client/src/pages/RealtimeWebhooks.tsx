@@ -459,37 +459,43 @@ export default function RealtimeWebhooks() {
               <div className="h-px bg-border" />
 
               {/* Last Event Received - shows when the most recent webhook actually arrived */}
-              {throttleData?.stats?.lastEventAt && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                    <Zap className="w-3 h-3 text-green-500" />
-                    Last Event
-                  </span>
-                  <div className="text-right">
-                    <span className="text-xs font-mono text-green-500">
-                      {new Date(throttleData.stats.lastEventAt).toLocaleString("en-US", {
-                        month: "short",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                        hour12: false,
-                      })}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Zap className={`w-3 h-3 ${throttleData?.stats?.lastEventAt ? "text-green-500" : "text-muted-foreground"}`} />
+                  Last Event
+                </span>
+                <div className="text-right">
+                  {throttleData?.stats?.lastEventAt ? (
+                    <>
+                      <span className="text-xs font-mono text-green-500">
+                        {new Date(throttleData.stats.lastEventAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: false,
+                        })}
+                      </span>
+                      <div className="text-[10px] text-muted-foreground/70">
+                        {(() => {
+                          const diffMs = Date.now() - new Date(throttleData.stats.lastEventAt).getTime();
+                          const diffSecs = Math.floor(diffMs / 1000);
+                          if (diffSecs < 60) return `${diffSecs}s ago`;
+                          const diffMins = Math.floor(diffSecs / 60);
+                          if (diffMins < 60) return `${diffMins}m ago`;
+                          const diffHours = Math.floor(diffMins / 60);
+                          return `${diffHours}h ${diffMins % 60}m ago`;
+                        })()}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-xs font-mono text-muted-foreground italic">
+                      Waiting for first event...
                     </span>
-                    <div className="text-[10px] text-muted-foreground/70">
-                      {(() => {
-                        const diffMs = Date.now() - new Date(throttleData.stats.lastEventAt).getTime();
-                        const diffSecs = Math.floor(diffMs / 1000);
-                        if (diffSecs < 60) return `${diffSecs}s ago`;
-                        const diffMins = Math.floor(diffSecs / 60);
-                        if (diffMins < 60) return `${diffMins}m ago`;
-                        const diffHours = Math.floor(diffMins / 60);
-                        return `${diffHours}h ${diffMins % 60}m ago`;
-                      })()}
-                    </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Last Update</span>
@@ -612,13 +618,13 @@ export default function RealtimeWebhooks() {
                         </div>
 
                         {/* Last Event Received Timestamp */}
-                        {stats.lastEventAt && (
-                          <div className="pt-2 border-t border-border">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground flex items-center gap-1">
-                                <Zap className="w-3 h-3 text-green-500" />
-                                Last Event Received
-                              </span>
+                        <div className="pt-2 border-t border-border">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground flex items-center gap-1">
+                              <Zap className={`w-3 h-3 ${stats.lastEventAt ? "text-green-500" : "text-muted-foreground"}`} />
+                              Last Event Received
+                            </span>
+                            {stats.lastEventAt ? (
                               <span className="font-mono text-green-500">
                                 {new Date(stats.lastEventAt).toLocaleString("en-US", {
                                   month: "short",
@@ -629,7 +635,13 @@ export default function RealtimeWebhooks() {
                                   hour12: false,
                                 })}
                               </span>
-                            </div>
+                            ) : (
+                              <span className="font-mono text-muted-foreground italic">
+                                Waiting for first event...
+                              </span>
+                            )}
+                          </div>
+                          {stats.lastEventAt && (
                             <div className="text-[10px] text-muted-foreground/70 text-right mt-0.5">
                               {(() => {
                                 const diffMs = Date.now() - new Date(stats.lastEventAt).getTime();
@@ -641,8 +653,8 @@ export default function RealtimeWebhooks() {
                                 return `${diffHours}h ${diffMins % 60}m ago`;
                               })()}
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </>
                     );
                   })()}
