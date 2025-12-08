@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { ArrowLeft, Activity, Filter, Pause, Play, RefreshCw, Camera, MapPin, Clock, Database, Cloud, Share2, CheckCircle2, XCircle, AlertCircle, Loader2, Image, Eye, TrendingUp, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -130,6 +132,7 @@ export default function RealtimeWebhooks() {
   const [isPaused, setIsPaused] = useState(false);
   const [filterLevel, setFilterLevel] = useState("all");
   const [filterTopic, setFilterTopic] = useState("all");
+  const [showAllEvents, setShowAllEvents] = useState(false); // When false, only show events with images
   const [webhooks, setWebhooks] = useState<WebhookData[]>([]);
   const [eventStats, setEventStats] = useState<EventStats>({ total: 0, critical: 0, high: 0, faces: 0, plates: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -265,16 +268,17 @@ export default function RealtimeWebhooks() {
     return webhook.snapshots.some(snap => snap.imageUrl && snap.imageUrl.trim() !== '');
   };
 
-  // Filter webhooks - exclude events without valid images, except critical events (level 3)
+  // Filter webhooks based on level, topic, and image availability
   const filteredWebhooks = webhooks.filter((webhook) => {
     const levelMatch = filterLevel === "all" || webhook.level === parseInt(filterLevel);
     const topicMatch = filterTopic === "all" || webhook.topic === filterTopic;
-    
-    // Critical events (level 3) are always shown regardless of image availability
+
+    // If showAllEvents is true, show all events regardless of image availability
+    // If showAllEvents is false, only show events with valid Cloudinary images
+    // Critical events (level 3) are always shown regardless of toggle setting
     const isCritical = webhook.level === 3;
-    // Non-critical events must have valid images to be displayed
-    const imageCheck = isCritical || hasValidImages(webhook);
-    
+    const imageCheck = showAllEvents || isCritical || hasValidImages(webhook);
+
     return levelMatch && topicMatch && imageCheck;
   });
 
@@ -353,7 +357,10 @@ export default function RealtimeWebhooks() {
             <div>
               <h1 className="text-xl font-bold">Real-Time Webhooks</h1>
               <p className="text-xs text-muted-foreground">
-                IREX event stream • {webhooks.length} events
+                IREX event stream • {filteredWebhooks.length} of {webhooks.length} events
+                {!showAllEvents && webhooks.length > filteredWebhooks.length && (
+                  <span className="text-muted-foreground/60"> (with images only)</span>
+                )}
               </p>
             </div>
           </div>
@@ -707,6 +714,24 @@ export default function RealtimeWebhooks() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Toggle to show/hide events without images */}
+                <div className="flex items-center justify-between py-2 px-1 rounded-md bg-muted/30">
+                  <div className="flex flex-col">
+                    <Label htmlFor="show-all-events" className="text-xs font-medium cursor-pointer">
+                      Show All Events
+                    </Label>
+                    <span className="text-xs text-muted-foreground">
+                      {showAllEvents ? "Including events without images" : "Only events with images"}
+                    </span>
+                  </div>
+                  <Switch
+                    id="show-all-events"
+                    checked={showAllEvents}
+                    onCheckedChange={setShowAllEvents}
+                  />
+                </div>
+
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
                     variant="outline"
@@ -715,6 +740,7 @@ export default function RealtimeWebhooks() {
                     onClick={() => {
                       setFilterLevel("all");
                       setFilterTopic("all");
+                      setShowAllEvents(false);
                     }}
                   >
                     Clear Filters
@@ -871,7 +897,19 @@ export default function RealtimeWebhooks() {
                   <div className="text-center text-muted-foreground">
                     <Activity className="w-16 h-16 mx-auto mb-4 opacity-50" />
                     <p className="text-lg">No webhooks to display</p>
-                    <p className="text-sm">Waiting for incoming IREX events...</p>
+                    {!showAllEvents && webhooks.length > 0 ? (
+                      <p className="text-sm">
+                        {webhooks.length} event{webhooks.length !== 1 ? 's' : ''} without images hidden.{' '}
+                        <button
+                          className="text-primary hover:underline cursor-pointer"
+                          onClick={() => setShowAllEvents(true)}
+                        >
+                          Show all events
+                        </button>
+                      </p>
+                    ) : (
+                      <p className="text-sm">Waiting for incoming IREX events...</p>
+                    )}
                   </div>
                 </motion.div>
               ) : (
