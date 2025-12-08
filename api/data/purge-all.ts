@@ -98,12 +98,16 @@ async function purgeCloudinaryImages(
         });
 
         if (!listResponse.ok) {
-          errors.push(`List failed: ${listResponse.status}`);
+          const errorText = await listResponse.text();
+          console.error(`[Purge] Cloudinary list failed: ${listResponse.status} - ${errorText}`);
+          errors.push(`List failed: ${listResponse.status} - ${errorText}`);
           break;
         }
 
         const listData = await listResponse.json();
         const resources = listData.resources || [];
+        
+        console.log(`[Purge] Cloudinary list response: ${resources.length} resources found, next_cursor: ${listData.next_cursor ? 'yes' : 'no'}`);
         
         toDelete.push(...resources.map((r: any) => r.public_id));
         cursor = listData.next_cursor;
@@ -377,9 +381,12 @@ export default async function handler(
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
     const apiKey = process.env.CLOUDINARY_API_KEY;
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
-    const folder = process.env.CLOUDINARY_FOLDER || "irex-events";
+    const folder = process.env.CLOUDINARY_FOLDER || "eli-events";
+
+    console.log(`[Purge] Cloudinary config: cloudName=${cloudName ? 'set' : 'missing'}, apiKey=${apiKey ? 'set' : 'missing'}, apiSecret=${apiSecret ? 'set' : 'missing'}, folder=${folder}, includeCloudinary=${includeCloudinary}`);
 
     if (includeCloudinary && cloudName && apiKey && apiSecret) {
+      console.log(`[Purge] Starting Cloudinary purge for folder: ${folder}`);
       result.cloudinary = await purgeCloudinaryImages(
         cloudName,
         apiKey,
