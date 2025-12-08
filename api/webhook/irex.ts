@@ -180,10 +180,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               console.log(`[Webhook IREX] Throttle: ${imagesProcessed} uploaded, ${imagesSkipped} skipped (${throttleConfig.description})`);
             }
 
-            // Get the first uploaded image URL for Neo4j event sync
-            const firstImageUrl = processedSnapshots.find(s => s.imageUrl)?.imageUrl;
-            if (firstImageUrl) {
-              // Sync event with image to Neo4j immediately (async, don't block)
+            // Get the first Cloudinary-uploaded image URL for Neo4j event sync
+            // Only sync events to Neo4j when they have a Cloudinary image (to match throttle ratio)
+            const cloudinaryImageUrl = processedSnapshots.find(s =>
+              s.imageUrl?.includes('cloudinary.com')
+            )?.imageUrl;
+
+            if (cloudinaryImageUrl && isNeo4jConfigured()) {
+              // Sync camera and event to Neo4j for events with images only
+              // This matches the Cloudinary throttle ratio to prevent Neo4j overload
+
+              // Sync camera (will MERGE so duplicates are safe)
+              syncCamera({
+                id: channelData.id,
+                name: channelData.name,
+                latitude: channelData.latitude,
+                longitude: channelData.longitude,
+                region: channelData.region,
+                status: channelData.status,
+              }).catch(err => console.warn("[Webhook IREX] Neo4j camera sync failed:", err));
+
+              // Sync event with image to Neo4j
               syncEvent({
                 id: eventDbId,
                 eventId,
@@ -191,32 +208,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 channelId: channelData.id,
                 startTime: body.start_time,
                 params: body.params,
-                imageUrl: firstImageUrl,
+                imageUrl: cloudinaryImageUrl,
               }).catch(err => console.warn("[Webhook IREX] Neo4j event sync failed:", err));
+
+              console.log(`[Webhook IREX] Neo4j sync: camera ${channelData.id}, event ${eventDbId}`);
             }
           }
 
-          // 4. Sync camera/channel to Neo4j immediately for topology graph
-          if (isNeo4jConfigured()) {
-            syncCamera({
-              id: channelData.id,
-              name: channelData.name,
-              latitude: channelData.latitude,
-              longitude: channelData.longitude,
-              region: channelData.region,
-              status: channelData.status,
-            }).catch(err => console.warn("[Webhook IREX] Neo4j camera sync failed:", err));
-
-            // Sync event to Neo4j (even without image, for relationships)
-            syncEvent({
-              id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              eventId,
-              topic,
-              channelId: channelData.id,
-              startTime: body.start_time,
-              params: body.params,
-            }).catch(err => console.warn("[Webhook IREX] Neo4j event sync failed:", err));
-          }
+          // NOTE: Neo4j sync is now ONLY done for events with Cloudinary images
+          // This matches the throttle ratio (e.g., 1:200) to prevent:
+          // 1. Connection pool exhaustion (was seeing "Active conn = 50, Idle = 0")
+          // 2. Database growth overload (9500+ nodes from just 600 events)
+          // Cameras are synced via MERGE, so repeated syncs are idempotent
 
           processedEventIds.push(eventId);
           dbPersisted = true;
