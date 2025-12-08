@@ -10,13 +10,14 @@
  * - GET ?action=stats: Get processing statistics
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getDb, events, snapshots, sql, count, gte, desc } from "../lib/db.js";
 import { isInfluxDBConfigured, writeMetricPoint } from "../lib/influxdb.js";
 
 // Throttle configuration interface
 export interface ThrottleConfig {
   enabled: boolean;
-  // Ratio: how many images to process per 100,000 incoming
-  // Default: 250 per 100,000 = 0.25%
+  // Ratio: how many images to process per 10,000 incoming
+  // Default: 25 per 10,000 = 0.25%
   processRatio: number;
   // Maximum images to process per hour (hard limit)
   maxPerHour: number;
@@ -31,11 +32,11 @@ export interface ThrottleConfig {
 // Default configuration - throttle enabled by default for demo safety
 const DEFAULT_CONFIG: ThrottleConfig = {
   enabled: true,
-  processRatio: 0.0025, // 250 per 100,000 = 0.25%
+  processRatio: 0.0025, // 25 per 10,000 = 0.25%
   maxPerHour: 100,
   samplingMethod: 'random',
   lastUpdated: new Date().toISOString(),
-  description: 'Demo mode: Processing ~250 images per 100,000 incoming',
+  description: 'Demo mode: Processing ~25 images per 10,000 incoming',
 };
 
 // In-memory storage (in production, use database)
@@ -234,7 +235,81 @@ export default async function handler(
   // GET: Retrieve configuration or stats
   if (req.method === "GET") {
     if (action === "stats") {
-      // Return processing statistics
+      // Fetch REAL stats from database instead of unreliable in-memory state
+      // (Vercel serverless functions don't share memory across invocations)
+      try {
+        const db = await getDb();
+
+        if (db) {
+          // Get total events received (all events in database)
+          const [eventCountResult] = await db.select({ count: count() }).from(events);
+          const totalReceived = eventCountResult?.count || 0;
+
+          // Get snapshots with cloudinary URLs (processed/uploaded images)
+          const [processedResult] = await db
+            .select({ count: count() })
+            .from(snapshots)
+            .where(sql`${snapshots.imageUrl} IS NOT NULL AND ${snapshots.imageUrl} LIKE 'https://res.cloudinary.com%'`);
+          const totalProcessed = processedResult?.count || 0;
+
+          // Get all snapshots count
+          const [totalSnapshotsResult] = await db.select({ count: count() }).from(snapshots);
+          const totalSnapshots = totalSnapshotsResult?.count || 0;
+
+          // Skipped = total snapshots - processed
+          const totalSkipped = Math.max(0, totalSnapshots - totalProcessed);
+
+          // Get last hour stats
+          const oneHourAgo = Date.now() - 60 * 60 * 1000;
+          const [lastHourEventsResult] = await db
+            .select({ count: count() })
+            .from(events)
+            .where(gte(events.startTime, oneHourAgo));
+          const lastHourReceived = lastHourEventsResult?.count || 0;
+
+          // Get the most recent event to show "Last Event Received" timestamp
+          const [lastEvent] = await db
+            .select({ startTime: events.startTime, createdAt: events.createdAt })
+            .from(events)
+            .orderBy(desc(events.createdAt))
+            .limit(1);
+
+          const lastEventAt = lastEvent?.createdAt || lastEvent?.startTime
+            ? new Date(lastEvent?.createdAt || lastEvent?.startTime || 0).toISOString()
+            : null;
+
+          // Calculate last hour processed (approximate based on ratio)
+          const lastHourProcessed = Math.round(lastHourReceived * currentConfig.processRatio);
+          const lastHourSkipped = lastHourReceived - lastHourProcessed;
+
+          const dbStats = {
+            totalReceived,
+            totalProcessed,
+            totalSkipped,
+            lastHourReceived,
+            lastHourProcessed,
+            lastHourSkipped,
+            projectedIfNoThrottle: totalReceived,
+            lastEventAt,
+            hourlyStats: [], // Could be populated from database if needed
+          };
+
+          console.log(`[Throttle Stats] DB: received=${totalReceived}, processed=${totalProcessed}, skipped=${totalSkipped}, lastEventAt=${lastEventAt}`);
+
+          res.status(200).json({
+            success: true,
+            stats: dbStats,
+            config: currentConfig,
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+      } catch (dbError) {
+        console.error("[Throttle Stats] Database error:", dbError);
+        // Fall through to return in-memory stats
+      }
+
+      // Fallback to in-memory stats if database unavailable
       res.status(200).json({
         success: true,
         stats: processingStats,
@@ -288,8 +363,8 @@ export default async function handler(
 
       // Update description based on settings
       if (currentConfig.enabled) {
-        const imagesPerHundredK = Math.round(currentConfig.processRatio * 100000);
-        currentConfig.description = `Throttle active: Processing ~${imagesPerHundredK} images per 100,000 incoming (${(currentConfig.processRatio * 100).toFixed(2)}%)`;
+        const imagesPerTenK = Math.round(currentConfig.processRatio * 10000);
+        currentConfig.description = `Throttle active: Processing ~${imagesPerTenK} images per 10,000 incoming (${(currentConfig.processRatio * 100).toFixed(2)}%)`;
       } else {
         currentConfig.description = "Throttle disabled: Processing all images (Production mode)";
       }

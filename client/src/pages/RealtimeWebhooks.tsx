@@ -540,8 +540,8 @@ export default function RealtimeWebhooks() {
                     if (!stats || !config) return null;
 
                     // Calculate progress toward next batch
-                    // 100,000 events = 1 full cycle, 250 images processed per cycle
-                    const cycleSize = 100000;
+                    // 10,000 events = 1 full cycle, 25 images processed per cycle
+                    const cycleSize = 10000;
                     const imagesPerCycle = Math.round(config.processRatio * cycleSize);
                     const currentInCycle = stats.totalReceived % cycleSize;
                     const progressPercent = (currentInCycle / cycleSize) * 100;
@@ -592,7 +592,7 @@ export default function RealtimeWebhooks() {
                             <div className="text-lg font-bold text-purple-500">
                               {imagesPerCycle}
                             </div>
-                            <div className="text-xs text-muted-foreground">Per 100K Events</div>
+                            <div className="text-xs text-muted-foreground">Per 10K Events</div>
                           </div>
                         </div>
 
