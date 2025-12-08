@@ -11,9 +11,6 @@
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
-import { events, snapshots, webhookRequests, aiInferenceJobs, aiDetections, aiAnomalies, aiInsights, aiBaselines } from "../../drizzle/schema";
-import { sql } from "drizzle-orm";
 import { getDriver, isNeo4jConfigured } from "../lib/neo4j.js";
 
 interface PurgeResult {
@@ -305,42 +302,54 @@ export default async function handler(
       };
       console.log("[Purge] Database not configured, skipping");
     } else {
-      const client = neon(process.env.DATABASE_URL);
-      const db = drizzle(client);
+      // Use raw SQL to avoid schema import issues in Vercel serverless
+      const sqlClient = neon(process.env.DATABASE_URL);
 
       // Delete in order to respect foreign key constraints
-      // 1. Delete AI detections (references events)
-      await db.delete(aiDetections);
-      
-      // 2. Delete AI anomalies (references events)
-      await db.delete(aiAnomalies);
-      
-      // 3. Delete AI insights
-      await db.delete(aiInsights);
-      
-      // 4. Delete AI baselines
-      await db.delete(aiBaselines);
-      
-      // 5. Delete AI inference jobs
-      await db.delete(aiInferenceJobs);
-      
-      // 6. Delete snapshots (references events)
-      await db.delete(snapshots);
-      
-      // 7. Delete events
-      await db.delete(events);
-      
-      // 8. Delete webhook requests
-      await db.delete(webhookRequests);
+      // Using raw SQL for maximum compatibility
+      try {
+        // 1. Delete AI detections
+        await sqlClient`DELETE FROM ai_detections`;
+        
+        // 2. Delete AI anomalies
+        await sqlClient`DELETE FROM ai_anomalies`;
+        
+        // 3. Delete AI insights
+        await sqlClient`DELETE FROM ai_insights`;
+        
+        // 4. Delete AI baselines
+        await sqlClient`DELETE FROM ai_baselines`;
+        
+        // 5. Delete AI inference jobs
+        await sqlClient`DELETE FROM ai_inference_jobs`;
+        
+        // 6. Delete snapshots (references events)
+        await sqlClient`DELETE FROM snapshots`;
+        
+        // 7. Delete events
+        await sqlClient`DELETE FROM events`;
+        
+        // 8. Delete webhook requests
+        await sqlClient`DELETE FROM webhook_requests`;
 
-      result.database = {
-        eventsDeleted: 0, // Neon HTTP doesn't return affected rows
-        snapshotsDeleted: 0,
-        webhookRequestsDeleted: 0,
-        aiJobsDeleted: 0,
-      };
-      
-      console.log("[Purge] Database tables cleared");
+        result.database = {
+          eventsDeleted: 0, // Neon doesn't return affected rows easily
+          snapshotsDeleted: 0,
+          webhookRequestsDeleted: 0,
+          aiJobsDeleted: 0,
+        };
+        
+        console.log("[Purge] Database tables cleared");
+      } catch (dbError) {
+        console.error("[Purge] Database error:", dbError);
+        // Continue with other phases even if some tables fail
+        result.database = {
+          eventsDeleted: 0,
+          snapshotsDeleted: 0,
+          webhookRequestsDeleted: 0,
+          aiJobsDeleted: 0,
+        };
+      }
     }
 
     // Phase 2: Purge Neo4j
