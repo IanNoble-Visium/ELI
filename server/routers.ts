@@ -30,7 +30,7 @@ import {
 
 export const appRouter = router({
   system: systemRouter,
-  
+
   auth: router({
     /**
      * Hardcoded login with admin/admin credentials
@@ -199,7 +199,7 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         const startTime = Date.now();
-        
+
         try {
           // Upsert channel
           await upsertChannel({
@@ -409,6 +409,31 @@ export const appRouter = router({
           ...result,
         };
       }),
+  }),
+
+  /**
+   * Image Analysis endpoints
+   */
+  analysis: router({
+    search: protectedProcedure
+      .input(
+        z.object({
+          tag: z.string().optional(),
+          object: z.string().optional(),
+          color: z.string().optional(),
+          minQuality: z.number().optional(),
+          limit: z.number().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const { searchImages } = await import("../api/data/topology-neo4j");
+        return await searchImages(input);
+      }),
+
+    stats: protectedProcedure.query(async () => {
+      const { getImageAnalysisStats } = await import("../api/data/topology-neo4j");
+      return await getImageAnalysisStats();
+    }),
   }),
 });
 

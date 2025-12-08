@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User, Search, Database } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User, Search, Database, Map, Network, Users, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -29,6 +29,131 @@ interface IncidentData {
   videoUrl: string;
   hasVideo: boolean;
 }
+
+// POLE Entity types for incident-related data
+interface POLEPerson {
+  id: string;
+  name: string;
+  role: "suspect" | "victim" | "witness" | "officer";
+  riskLevel?: "high" | "medium" | "low";
+}
+
+interface POLEObject {
+  id: string;
+  type: string;
+  description: string;
+  status: "evidence" | "recovered" | "missing";
+}
+
+interface POLELocation {
+  id: string;
+  name: string;
+  type: "crime_scene" | "residence" | "business" | "public";
+  coordinates?: { lat: number; lng: number };
+}
+
+interface IncidentPOLEData {
+  people: POLEPerson[];
+  objects: POLEObject[];
+  locations: POLELocation[];
+}
+
+// Generate mock POLE data for an incident based on its type
+const generateIncidentPOLEData = (incident: IncidentData): IncidentPOLEData => {
+  const firstNames = ["Juan", "Maria", "Carlos", "Ana", "Pedro", "Sofia", "Luis", "Elena"];
+  const lastNames = ["Garcia", "Rodriguez", "Martinez", "Lopez", "Gonzalez", "Hernandez"];
+  const randomName = () => `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
+  
+  // Generate people based on incident type
+  const people: POLEPerson[] = [];
+  
+  // Always add a witness
+  people.push({
+    id: `POI-${incident.id}-W1`,
+    name: randomName(),
+    role: "witness",
+  });
+  
+  // Add role-specific people based on incident type
+  if (incident.type.includes("Robbery") || incident.type.includes("Theft") || incident.type.includes("Assault")) {
+    people.push({
+      id: `POI-${incident.id}-S1`,
+      name: randomName(),
+      role: "suspect",
+      riskLevel: incident.priority === "critical" ? "high" : incident.priority === "high" ? "medium" : "low",
+    });
+    people.push({
+      id: `POI-${incident.id}-V1`,
+      name: randomName(),
+      role: "victim",
+    });
+  }
+  
+  if (incident.priority === "critical" || incident.priority === "high") {
+    people.push({
+      id: `POI-${incident.id}-S2`,
+      name: randomName(),
+      role: "suspect",
+      riskLevel: "medium",
+    });
+  }
+  
+  // Generate objects
+  const objectTypes: Record<string, { type: string; desc: string; status: "evidence" | "recovered" | "missing" }[]> = {
+    default: [
+      { type: "Document", desc: "ID Card found at scene", status: "evidence" },
+    ],
+    robbery: [
+      { type: "Weapon", desc: "Knife - 6 inch blade", status: "evidence" },
+      { type: "Vehicle", desc: "White Honda Civic ABC-123", status: "missing" },
+      { type: "Cash", desc: "Stolen cash - approx $500", status: "missing" },
+    ],
+    theft: [
+      { type: "Electronics", desc: "Laptop - Dell XPS 15", status: "missing" },
+      { type: "Bag", desc: "Black backpack", status: "recovered" },
+    ],
+    assault: [
+      { type: "Weapon", desc: "Metal pipe", status: "evidence" },
+      { type: "Phone", desc: "iPhone 14 - damaged", status: "evidence" },
+    ],
+    vandalism: [
+      { type: "Spray Paint", desc: "Red spray paint can", status: "evidence" },
+      { type: "Tool", desc: "Glass breaker tool", status: "evidence" },
+    ],
+  };
+  
+  const incidentCategory = incident.type.toLowerCase().includes("robbery") ? "robbery" :
+    incident.type.toLowerCase().includes("theft") ? "theft" :
+    incident.type.toLowerCase().includes("assault") ? "assault" :
+    incident.type.toLowerCase().includes("vandalism") ? "vandalism" : "default";
+  
+  const objectList = objectTypes[incidentCategory] || objectTypes.default;
+  const objects: POLEObject[] = objectList.map((obj, idx) => ({
+    id: `OBJ-${incident.id}-${idx + 1}`,
+    type: obj.type,
+    description: obj.desc,
+    status: obj.status,
+  }));
+  
+  // Generate locations
+  const locations: POLELocation[] = [
+    {
+      id: `LOC-${incident.id}-1`,
+      name: incident.location,
+      type: "crime_scene",
+    },
+  ];
+  
+  if (incident.priority === "critical" || incident.priority === "high") {
+    locations.push({
+      id: `LOC-${incident.id}-2`,
+      name: `${incident.region} - Safe House`,
+      type: "residence",
+    });
+  }
+  
+  return { people, objects, locations };
+};
 
 export default function IncidentManagement() {
   const [, setLocation] = useLocation();
@@ -445,6 +570,147 @@ export default function IncidentManagement() {
                 </Card>
               </div>
 
+              {/* POLE Entity Display */}
+              {(() => {
+                const poleData = generateIncidentPOLEData(selectedIncident);
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-green-500" />
+                        Related POLE Entities
+                      </CardTitle>
+                      <CardDescription>People, Objects, and Locations associated with this incident</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        {/* People */}
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-blue-500">
+                            <User className="w-4 h-4" />
+                            People ({poleData.people.length})
+                          </h4>
+                          <div className="space-y-2">
+                            {poleData.people.map((person) => (
+                              <div
+                                key={person.id}
+                                className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                                onClick={() => setLocation(`/dashboard/pole?personId=${encodeURIComponent(person.id)}`)}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium">{person.name}</span>
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      person.role === "suspect" ? "border-red-500 text-red-500" :
+                                      person.role === "victim" ? "border-orange-500 text-orange-500" :
+                                      person.role === "witness" ? "border-blue-500 text-blue-500" :
+                                      "border-green-500 text-green-500"
+                                    }
+                                  >
+                                    {person.role}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">{person.id}</div>
+                                {person.riskLevel && (
+                                  <Badge
+                                    className={`mt-1 text-xs ${
+                                      person.riskLevel === "high" ? "bg-red-500" :
+                                      person.riskLevel === "medium" ? "bg-yellow-500" :
+                                      "bg-green-500"
+                                    } text-white`}
+                                  >
+                                    {person.riskLevel} risk
+                                  </Badge>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Objects */}
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-orange-500">
+                            <Database className="w-4 h-4" />
+                            Objects ({poleData.objects.length})
+                          </h4>
+                          <div className="space-y-2">
+                            {poleData.objects.map((obj) => (
+                              <div
+                                key={obj.id}
+                                className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                                onClick={() => setLocation(`/dashboard/pole?objectId=${encodeURIComponent(obj.id)}`)}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium">{obj.type}</span>
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      obj.status === "evidence" ? "border-purple-500 text-purple-500" :
+                                      obj.status === "recovered" ? "border-green-500 text-green-500" :
+                                      "border-red-500 text-red-500"
+                                    }
+                                  >
+                                    {obj.status}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">{obj.description}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Locations */}
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold flex items-center gap-2 text-purple-500">
+                            <MapPin className="w-4 h-4" />
+                            Locations ({poleData.locations.length})
+                          </h4>
+                          <div className="space-y-2">
+                            {poleData.locations.map((loc) => (
+                              <div
+                                key={loc.id}
+                                className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                                onClick={() => setLocation(`/dashboard/map?location=${encodeURIComponent(loc.name)}`)}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium truncate max-w-[120px]">{loc.name}</span>
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      loc.type === "crime_scene" ? "border-red-500 text-red-500" :
+                                      loc.type === "residence" ? "border-blue-500 text-blue-500" :
+                                      loc.type === "business" ? "border-orange-500 text-orange-500" :
+                                      "border-gray-500 text-gray-500"
+                                    }
+                                  >
+                                    {loc.type.replace("_", " ")}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">{loc.id}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* View All in POLE Analytics button */}
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <Button
+                          variant="outline"
+                          className="w-full hover:border-green-500 hover:bg-green-500/10"
+                          onClick={() => setLocation(`/dashboard/pole?incident=${encodeURIComponent(selectedIncident.id)}`)}
+                        >
+                          <Users className="w-4 h-4 mr-2 text-green-500" />
+                          View Full POLE Analysis
+                          <ExternalLink className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
               {/* Notes Section */}
               <Card>
                 <CardHeader>
@@ -565,6 +831,45 @@ export default function IncidentManagement() {
                         No tags yet. Add one above.
                       </p>
                     )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Quick Navigation - Drill into related pages */}
+              <Card className="border-primary/30 bg-primary/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ExternalLink className="w-5 h-5 text-primary" />
+                    Quick Navigation
+                  </CardTitle>
+                  <CardDescription>Drill into related views and analytics</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2 hover:border-blue-500 hover:bg-blue-500/10"
+                      onClick={() => setLocation(`/dashboard/map?region=${encodeURIComponent(selectedIncident.region)}`)}
+                    >
+                      <Map className="w-6 h-6 text-blue-500" />
+                      <span className="text-xs">View on Map</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2 hover:border-purple-500 hover:bg-purple-500/10"
+                      onClick={() => setLocation(`/dashboard/topology?incident=${encodeURIComponent(selectedIncident.id)}`)}
+                    >
+                      <Network className="w-6 h-6 text-purple-500" />
+                      <span className="text-xs">View Topology</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2 hover:border-green-500 hover:bg-green-500/10"
+                      onClick={() => setLocation(`/dashboard/pole?incident=${encodeURIComponent(selectedIncident.id)}`)}
+                    >
+                      <Users className="w-6 h-6 text-green-500" />
+                      <span className="text-xs">POLE Analysis</span>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

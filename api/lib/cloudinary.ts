@@ -14,6 +14,48 @@ interface CloudinaryConfig {
   apiSecret: string;
 }
 
+interface CloudinaryAnalysis {
+  colors?: {
+    predominant: {
+      google: Array<[string, number]>; // [color, score]
+      cloudinary: Array<[string, number]>;
+    };
+    histogram?: Record<string, number>;
+  };
+  quality_analysis?: {
+    focus: number;
+    noise: number;
+    exposure: number;
+    color_score: number;
+    lighting: number;
+    resolution: number;
+    dct: number;
+  };
+  tags?: {
+    [key: string]: Array<{
+      tag: string;
+      confidence: number;
+      source?: string;
+    }>;
+  };
+  detection?: {
+    object_detection?: {
+      data: {
+        coco?: Array<{
+          tag: string;
+          confidence: number;
+          bounding_box: [number, number, number, number];
+        }>;
+        lvis?: Array<{
+          tag: string;
+          confidence: number;
+          bounding_box: [number, number, number, number];
+        }>;
+      };
+    };
+  };
+}
+
 interface UploadResult {
   url: string;
   publicId: string;
@@ -22,6 +64,7 @@ interface UploadResult {
   width: number;
   height: number;
   bytes: number;
+  info?: CloudinaryAnalysis; // Added analysis data
 }
 
 interface UploadError {
@@ -68,7 +111,7 @@ export async function uploadImage(
   snapshotType: string = "UNKNOWN"
 ): Promise<UploadResponse> {
   const config = getCloudinaryConfig();
-  
+
   if (!config) {
     return {
       success: false,
@@ -92,23 +135,25 @@ export async function uploadImage(
     // Build the upload URL
     const uploadUrl = `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`;
 
-    // Create form data for upload
-    const formData = new FormData();
-    formData.append("file", dataUri);
-    formData.append("upload_preset", "ml_default"); // Use unsigned upload preset if available
-    formData.append("folder", CLOUDINARY_FOLDER);
-    formData.append("public_id", `${sanitizedEventId}_${snapshotType}_${timestamp}`);
-    
-    // For signed uploads, we need to generate a signature
+    // Upload options for analysis
     const uploadTimestamp = Math.floor(Date.now() / 1000);
-    const paramsToSign = {
+    const params = {
       folder: CLOUDINARY_FOLDER,
       public_id: `${sanitizedEventId}_${snapshotType}_${timestamp}`,
       timestamp: uploadTimestamp,
+      // Analysis parameters
+      detection: "coco|lvis|unidet",
+      ocr: "adv_ocr",
+      tagging: "google_tagging",
+      quality_analysis: "true",
+      colors: "true",
+      image_metadata: "true",
+      phash: "true",
+      return_delete_token: "true"
     };
 
     // Generate signature using SHA-1
-    const signature = await generateSignature(paramsToSign, config.apiSecret);
+    const signature = await generateSignature(params, config.apiSecret);
 
     // Make the authenticated upload request
     const response = await fetch(uploadUrl, {
@@ -118,11 +163,9 @@ export async function uploadImage(
       },
       body: JSON.stringify({
         file: dataUri,
-        folder: CLOUDINARY_FOLDER,
-        public_id: `${sanitizedEventId}_${snapshotType}_${timestamp}`,
-        timestamp: uploadTimestamp,
         api_key: config.apiKey,
         signature: signature,
+        ...params
       }),
     });
 
@@ -149,6 +192,7 @@ export async function uploadImage(
         width: result.width,
         height: result.height,
         bytes: result.bytes,
+        info: result.info ? result.info : result, // Map analysis data if present
       },
     };
   } catch (error) {
@@ -174,7 +218,7 @@ export async function uploadImageFromUrl(
   snapshotType: string = "UNKNOWN"
 ): Promise<UploadResponse> {
   const config = getCloudinaryConfig();
-  
+
   if (!config) {
     return {
       success: false,
@@ -186,15 +230,25 @@ export async function uploadImageFromUrl(
     const timestamp = Date.now();
     const sanitizedEventId = eventId.replace(/[^a-zA-Z0-9_-]/g, "_");
     const uploadUrl = `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`;
-    
+
+    // Upload options for analysis
     const uploadTimestamp = Math.floor(Date.now() / 1000);
-    const paramsToSign = {
+    const params = {
       folder: CLOUDINARY_FOLDER,
       public_id: `${sanitizedEventId}_${snapshotType}_${timestamp}`,
       timestamp: uploadTimestamp,
+      // Analysis parameters
+      detection: "coco|lvis|unidet",
+      ocr: "adv_ocr",
+      tagging: "google_tagging",
+      quality_analysis: "true",
+      colors: "true",
+      image_metadata: "true",
+      phash: "true",
+      return_delete_token: "true"
     };
 
-    const signature = await generateSignature(paramsToSign, config.apiSecret);
+    const signature = await generateSignature(params, config.apiSecret);
 
     const response = await fetch(uploadUrl, {
       method: "POST",
@@ -203,11 +257,9 @@ export async function uploadImageFromUrl(
       },
       body: JSON.stringify({
         file: imageUrl,
-        folder: CLOUDINARY_FOLDER,
-        public_id: `${sanitizedEventId}_${snapshotType}_${timestamp}`,
-        timestamp: uploadTimestamp,
         api_key: config.apiKey,
         signature: signature,
+        ...params
       }),
     });
 
@@ -234,6 +286,7 @@ export async function uploadImageFromUrl(
         width: result.width,
         height: result.height,
         bytes: result.bytes,
+        info: result.info ? result.info : result, // Map analysis data if present
       },
     };
   } catch (error) {
@@ -253,7 +306,7 @@ export async function uploadImageFromUrl(
  */
 export async function deleteImage(publicId: string): Promise<{ success: boolean; error?: string }> {
   const config = getCloudinaryConfig();
-  
+
   if (!config) {
     return {
       success: false,

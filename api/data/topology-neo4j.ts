@@ -145,7 +145,14 @@ export async function syncEvent(event: {
           e.type = $type,
           e.timestamp = $timestamp,
           e.imageUrl = $imageUrl,
-          e.channelId = $channelId
+          e.channelId = $channelId,
+          e.tags = $tags,
+          e.objects = $objects,
+          e.dominantColors = $dominantColors,
+          e.qualityScore = $qualityScore,
+          e.caption = $caption,
+          e.moderationStatus = $moderationStatus,
+          e.phash = $phash
       `,
       {
         id: event.id,
@@ -154,6 +161,13 @@ export async function syncEvent(event: {
         timestamp: event.startTime || Date.now(),
         imageUrl: event.imageUrl || null,
         channelId: event.channelId || null,
+        tags: event.params?.tags || [],
+        objects: event.params?.objects || [],
+        dominantColors: event.params?.colors || [],
+        qualityScore: event.params?.qualityScore || null,
+        caption: event.params?.caption || null,
+        moderationStatus: event.params?.moderation || null,
+        phash: event.params?.phash || null
       }
     );
 
@@ -177,7 +191,7 @@ export async function syncEvent(event: {
     if (event.topic?.includes("Plate") && params?.plate?.value) {
       const plate = params.plate.value.toUpperCase();
       const vehicleId = `vehicle-${plate}`;
-      
+
       await tx.run(
         `
         MERGE (v:Vehicle {id: $vehicleId})
@@ -201,7 +215,7 @@ export async function syncEvent(event: {
     if (event.topic?.includes("Face") && params?.face) {
       const faceId = params.face.id?.toString() || `face-${event.id}`;
       const personId = `person-${faceId}`;
-      
+
       await tx.run(
         `
         MERGE (p:Person {id: $personId})
@@ -308,7 +322,7 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
     for (const record of result.cameras) {
       const camera = nodeToObject<Neo4jCamera>(record.get("c"));
       const eventCount = toNumber(record.get("eventCount"));
-      
+
       if (!nodeIds.has(camera.id)) {
         nodeIds.add(camera.id);
         nodes.push({
@@ -328,7 +342,7 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
     // Process locations
     for (const record of result.locations) {
       const location = nodeToObject<Neo4jLocation>(record.get("l"));
-      
+
       if (!nodeIds.has(location.id)) {
         nodeIds.add(location.id);
         nodes.push({
@@ -345,7 +359,7 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
     // Process vehicles
     for (const record of result.vehicles) {
       const vehicle = nodeToObject<Neo4jVehicle>(record.get("v"));
-      
+
       if (!nodeIds.has(vehicle.id)) {
         nodeIds.add(vehicle.id);
         nodes.push({
@@ -361,7 +375,7 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
     // Process persons
     for (const record of result.persons) {
       const person = nodeToObject<Neo4jPerson>(record.get("p"));
-      
+
       if (!nodeIds.has(person.id)) {
         nodeIds.add(person.id);
         nodes.push({
@@ -377,7 +391,7 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
     // Process events with images
     for (const record of result.events) {
       const event = nodeToObject<Neo4jEvent>(record.get("e"));
-      
+
       if (!nodeIds.has(event.id)) {
         nodeIds.add(event.id);
         nodes.push({
@@ -660,5 +674,132 @@ export async function bulkSyncEvents(
   });
 
   console.log(`[Neo4j Topology] Synced ${eventsWithImages.length} events with images`);
+}
+
+/**
+ * Search images based on analysis criteria
+ */
+export async function searchImages(criteria: {
+  tag?: string;
+  object?: string;
+  color?: string;
+  minQuality?: number;
+  limit?: number;
+}): Promise<Neo4jEvent[]> {
+  if (!isNeo4jConfigured()) return [];
+
+  const limit = criteria.limit || 50;
+  const conditions: string[] = ["e.imageUrl IS NOT NULL"];
+  const params: any = { limit };
+
+  if (criteria.tag) {
+    conditions.push("any(tag IN e.tags WHERE toLower(tag) CONTAINS toLower($tag))");
+    params.tag = criteria.tag;
+  }
+
+  if (criteria.object) {
+    conditions.push("any(obj IN e.objects WHERE toLower(obj) CONTAINS toLower($object))");
+    params.object = criteria.object;
+  }
+
+  if (criteria.color) {
+    conditions.push("any(col IN e.dominantColors WHERE toLower(col) CONTAINS toLower($color))");
+    params.color = criteria.color;
+  }
+
+  if (criteria.minQuality) {
+    conditions.push("e.qualityScore >= $minQuality");
+    params.minQuality = criteria.minQuality;
+  }
+
+  try {
+    const result = await runQuery<any>(
+      `
+      MATCH (e:Event)
+      WHERE ${conditions.join(" AND ")}
+      RETURN e
+      ORDER BY e.timestamp DESC
+      LIMIT $limit
+      `,
+      params
+    );
+
+    return result.map((record) => nodeToObject<Neo4jEvent>(record.e));
+  } catch (error) {
+    console.error("[Neo4j Analysis] Error searching images:", error);
+    return [];
+  }
+}
+
+/**
+ * Get statistics for image analysis dashboard
+ */
+export async function getImageAnalysisStats(): Promise<{
+  totalImages: number;
+  topTags: Array<{ tag: string; count: number }>;
+  topObjects: Array<{ object: string; count: number }>;
+  colorDistribution: Array<{ color: string; count: number }>;
+} | null> {
+  if (!isNeo4jConfigured()) return null;
+
+  try {
+    return await readTransaction(async (tx) => {
+      // Total images
+      const totalResult = await tx.run(`
+        MATCH (e:Event) WHERE e.imageUrl IS NOT NULL
+        RETURN count(e) as total
+      `);
+      const totalImages = toNumber(totalResult.records[0].get("total"));
+
+      // Top tags
+      const tagsResult = await tx.run(`
+        MATCH (e:Event) WHERE e.imageUrl IS NOT NULL
+        UNWIND e.tags as tag
+        RETURN tag, count(*) as count
+        ORDER BY count DESC
+        LIMIT 10
+      `);
+      const topTags = tagsResult.records.map((r: any) => ({
+        tag: r.get("tag"),
+        count: toNumber(r.get("count")),
+      }));
+
+      // Top objects
+      const objectsResult = await tx.run(`
+        MATCH (e:Event) WHERE e.imageUrl IS NOT NULL
+        UNWIND e.objects as obj
+        RETURN obj, count(*) as count
+        ORDER BY count DESC
+        LIMIT 10
+      `);
+      const topObjects = objectsResult.records.map((r: any) => ({
+        object: r.get("obj"),
+        count: toNumber(r.get("count")),
+      }));
+
+      // Color distribution (simplified)
+      const colorsResult = await tx.run(`
+        MATCH (e:Event) WHERE e.imageUrl IS NOT NULL
+        UNWIND e.dominantColors as color
+        RETURN color, count(*) as count
+        ORDER BY count DESC
+        LIMIT 10
+      `);
+      const colorDistribution = colorsResult.records.map((r: any) => ({
+        color: r.get("color"),
+        count: toNumber(r.get("count")),
+      }));
+
+      return {
+        totalImages,
+        topTags,
+        topObjects,
+        colorDistribution,
+      };
+    });
+  } catch (error) {
+    console.error("[Neo4j Analysis] Error getting stats:", error);
+    return null;
+  }
 }
 

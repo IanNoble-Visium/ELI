@@ -251,6 +251,14 @@ export interface Neo4jEvent {
   timestamp: number;
   imageUrl?: string;
   channelId?: string;
+  // Analysis Data
+  tags?: string[];
+  objects?: string[];
+  dominantColors?: string[];
+  qualityScore?: number;
+  caption?: string;
+  moderationStatus?: string;
+  phash?: string;
 }
 
 // ========== Relationship Types ==========
@@ -286,16 +294,16 @@ export function toNumber(value: any): number {
  */
 export function nodeToObject<T>(node: any): T {
   if (!node || !node.properties) return {} as T;
-  
+
   const result: any = { ...node.properties };
-  
+
   // Convert any Neo4j integers to JavaScript numbers
   for (const key in result) {
     if (result[key]?.toNumber) {
       result[key] = result[key].toNumber();
     }
   }
-  
+
   return result as T;
 }
 

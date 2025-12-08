@@ -343,6 +343,51 @@ Before the demo, verify:
 
 ---
 
+## ✅ POSTGRESQL MONITORING DASHBOARD - COMPLETED (December 8, 2024)
+
+### PostgreSQL Usage Monitoring ✅
+- [x] **Real-time Database Size Display** - Shows current database size with pretty formatting
+- [x] **Storage Progress Bar** - Visual indicator against 512MB Neon free tier limit
+- [x] **Table Breakdown Chart** - Bar chart showing storage per table
+- [x] **Table Details List** - Row counts and sizes for each table
+- [x] **Connection Monitoring** - Active vs max connections display
+- [x] **Database Info Panel** - Version, uptime, plan, region information
+- [x] **Auto-refresh** - 60-second refresh with manual refresh button
+
+### PostgreSQL API Endpoints ✅
+- [x] **Usage Endpoint** - `/api/postgresql/usage` returns current database metrics
+- [x] **Metrics Endpoint** - `/api/postgresql/metrics` for historical data and projections
+- [x] **Table Statistics** - Row counts, sizes from pg_stat_user_tables
+- [x] **Connection Stats** - Active connections from pg_stat_activity
+- [x] **Error Handling** - Graceful fallbacks with try-catch blocks
+
+### Historical Trends Tab ✅
+- [x] **Time Range Selector** - 1H, 12H, 24H, 7D, 30D quick selects
+- [x] **Events Over Time Chart** - Hourly event counts
+- [x] **Daily Growth Rates** - Storage, rows, events, snapshots growth
+- [x] **Record Counts Display** - Current counts by table type
+- [x] **Projections Card** - Days remaining, daily rates
+
+### Dashboard Integration ✅
+- [x] **Main Menu Entry** - PostgreSQL Monitoring added to Dashboard.tsx
+- [x] **Settings Page Stats** - Dynamic PostgreSQL stats in Storage Statistics section
+- [x] **Navigation Links** - "View PostgreSQL Metrics" button from Settings
+- [x] **Route Configuration** - `/dashboard/postgresql` route in App.tsx
+
+---
+
+## ✅ CLOUDINARY BULK DELETE FIX - COMPLETED (December 8, 2024)
+
+### Improved Purge Logic ✅
+- [x] **List-Then-Delete Approach** - Replaced unreliable bulk delete with pagination
+- [x] **Batch Processing** - Lists 500 resources, deletes in batches of 100
+- [x] **Cursor Pagination** - Properly handles next_cursor for full deletion
+- [x] **Time Limit Handling** - Stops before Vercel timeout with 15-second buffer
+- [x] **Detailed Logging** - Progress logs for debugging
+- [x] **Error Collection** - Aggregates errors without stopping process
+
+---
+
 ## ✅ CLOUDINARY MONITORING & THROTTLE - COMPLETED (December 8, 2024)
 
 ### Cloudinary Usage Monitoring ✅
@@ -408,6 +453,9 @@ Before the demo, verify:
 5. **Export Metrics to CSV** - Download historical data for analysis
 6. **Grafana Dashboard** - Create Grafana dashboard using InfluxDB data source
 7. **Webhook Rate Limiting** - Add rate limiting to prevent webhook flooding
+8. **Neo4j Monitoring Dashboard** - Similar to PostgreSQL dashboard for graph database
+9. **Unified Storage Overview** - Combined view of all storage services (PostgreSQL, Neo4j, Cloudinary)
+10. **Automated Cleanup Jobs** - CRON job to purge old data based on retention policy
 
 ---
 
@@ -460,9 +508,106 @@ Before the demo, verify:
 2. Test on target presentation device/projector
 3. Confirm webhook ingestion works end-to-end
 4. Verify database connection handles cold starts
-5. **NEW**: Verify InfluxDB connection and data recording
-6. **NEW**: Test throttle settings persist correctly
-7. **NEW**: Confirm CRON jobs execute on schedule
+5. Verify InfluxDB connection and data recording
+6. Test throttle settings persist correctly
+7. Confirm CRON jobs execute on schedule
+8. **NEW**: Verify PostgreSQL Monitoring dashboard loads correctly
+9. **NEW**: Test Cloudinary bulk delete completes in single run
+10. **NEW**: Confirm Settings page shows dynamic PostgreSQL stats
+
+---
+
+## 📝 SESSION NOTES (December 8, 2024)
+
+### What Was Completed This Session
+
+1. **POLE Analytics - Interactive Graph Visualization** ✅ NEW
+   - Complete rewrite of `client/src/pages/POLEAnalytics.tsx`
+   - **Crime Hierarchy Mock Data Generator**:
+     - 12 People: suspects, victims, witnesses, associates, informants
+     - 8 Objects: vehicles, weapons, electronics, evidence
+     - 6 Locations: crime scenes, safehouses, residences, meeting points
+     - 7 Events: crimes, surveillance, operations, investigations
+     - 37 Relationships: knows, owns, witnessed, suspect_of, victim_of, etc.
+   - **Graph Visualization** using react-force-graph-2d:
+     - Different shapes: circles (people), diamonds (objects), squares (locations), triangles (events)
+     - Color-coded by entity type
+     - Animated particles on relationship lines
+   - **Interactive Features**:
+     - Hover: dims unconnected nodes, highlights relationships
+     - Click: selects entity, shows detail sidebar
+     - Layout toggle: Force-directed, Hierarchical, Radial
+     - Zoom controls: in/out/fit-to-screen
+   - **Detail Sidebar**:
+     - Entity info with badges (risk level, status, role)
+     - List of connections with relationship labels
+     - Navigation buttons: View on Map, View in Topology, View Incident
+   - **Multiple Views**:
+     - Relationship Graph (network visualization)
+     - Timeline (activity chart)
+     - Entity List (searchable card grid)
+   - **URL Parameter Support**: Deep linking with `?incident=`, `?personId=`, `?objectId=`
+
+2. **Incident Management Enhancements** ✅ NEW
+   - Updated `client/src/pages/IncidentManagement.tsx`
+   - **Quick Navigation Section**:
+     - "View on Map" button → GeographicMap with region
+     - "View Topology" button → TopologyGraph with incident ID
+     - "POLE Analysis" button → POLEAnalytics with incident ID
+   - **POLE Entity Display**:
+     - Related People with role/risk badges (suspects, victims, witnesses)
+     - Related Objects with status badges (evidence, recovered, missing)
+     - Related Locations with type badges (crime_scene, residence)
+     - Click-through to POLE Analytics for each entity
+     - "View Full POLE Analysis" button
+   - **Mock POLE Data Generator**:
+     - Generates context-appropriate entities based on incident type
+     - Realistic roles: suspects for robberies, witnesses, etc.
+     - Objects: weapons, vehicles, electronics based on crime type
+
+3. **PostgreSQL Monitoring Dashboard**
+   - Created `api/postgresql/usage.ts` - Database size, tables, connections
+   - Created `api/postgresql/metrics.ts` - Historical metrics with projections
+   - Created `client/src/pages/PostgreSQLMonitoring.tsx` - Full dashboard UI
+   - Added route `/dashboard/postgresql` in App.tsx
+   - Added to main dashboard menu in Dashboard.tsx
+
+4. **Settings Page Enhancement**
+   - Added dynamic PostgreSQL stats (was hardcoded "~250 MB")
+   - Added "View PostgreSQL Metrics" navigation button
+   - Both Cloudinary and PostgreSQL links in grid layout
+   - Refresh button updates both services
+
+5. **Cloudinary Bulk Delete Fix**
+   - Rewrote `purgeCloudinaryImages()` in `api/data/purge-all.ts`
+   - Uses list-then-delete approach instead of unreliable bulk API
+   - Properly paginates with cursor for complete deletion
+   - Handles Vercel time limits gracefully
+
+6. **Bug Fixes**
+   - Fixed `received_at` column error (changed to `"createdAt"`)
+   - Fixed JSX syntax error in Settings.tsx
+   - Added try-catch blocks for resilient queries
+
+### Pending Deployment
+
+The following changes require a **Vercel redeploy** to take effect:
+- PostgreSQL Monitoring dashboard
+- Fixed Cloudinary bulk delete
+- Settings page PostgreSQL stats
+- Historical Trends column fix
+
+### Known Issues
+
+1. **Framer Motion Type Warning** - Pre-existing lint error in App.tsx and Dashboard.tsx
+   - `ease: number[]` type incompatibility with framer-motion types
+   - Does not affect runtime behavior
+   - Low priority fix
+
+2. **Historical Trends Uses Fixed 24H** - Currently hardcoded to 24 hours
+   - Time range selector parsed but not applied to SQL
+   - Avoids SQL injection with dynamic intervals
+   - Future: Use parameterized queries properly
 
 ---
 
@@ -472,4 +617,6 @@ Before the demo, verify:
 *Cloudinary Monitoring Status: COMPLETED*
 *Image Throttle Status: COMPLETED*
 *CRON Management Status: COMPLETED*
+*PostgreSQL Monitoring Status: COMPLETED*
+*Cloudinary Bulk Delete Fix: COMPLETED*
 

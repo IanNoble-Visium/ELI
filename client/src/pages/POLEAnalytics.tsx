@@ -1,16 +1,19 @@
-import { useState, useEffect, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, Car, MapPin, Activity, Camera, Clock, AlertTriangle } from "lucide-react";
-import { motion } from "framer-motion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Users, Car, MapPin, Activity, Camera, Clock, AlertTriangle, Network, ZoomIn, ZoomOut, Maximize2, Map, ExternalLink, Search, X, Package, Calendar } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { format, subDays, subHours } from "date-fns";
+import ForceGraph2D from "react-force-graph-2d";
 
-// Peru regions with real camera locations (used to assign POLE incidents)
+// Peru regions with real camera locations
 const PERU_REGIONS = [
   { name: "Lima", cameras: 850, lat: -12.0464, lng: -77.0428 },
   { name: "Cusco", cameras: 320, lat: -13.5320, lng: -71.9675 },
@@ -21,84 +24,237 @@ const PERU_REGIONS = [
   { name: "Huancayo", cameras: 140, lat: -12.0651, lng: -75.2049 },
 ];
 
-// Generate realistic POLE mock data assigned to real cameras
-const generatePOLEData = () => {
-  const now = new Date();
-  
-  // Generate tracked persons (suspicious individuals on watch lists)
-  const people = Array.from({ length: 12 }, (_, i) => {
-    const region = PERU_REGIONS[Math.floor(Math.random() * PERU_REGIONS.length)];
-    const cameraId = Math.floor(Math.random() * region.cameras) + 1;
-    return {
-      id: `POI-${String(i + 1).padStart(4, "0")}`,
-      name: `Subject ${String.fromCharCode(65 + i)}`, // Person A, B, C, etc.
-      appearances: Math.floor(Math.random() * 50) + 5,
-      locations: Math.floor(Math.random() * 15) + 1,
-      associations: Math.floor(Math.random() * 10),
-      riskLevel: ["high", "medium", "low"][Math.floor(Math.random() * 3)] as "high" | "medium" | "low",
-      region: region.name,
-      lastSeen: format(subHours(now, Math.floor(Math.random() * 72)), "yyyy-MM-dd HH:mm"),
-      camera: `CAM-${region.name.substring(0, 3).toUpperCase()}-${String(cameraId).padStart(4, "0")}`,
-    };
-  });
+// POLE Entity Types for Graph
+type POLEEntityType = "person" | "object" | "location" | "event";
 
-  // Generate tracked vehicles
-  const vehiclePlates = ["ABC-123", "XYZ-789", "DEF-456", "GHI-012", "JKL-345", "MNO-678", "PQR-901", "STU-234"];
-  const vehicleTypes = ["Toyota Corolla", "Honda Civic", "Nissan Sentra", "Hyundai Accent", "Kia Rio", "Suzuki Swift"];
-  
-  const objects = Array.from({ length: 8 }, (_, i) => {
-    const region = PERU_REGIONS[Math.floor(Math.random() * PERU_REGIONS.length)];
-    const cameraId = Math.floor(Math.random() * region.cameras) + 1;
-    return {
-      id: `VEH-${String(i + 1).padStart(4, "0")}`,
-      type: "Vehicle",
-      plate: vehiclePlates[i],
-      description: `${vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)]} - ${vehiclePlates[i]}`,
-      appearances: Math.floor(Math.random() * 40) + 5,
-      locations: Math.floor(Math.random() * 20) + 2,
-      region: region.name,
-      lastSeen: format(subHours(now, Math.floor(Math.random() * 48)), "yyyy-MM-dd HH:mm"),
-      camera: `CAM-${region.name.substring(0, 3).toUpperCase()}-${String(cameraId).padStart(4, "0")}`,
-      flagged: Math.random() > 0.7,
-    };
-  });
+interface POLENode {
+  id: string;
+  name: string;
+  type: POLEEntityType;
+  color: string;
+  val: number;
+  // Additional metadata
+  role?: string;
+  riskLevel?: "high" | "medium" | "low";
+  region?: string;
+  camera?: string;
+  description?: string;
+  timestamp?: string;
+  status?: string;
+  priority?: string;
+  coordinates?: { lat: number; lng: number };
+  x?: number;
+  y?: number;
+  fx?: number | null;
+  fy?: number | null;
+}
 
-  // Generate key locations (based on real camera regions)
-  const locations = PERU_REGIONS.slice(0, 6).map((region, i) => ({
-    id: `LOC-${String(i + 1).padStart(4, "0")}`,
-    name: `${region.name} Central Zone`,
-    region: region.name,
-    cameras: Math.floor(region.cameras * 0.3), // 30% in central zone
-    events: Math.floor(Math.random() * 100) + 20,
-    people: Math.floor(Math.random() * 50) + 10,
-    vehicles: Math.floor(Math.random() * 30) + 5,
-    coordinates: { lat: region.lat, lng: region.lng },
-    riskScore: Math.floor(Math.random() * 100),
-  }));
+interface POLELink {
+  source: string;
+  target: string;
+  type: string;
+  label?: string;
+  value: number;
+}
 
-  // Generate recent POLE events (assigned to real cameras)
-  const eventTypes = ["Intrusion", "Loitering", "Vehicle Match", "Person Match", "Suspicious Activity", "Crowd Formation"];
-  const events = Array.from({ length: 15 }, (_, i) => {
-    const region = PERU_REGIONS[Math.floor(Math.random() * PERU_REGIONS.length)];
-    const cameraId = Math.floor(Math.random() * region.cameras) + 1;
-    const eventTime = subHours(now, Math.floor(Math.random() * 48));
-    return {
-      id: `EVT-${String(i + 1).padStart(4, "0")}`,
-      type: eventTypes[Math.floor(Math.random() * eventTypes.length)],
-      timestamp: format(eventTime, "yyyy-MM-dd HH:mm"),
-      location: region.name,
-      camera: `CAM-${region.name.substring(0, 3).toUpperCase()}-${String(cameraId).padStart(4, "0")}`,
-      people: Math.floor(Math.random() * 5),
-      objects: Math.floor(Math.random() * 3),
-      priority: ["Critical", "High", "Medium", "Low"][Math.floor(Math.random() * 4)],
-      status: ["Open", "Investigating", "Resolved"][Math.floor(Math.random() * 3)],
-    };
-  }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+interface POLEGraphData {
+  nodes: POLENode[];
+  links: POLELink[];
+}
 
-  return { people, objects, locations, events };
+// Relationship types for the crime hierarchy
+const RELATIONSHIP_TYPES = {
+  KNOWS: { label: "Knows", color: "#3B82F6" },
+  WITNESSED: { label: "Witnessed", color: "#10B981" },
+  OWNS: { label: "Owns", color: "#F59E0B" },
+  VISITED: { label: "Visited", color: "#8B5CF6" },
+  INVOLVED_IN: { label: "Involved In", color: "#EF4444" },
+  ASSOCIATED: { label: "Associated", color: "#6B7280" },
+  SUSPECT_OF: { label: "Suspect Of", color: "#DC2626" },
+  VICTIM_OF: { label: "Victim Of", color: "#EA580C" },
+  LOCATED_AT: { label: "Located At", color: "#0891B2" },
+  EVIDENCE_IN: { label: "Evidence In", color: "#7C3AED" },
 };
 
-// Generate timeline data
+// Node colors by type
+const NODE_COLORS = {
+  person: "#3B82F6",    // Blue
+  object: "#F59E0B",    // Orange
+  location: "#8B5CF6",  // Purple
+  event: "#EF4444",     // Red
+};
+
+// Generate comprehensive crime hierarchy mock data
+const generateCrimeHierarchyData = (): POLEGraphData => {
+  const now = new Date();
+  const nodes: POLENode[] = [];
+  const links: POLELink[] = [];
+  
+  // ============ PEOPLE ============
+  const peopleData = [
+    // Suspects
+    { id: "P-001", name: "Carlos Mendoza", role: "suspect", riskLevel: "high" as const, region: "Lima" },
+    { id: "P-002", name: "Miguel Torres", role: "suspect", riskLevel: "high" as const, region: "Lima" },
+    { id: "P-003", name: "Roberto Silva", role: "suspect", riskLevel: "medium" as const, region: "Cusco" },
+    { id: "P-004", name: "Eduardo Vargas", role: "accomplice", riskLevel: "medium" as const, region: "Lima" },
+    // Victims
+    { id: "P-005", name: "Ana Garcia", role: "victim", riskLevel: "low" as const, region: "Lima" },
+    { id: "P-006", name: "Maria Rodriguez", role: "victim", riskLevel: "low" as const, region: "Arequipa" },
+    // Witnesses
+    { id: "P-007", name: "Juan Perez", role: "witness", riskLevel: "low" as const, region: "Lima" },
+    { id: "P-008", name: "Sofia Hernandez", role: "witness", riskLevel: "low" as const, region: "Cusco" },
+    { id: "P-009", name: "Pedro Martinez", role: "witness", riskLevel: "low" as const, region: "Trujillo" },
+    // Known Associates
+    { id: "P-010", name: "Luis Ramirez", role: "associate", riskLevel: "medium" as const, region: "Lima" },
+    { id: "P-011", name: "Diego Flores", role: "associate", riskLevel: "low" as const, region: "Piura" },
+    { id: "P-012", name: "Fernando Castillo", role: "informant", riskLevel: "low" as const, region: "Lima" },
+  ];
+  
+  peopleData.forEach((person) => {
+    const region = PERU_REGIONS.find((r) => r.name === person.region) || PERU_REGIONS[0];
+    nodes.push({
+      id: person.id,
+      name: person.name,
+      type: "person",
+      color: NODE_COLORS.person,
+      val: person.riskLevel === "high" ? 12 : person.riskLevel === "medium" ? 9 : 6,
+      role: person.role,
+      riskLevel: person.riskLevel,
+      region: person.region,
+      camera: `CAM-${region.name.substring(0, 3).toUpperCase()}-${String(Math.floor(Math.random() * region.cameras) + 1).padStart(4, "0")}`,
+    });
+  });
+  
+  // ============ OBJECTS (Evidence, Vehicles, Weapons) ============
+  const objectsData = [
+    { id: "O-001", name: "White Honda Civic", type: "Vehicle", description: "License: ABC-123, suspected getaway car", status: "tracked" },
+    { id: "O-002", name: "Black Toyota Hilux", type: "Vehicle", description: "License: XYZ-789, seen at multiple locations", status: "flagged" },
+    { id: "O-003", name: "9mm Handgun", type: "Weapon", description: "Serial: GN-45892, recovered at scene", status: "evidence" },
+    { id: "O-004", name: "Laptop Dell XPS", type: "Electronics", description: "Contains financial records", status: "evidence" },
+    { id: "O-005", name: "Burner Phone", type: "Electronics", description: "Prepaid phone with SMS history", status: "evidence" },
+    { id: "O-006", name: "Cash Bundle", type: "Currency", description: "~$15,000 in mixed bills", status: "recovered" },
+    { id: "O-007", name: "Black Backpack", type: "Container", description: "Found near crime scene", status: "evidence" },
+    { id: "O-008", name: "Motorcycle Yamaha", type: "Vehicle", description: "License: MNO-456, associated with P-003", status: "tracked" },
+  ];
+  
+  objectsData.forEach((obj) => {
+    nodes.push({
+      id: obj.id,
+      name: obj.name,
+      type: "object",
+      color: NODE_COLORS.object,
+      val: obj.status === "evidence" ? 10 : obj.status === "flagged" ? 8 : 6,
+      description: obj.description,
+      status: obj.status,
+      role: obj.type,
+    });
+  });
+  
+  // ============ LOCATIONS ============
+  const locationsData = [
+    { id: "L-001", name: "Miraflores Bank Branch", type: "crime_scene", region: "Lima", lat: -12.1191, lng: -77.0365 },
+    { id: "L-002", name: "San Isidro Warehouse", type: "safehouse", region: "Lima", lat: -12.0977, lng: -77.0369 },
+    { id: "L-003", name: "Barranco Apartment", type: "residence", region: "Lima", lat: -12.1413, lng: -77.0219 },
+    { id: "L-004", name: "Cusco Central Market", type: "meeting_point", region: "Cusco", lat: -13.5183, lng: -71.9781 },
+    { id: "L-005", name: "Arequipa Bus Terminal", type: "transit", region: "Arequipa", lat: -16.4090, lng: -71.5375 },
+    { id: "L-006", name: "Lima Port District", type: "drop_point", region: "Lima", lat: -12.0556, lng: -77.1429 },
+  ];
+  
+  locationsData.forEach((loc) => {
+    nodes.push({
+      id: loc.id,
+      name: loc.name,
+      type: "location",
+      color: NODE_COLORS.location,
+      val: loc.type === "crime_scene" ? 12 : loc.type === "safehouse" ? 10 : 7,
+      region: loc.region,
+      role: loc.type.replace("_", " "),
+      coordinates: { lat: loc.lat, lng: loc.lng },
+    });
+  });
+  
+  // ============ EVENTS (Incidents, Crimes) ============
+  const eventsData = [
+    { id: "E-001", name: "Armed Robbery", type: "crime", priority: "Critical", status: "Open", timestamp: subHours(now, 6) },
+    { id: "E-002", name: "Suspect Sighting", type: "surveillance", priority: "High", status: "Investigating", timestamp: subHours(now, 12) },
+    { id: "E-003", name: "Vehicle Pursuit", type: "incident", priority: "High", status: "Resolved", timestamp: subHours(now, 24) },
+    { id: "E-004", name: "Evidence Recovery", type: "operation", priority: "Medium", status: "Resolved", timestamp: subHours(now, 36) },
+    { id: "E-005", name: "Witness Interview", type: "investigation", priority: "Medium", status: "Open", timestamp: subHours(now, 8) },
+    { id: "E-006", name: "Safe House Raid", type: "operation", priority: "Critical", status: "Investigating", timestamp: subHours(now, 4) },
+    { id: "E-007", name: "Money Transfer", type: "financial", priority: "High", status: "Investigating", timestamp: subHours(now, 48) },
+  ];
+  
+  eventsData.forEach((evt) => {
+    nodes.push({
+      id: evt.id,
+      name: evt.name,
+      type: "event",
+      color: NODE_COLORS.event,
+      val: evt.priority === "Critical" ? 14 : evt.priority === "High" ? 11 : 8,
+      role: evt.type,
+      priority: evt.priority,
+      status: evt.status,
+      timestamp: format(evt.timestamp, "yyyy-MM-dd HH:mm"),
+    });
+  });
+  
+  // ============ RELATIONSHIPS / LINKS ============
+  
+  // People relationships
+  links.push({ source: "P-001", target: "P-002", type: "KNOWS", label: "Associates", value: 3 });
+  links.push({ source: "P-001", target: "P-004", type: "KNOWS", label: "Accomplice", value: 3 });
+  links.push({ source: "P-002", target: "P-003", type: "KNOWS", label: "Contact", value: 2 });
+  links.push({ source: "P-010", target: "P-001", type: "ASSOCIATED", label: "Known associate", value: 2 });
+  links.push({ source: "P-010", target: "P-011", type: "KNOWS", label: "Friends", value: 1 });
+  links.push({ source: "P-012", target: "P-002", type: "ASSOCIATED", label: "Informant on", value: 2 });
+  
+  // People -> Events (involvement)
+  links.push({ source: "P-001", target: "E-001", type: "SUSPECT_OF", label: "Primary suspect", value: 4 });
+  links.push({ source: "P-002", target: "E-001", type: "SUSPECT_OF", label: "Accomplice", value: 3 });
+  links.push({ source: "P-005", target: "E-001", type: "VICTIM_OF", label: "Victim", value: 3 });
+  links.push({ source: "P-007", target: "E-001", type: "WITNESSED", label: "Eyewitness", value: 2 });
+  links.push({ source: "P-003", target: "E-003", type: "INVOLVED_IN", label: "Suspect", value: 3 });
+  links.push({ source: "P-008", target: "E-002", type: "WITNESSED", label: "Reported sighting", value: 2 });
+  links.push({ source: "P-006", target: "E-007", type: "VICTIM_OF", label: "Fraud victim", value: 2 });
+  
+  // People -> Objects (ownership/possession)
+  links.push({ source: "P-001", target: "O-001", type: "OWNS", label: "Registered owner", value: 3 });
+  links.push({ source: "P-002", target: "O-002", type: "OWNS", label: "Associated vehicle", value: 2 });
+  links.push({ source: "P-003", target: "O-008", type: "OWNS", label: "Owner", value: 2 });
+  links.push({ source: "P-004", target: "O-005", type: "OWNS", label: "Possession", value: 2 });
+  links.push({ source: "P-001", target: "O-003", type: "ASSOCIATED", label: "Linked to", value: 3 });
+  
+  // People -> Locations (visits/residence)
+  links.push({ source: "P-001", target: "L-002", type: "VISITED", label: "Frequents", value: 3 });
+  links.push({ source: "P-001", target: "L-003", type: "VISITED", label: "Residence", value: 2 });
+  links.push({ source: "P-002", target: "L-002", type: "VISITED", label: "Seen at", value: 2 });
+  links.push({ source: "P-003", target: "L-004", type: "VISITED", label: "Meeting", value: 2 });
+  links.push({ source: "P-004", target: "L-006", type: "VISITED", label: "Drop-off", value: 2 });
+  links.push({ source: "P-010", target: "L-003", type: "VISITED", label: "Visitor", value: 1 });
+  
+  // Objects -> Events (evidence)
+  links.push({ source: "O-001", target: "E-001", type: "EVIDENCE_IN", label: "Getaway car", value: 4 });
+  links.push({ source: "O-003", target: "E-001", type: "EVIDENCE_IN", label: "Weapon used", value: 4 });
+  links.push({ source: "O-007", target: "E-001", type: "EVIDENCE_IN", label: "Found at scene", value: 3 });
+  links.push({ source: "O-002", target: "E-003", type: "INVOLVED_IN", label: "Pursuit vehicle", value: 3 });
+  links.push({ source: "O-004", target: "E-004", type: "EVIDENCE_IN", label: "Recovered", value: 3 });
+  links.push({ source: "O-006", target: "E-007", type: "EVIDENCE_IN", label: "Seized funds", value: 3 });
+  
+  // Objects -> Locations
+  links.push({ source: "O-001", target: "L-001", type: "LOCATED_AT", label: "Seen at", value: 2 });
+  links.push({ source: "O-007", target: "L-001", type: "LOCATED_AT", label: "Found at", value: 2 });
+  links.push({ source: "O-004", target: "L-002", type: "LOCATED_AT", label: "Recovered from", value: 2 });
+  
+  // Events -> Locations
+  links.push({ source: "E-001", target: "L-001", type: "LOCATED_AT", label: "Crime scene", value: 4 });
+  links.push({ source: "E-006", target: "L-002", type: "LOCATED_AT", label: "Raid location", value: 3 });
+  links.push({ source: "E-003", target: "L-005", type: "LOCATED_AT", label: "Pursuit ended", value: 2 });
+  links.push({ source: "E-002", target: "L-004", type: "LOCATED_AT", label: "Sighting location", value: 2 });
+  
+  return { nodes, links };
+};
+
+// Generate timeline data for charts
 const generateTimelineData = () => {
   const data = [];
   const now = new Date();
@@ -114,15 +270,44 @@ const generateTimelineData = () => {
   return data;
 };
 
+type LayoutType = "force" | "hierarchical" | "radial";
+
 export default function POLEAnalytics() {
   const [, setLocation] = useLocation();
-  const [selectedEntity, setSelectedEntity] = useState<any>(null);
+  const searchString = useSearch();
+  const [selectedNode, setSelectedNode] = useState<POLENode | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<POLENode | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("graph");
+  const [layout, setLayout] = useState<LayoutType>("force");
+  const [searchQuery, setSearchQuery] = useState("");
+  const graphRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   
-  // Generate POLE data (memoized to prevent regeneration on re-renders)
-  const poleData = useMemo(() => generatePOLEData(), []);
+  // Generate POLE data (memoized)
+  const graphData = useMemo(() => generateCrimeHierarchyData(), []);
   const timelineData = useMemo(() => generateTimelineData(), []);
-
+  
+  // Parse URL parameters for deep linking
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const incidentId = params.get("incident");
+    const personId = params.get("personId");
+    const objectId = params.get("objectId");
+    
+    // If we have a specific entity to highlight, find and select it
+    const entityId = personId || objectId || incidentId;
+    if (entityId && graphData.nodes.length > 0) {
+      const node = graphData.nodes.find((n) => n.id === entityId || n.id.includes(entityId));
+      if (node) {
+        setSelectedNode(node);
+        // Switch to graph view to show the entity
+        setActiveTab("graph");
+      }
+    }
+  }, [searchString, graphData.nodes]);
+  
   // Simulate loading
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -130,15 +315,290 @@ export default function POLEAnalytics() {
     }, 800);
     return () => clearTimeout(timer);
   }, []);
-
-  // Pattern recognition stats
-  const patternData = [
-    { pattern: "Repeat Offenders", count: poleData.people.filter(p => p.appearances > 20).length, trend: "up" as const },
-    { pattern: "Vehicle Associations", count: poleData.objects.filter(o => o.flagged).length, trend: "up" as const },
-    { pattern: "High-Risk Zones", count: poleData.locations.filter(l => l.riskScore > 70).length, trend: "stable" as const },
-    { pattern: "Active Cases", count: poleData.events.filter(e => e.status !== "Resolved").length, trend: "down" as const },
-  ];
-
+  
+  // Track container dimensions
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setDimensions({
+          width: Math.max(100, rect.width),
+          height: Math.max(100, rect.height),
+        });
+      }
+    };
+    
+    updateDimensions();
+    const resizeObserver = new ResizeObserver(updateDimensions);
+    resizeObserver.observe(containerRef.current);
+    window.addEventListener("resize", updateDimensions);
+    
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateDimensions);
+    };
+  }, [activeTab]);
+  
+  // Get connected nodes for hover highlighting
+  const getConnectedNodes = useCallback((nodeId: string) => {
+    const connected = new Set<string>();
+    connected.add(nodeId);
+    graphData.links.forEach((link) => {
+      const sourceId = typeof link.source === "string" ? link.source : (link.source as any).id;
+      const targetId = typeof link.target === "string" ? link.target : (link.target as any).id;
+      if (sourceId === nodeId) connected.add(targetId);
+      if (targetId === nodeId) connected.add(sourceId);
+    });
+    return connected;
+  }, [graphData.links]);
+  
+  // Handle node click
+  const handleNodeClick = useCallback((node: any) => {
+    setSelectedNode(node);
+    if (graphRef.current?.centerAt) {
+      graphRef.current.centerAt(node.x, node.y, 1000);
+      if (graphRef.current.zoom) {
+        graphRef.current.zoom(2, 1000);
+      }
+    }
+  }, []);
+  
+  // Handle node hover
+  const handleNodeHover = useCallback((node: any) => {
+    setHoveredNode(node || null);
+  }, []);
+  
+  // Zoom controls
+  const handleZoomIn = () => {
+    if (graphRef.current?.zoom) {
+      const currentZoom = graphRef.current.zoom();
+      graphRef.current.zoom(currentZoom * 1.5, 500);
+    }
+  };
+  
+  const handleZoomOut = () => {
+    if (graphRef.current?.zoom) {
+      const currentZoom = graphRef.current.zoom();
+      graphRef.current.zoom(currentZoom / 1.5, 500);
+    }
+  };
+  
+  const handleZoomToFit = () => {
+    graphRef.current?.zoomToFit(500, 50);
+  };
+  
+  // Apply layout
+  useEffect(() => {
+    if (!graphRef.current || graphData.nodes.length === 0 || layout === "force") return;
+    
+    const centerX = dimensions.width / 2;
+    const centerY = dimensions.height / 2;
+    const radius = Math.min(dimensions.width, dimensions.height) * 0.35;
+    
+    graphData.nodes.forEach((node, index) => {
+      if (layout === "hierarchical") {
+        // Arrange by type in layers
+        const typeOrder: Record<POLEEntityType, number> = {
+          event: 0,
+          person: 1,
+          object: 2,
+          location: 3,
+        };
+        const layer = typeOrder[node.type] ?? 2;
+        const nodesInLayer = graphData.nodes.filter((n) => n.type === node.type);
+        const indexInLayer = nodesInLayer.indexOf(node);
+        const layerWidth = dimensions.width * 0.85;
+        const spacing = layerWidth / Math.max(nodesInLayer.length, 1);
+        
+        node.fx = (dimensions.width * 0.075) + (indexInLayer + 0.5) * spacing;
+        node.fy = 80 + layer * (dimensions.height - 160) / 3;
+      } else if (layout === "radial") {
+        // Arrange in concentric circles by type
+        const typeRadius: Record<POLEEntityType, number> = {
+          event: 0.2,
+          person: 0.5,
+          object: 0.75,
+          location: 0.95,
+        };
+        const nodeRadius = (typeRadius[node.type] ?? 0.5) * radius;
+        const nodesOfType = graphData.nodes.filter((n) => n.type === node.type);
+        const indexOfType = nodesOfType.indexOf(node);
+        const angleStep = (2 * Math.PI) / Math.max(nodesOfType.length, 1);
+        const angle = indexOfType * angleStep - Math.PI / 2;
+        
+        node.fx = centerX + Math.cos(angle) * nodeRadius;
+        node.fy = centerY + Math.sin(angle) * nodeRadius;
+      }
+    });
+    
+    graphRef.current?.refresh?.();
+  }, [layout, graphData.nodes, dimensions]);
+  
+  // Clear fixed positions when switching to force layout
+  useEffect(() => {
+    if (layout === "force") {
+      graphData.nodes.forEach((node) => {
+        node.fx = null;
+        node.fy = null;
+      });
+      graphRef.current?.d3ReheatSimulation?.();
+    }
+  }, [layout, graphData.nodes]);
+  
+  // Custom node rendering
+  const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    const x = node.x;
+    const y = node.y;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    
+    const label = node.name || "";
+    const fontSize = 11 / globalScale;
+    const nodeRadius = Math.max(3, node.val || 8);
+    const nodeColor = node.color || "#888888";
+    
+    // Check if this node is connected to hovered node
+    const connectedNodes = hoveredNode ? getConnectedNodes(hoveredNode.id) : new Set<string>();
+    const isConnected = hoveredNode ? connectedNodes.has(node.id) : true;
+    const isSelected = selectedNode?.id === node.id;
+    const isHovered = hoveredNode?.id === node.id;
+    
+    // Dim non-connected nodes when hovering
+    const alpha = hoveredNode && !isConnected ? 0.2 : 1;
+    
+    // Draw outer glow for selected or hovered nodes
+    if (isSelected || isHovered) {
+      ctx.beginPath();
+      ctx.arc(x, y, nodeRadius + 6, 0, 2 * Math.PI, false);
+      ctx.fillStyle = `${nodeColor}40`;
+      ctx.fill();
+      
+      // Pulsing ring
+      const pulseRadius = nodeRadius + 10 + Math.sin(Date.now() / 200) * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, pulseRadius, 0, 2 * Math.PI, false);
+      ctx.strokeStyle = `${nodeColor}60`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    
+    // Draw node shadow
+    ctx.globalAlpha = alpha * 0.3;
+    ctx.beginPath();
+    ctx.arc(x + 1, y + 1, nodeRadius, 0, 2 * Math.PI, false);
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fill();
+    ctx.globalAlpha = alpha;
+    
+    // Draw node based on type
+    ctx.beginPath();
+    
+    // Different shapes for different types
+    if (node.type === "person") {
+      // Circle for people
+      ctx.arc(x, y, nodeRadius, 0, 2 * Math.PI, false);
+    } else if (node.type === "object") {
+      // Diamond for objects
+      ctx.moveTo(x, y - nodeRadius);
+      ctx.lineTo(x + nodeRadius, y);
+      ctx.lineTo(x, y + nodeRadius);
+      ctx.lineTo(x - nodeRadius, y);
+      ctx.closePath();
+    } else if (node.type === "location") {
+      // Square for locations
+      ctx.rect(x - nodeRadius, y - nodeRadius, nodeRadius * 2, nodeRadius * 2);
+    } else if (node.type === "event") {
+      // Triangle for events
+      ctx.moveTo(x, y - nodeRadius);
+      ctx.lineTo(x + nodeRadius, y + nodeRadius * 0.7);
+      ctx.lineTo(x - nodeRadius, y + nodeRadius * 0.7);
+      ctx.closePath();
+    }
+    
+    // Fill with gradient
+    try {
+      const gradient = ctx.createRadialGradient(
+        x - nodeRadius / 3,
+        y - nodeRadius / 3,
+        0,
+        x,
+        y,
+        nodeRadius
+      );
+      gradient.addColorStop(0, nodeColor);
+      gradient.addColorStop(1, `${nodeColor}CC`);
+      ctx.fillStyle = gradient;
+    } catch {
+      ctx.fillStyle = nodeColor;
+    }
+    ctx.fill();
+    
+    // Border
+    ctx.strokeStyle = isSelected ? "#ffffff" : "#ffffff60";
+    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.stroke();
+    
+    // Draw label
+    if (globalScale > 0.6 && label) {
+      ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      
+      const textWidth = ctx.measureText(label).width;
+      const padding = 4;
+      const textY = y + nodeRadius + fontSize + 4;
+      
+      // Label background
+      ctx.fillStyle = `rgba(31, 41, 55, ${alpha * 0.9})`;
+      ctx.fillRect(
+        x - textWidth / 2 - padding,
+        textY - fontSize / 2 - padding / 2,
+        textWidth + padding * 2,
+        fontSize + padding
+      );
+      
+      // Label text
+      ctx.fillStyle = `rgba(249, 250, 251, ${alpha})`;
+      ctx.fillText(label, x, textY);
+    }
+    
+    ctx.globalAlpha = 1;
+  }, [hoveredNode, selectedNode, getConnectedNodes]);
+  
+  // Link rendering with hover effects
+  const linkColor = useCallback((link: any) => {
+    if (!hoveredNode) return "#4B556360";
+    
+    const sourceId = typeof link.source === "string" ? link.source : link.source?.id;
+    const targetId = typeof link.target === "string" ? link.target : link.target?.id;
+    
+    if (sourceId === hoveredNode.id || targetId === hoveredNode.id) {
+      const relType = link.type as keyof typeof RELATIONSHIP_TYPES;
+      return RELATIONSHIP_TYPES[relType]?.color || "#4B5563";
+    }
+    
+    return "#4B556320";
+  }, [hoveredNode]);
+  
+  // Stats
+  const stats = {
+    people: graphData.nodes.filter((n) => n.type === "person").length,
+    objects: graphData.nodes.filter((n) => n.type === "object").length,
+    locations: graphData.nodes.filter((n) => n.type === "location").length,
+    events: graphData.nodes.filter((n) => n.type === "event").length,
+    highRisk: graphData.nodes.filter((n) => n.riskLevel === "high").length,
+    links: graphData.links.length,
+  };
+  
+  // Filtered nodes for search
+  const filteredNodes = searchQuery
+    ? graphData.nodes.filter((n) =>
+        n.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        n.id.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : graphData.nodes;
+  
   const getRiskColor = (level: string) => {
     const colors: Record<string, string> = {
       high: "bg-red-500",
@@ -151,14 +611,27 @@ export default function POLEAnalytics() {
     };
     return colors[level] || "bg-gray-500";
   };
-
+  
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       Open: "bg-red-500",
       Investigating: "bg-yellow-500",
       Resolved: "bg-green-500",
+      evidence: "bg-purple-500",
+      flagged: "bg-red-500",
+      tracked: "bg-blue-500",
+      recovered: "bg-green-500",
     };
     return colors[status] || "bg-gray-500";
+  };
+  
+  const getTypeIcon = (type: POLEEntityType) => {
+    switch (type) {
+      case "person": return <Users className="w-4 h-4" />;
+      case "object": return <Package className="w-4 h-4" />;
+      case "location": return <MapPin className="w-4 h-4" />;
+      case "event": return <Calendar className="w-4 h-4" />;
+    }
   };
 
   return (
@@ -178,376 +651,457 @@ export default function POLEAnalytics() {
             <div>
               <h1 className="text-xl font-bold">POLE Analytics</h1>
               <p className="text-xs text-muted-foreground">
-                People, Objects, Locations, Events • Demo data on real camera network
+                People, Objects, Locations, Events • Crime Network Analysis
               </p>
             </div>
           </div>
-          <Badge variant="outline" className="text-xs">
-            <AlertTriangle className="w-3 h-3 mr-1" />
-            Simulated Crime Data
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              <Network className="w-3 h-3 mr-1" />
+              {stats.people + stats.objects + stats.locations + stats.events} Entities
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              <AlertTriangle className="w-3 h-3 mr-1 text-red-500" />
+              {stats.highRisk} High Risk
+            </Badge>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container py-8 space-y-8">
-        {isLoading ? (
-          // Loading skeleton
-          <>
-            {/* Stats Skeleton */}
-            <div className="grid md:grid-cols-4 gap-6">
-              {[1, 2, 3, 4].map((i) => (
-                <Card key={i}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="h-4 w-4" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-8 w-12 mb-1" />
-                    <Skeleton className="h-3 w-20" />
-                  </CardContent>
-                </Card>
-              ))}
+      <div className="flex h-[calc(100vh-4rem)]">
+        {/* Main Area */}
+        <div className="flex-1 flex flex-col">
+          {/* Stats Bar */}
+          <div className="border-b border-border bg-card/30 p-4">
+            <div className="grid grid-cols-6 gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_COLORS.person }} />
+                <span className="text-sm">People: {stats.people}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rotate-45" style={{ backgroundColor: NODE_COLORS.object }} />
+                <span className="text-sm">Objects: {stats.objects}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3" style={{ backgroundColor: NODE_COLORS.location }} />
+                <span className="text-sm">Locations: {stats.locations}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-b-[10px] border-l-transparent border-r-transparent" style={{ borderBottomColor: NODE_COLORS.event }} />
+                <span className="text-sm">Events: {stats.events}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Links: {stats.links}</span>
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <Select value={layout} onValueChange={(v) => setLayout(v as LayoutType)}>
+                  <SelectTrigger className="w-[150px] h-8">
+                    <SelectValue placeholder="Layout" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="force">Force-Directed</SelectItem>
+                    <SelectItem value="hierarchical">Hierarchical</SelectItem>
+                    <SelectItem value="radial">Radial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-
-            {/* Chart Skeleton */}
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-5 w-36" />
-                <Skeleton className="h-4 w-56" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-[300px] w-full rounded-lg" />
-              </CardContent>
-            </Card>
-
-            {/* Tabs Skeleton */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex gap-2 mb-6">
-                  {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-9 w-24 rounded" />
-                  ))}
+          </div>
+          
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+            <div className="border-b border-border px-4">
+              <TabsList className="h-10">
+                <TabsTrigger value="graph" className="gap-2">
+                  <Network className="w-4 h-4" />
+                  Relationship Graph
+                </TabsTrigger>
+                <TabsTrigger value="timeline" className="gap-2">
+                  <Activity className="w-4 h-4" />
+                  Timeline
+                </TabsTrigger>
+                <TabsTrigger value="list" className="gap-2">
+                  <Users className="w-4 h-4" />
+                  Entity List
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            
+            <TabsContent value="graph" className="flex-1 m-0 relative">
+              {isLoading ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur z-10">
+                  <div className="relative w-72 h-72 mb-6">
+                    <Skeleton className="absolute inset-0 rounded-full opacity-20" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-primary/60 rounded-full animate-pulse" />
+                    <div className="absolute top-1/4 left-1/4 w-6 h-6 bg-blue-500/60 rounded-full animate-pulse" style={{ animationDelay: "0.1s" }} />
+                    <div className="absolute top-1/4 right-1/4 w-6 h-6 bg-orange-500/60 rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
+                    <div className="absolute bottom-1/4 left-1/4 w-6 h-6 bg-purple-500/60 rounded-full animate-pulse" style={{ animationDelay: "0.3s" }} />
+                    <div className="absolute bottom-1/4 right-1/4 w-6 h-6 bg-red-500/60 rounded-full animate-pulse" style={{ animationDelay: "0.4s" }} />
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Network className="w-5 h-5 animate-pulse" />
+                    <span className="text-sm font-medium">Building crime network graph...</span>
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Skeleton className="w-2 h-2 rounded-full" />
-                        <div>
-                          <Skeleton className="h-4 w-24 mb-1" />
-                          <Skeleton className="h-3 w-40" />
-                        </div>
+              ) : (
+                <div ref={containerRef} className="absolute inset-0 bg-card/30">
+                  <ForceGraph2D
+                    ref={graphRef}
+                    graphData={graphData}
+                    width={dimensions.width}
+                    height={dimensions.height}
+                    nodeLabel=""
+                    nodeColor="color"
+                    nodeVal="val"
+                    linkDirectionalParticles={2}
+                    linkDirectionalParticleSpeed={0.003}
+                    linkDirectionalParticleWidth={2}
+                    linkColor={linkColor}
+                    linkWidth={(link: any) => {
+                      if (!hoveredNode) return 1;
+                      const sourceId = typeof link.source === "string" ? link.source : link.source?.id;
+                      const targetId = typeof link.target === "string" ? link.target : link.target?.id;
+                      if (sourceId === hoveredNode.id || targetId === hoveredNode.id) return 3;
+                      return 0.5;
+                    }}
+                    onNodeClick={handleNodeClick}
+                    onNodeHover={handleNodeHover}
+                    backgroundColor="#1F2937"
+                    cooldownTicks={layout === "force" ? 100 : 0}
+                    warmupTicks={layout === "force" ? 100 : 0}
+                    onEngineStop={() => {
+                      if (layout === "force") {
+                        graphRef.current?.zoomToFit(400, 50);
+                      }
+                    }}
+                    nodeCanvasObject={nodeCanvasObject}
+                    nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+                      const x = node.x;
+                      const y = node.y;
+                      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+                      ctx.fillStyle = color;
+                      ctx.beginPath();
+                      ctx.arc(x, y, node.val || 8, 0, 2 * Math.PI, false);
+                      ctx.fill();
+                    }}
+                  />
+                  
+                  {/* Zoom Controls */}
+                  <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+                    <Button variant="outline" size="icon" onClick={handleZoomIn} className="bg-card/80 backdrop-blur">
+                      <ZoomIn className="w-4 h-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={handleZoomOut} className="bg-card/80 backdrop-blur">
+                      <ZoomOut className="w-4 h-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={handleZoomToFit} className="bg-card/80 backdrop-blur">
+                      <Maximize2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  
+                  {/* Legend */}
+                  <div className="absolute bottom-4 left-4 bg-card/90 backdrop-blur rounded-lg p-3 border border-border">
+                    <div className="text-xs font-semibold mb-2">Legend</div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_COLORS.person }} />
+                        <span>Person</span>
                       </div>
-                      <Skeleton className="h-5 w-16 rounded-full" />
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-3 h-3 rotate-45" style={{ backgroundColor: NODE_COLORS.object }} />
+                        <span>Object</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-3 h-3" style={{ backgroundColor: NODE_COLORS.location }} />
+                        <span>Location</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[8px] border-l-transparent border-r-transparent" style={{ borderBottomColor: NODE_COLORS.event }} />
+                        <span>Event</span>
+                      </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </>
-        ) : (
-        <>
-        {/* Stats Overview */}
-        <div className="grid md:grid-cols-4 gap-6">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0, duration: 0.4 }}>
-            <Card className="hover:border-primary/50 transition-all">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">People of Interest</CardTitle>
-                <Users className="w-4 h-4 text-blue-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{poleData.people.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {poleData.people.filter(p => p.riskLevel === "high").length} high-risk
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}>
-            <Card className="hover:border-primary/50 transition-all">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Tracked Vehicles</CardTitle>
-                <Car className="w-4 h-4 text-orange-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{poleData.objects.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {poleData.objects.filter(o => o.flagged).length} flagged
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }}>
-            <Card className="hover:border-primary/50 transition-all">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Watch Zones</CardTitle>
-                <MapPin className="w-4 h-4 text-purple-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{poleData.locations.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {poleData.locations.reduce((a, b) => a + b.cameras, 0)} cameras
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.4 }}>
-            <Card className="hover:border-primary/50 transition-all">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Cases</CardTitle>
-                <Activity className="w-4 h-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{poleData.events.filter(e => e.status !== "Resolved").length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {poleData.events.filter(e => e.priority === "Critical").length} critical
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Timeline Chart */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.4 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity Timeline</CardTitle>
-              <CardDescription>POLE entity activity over the last 7 days</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={timelineData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="date" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
-                  <Tooltip contentStyle={{ backgroundColor: "#374151", border: "1px solid #4B5563" }} labelStyle={{ color: "#F9FAFB" }} />
-                  <Legend />
-                  <Line type="monotone" dataKey="people" stroke="#3B82F6" strokeWidth={2} name="People" />
-                  <Line type="monotone" dataKey="objects" stroke="#F59E0B" strokeWidth={2} name="Vehicles" />
-                  <Line type="monotone" dataKey="events" stroke="#D91023" strokeWidth={2} name="Events" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* POLE Tabs */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.4 }}>
-          <Tabs defaultValue="people" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="people">People ({poleData.people.length})</TabsTrigger>
-              <TabsTrigger value="objects">Vehicles ({poleData.objects.length})</TabsTrigger>
-              <TabsTrigger value="locations">Zones ({poleData.locations.length})</TabsTrigger>
-              <TabsTrigger value="events">Events ({poleData.events.length})</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="people" className="space-y-4">
+              )}
+            </TabsContent>
+            
+            <TabsContent value="timeline" className="flex-1 m-0 p-6 overflow-auto">
               <Card>
                 <CardHeader>
-                  <CardTitle>People of Interest</CardTitle>
-                  <CardDescription>Individuals on watch lists detected by surveillance cameras</CardDescription>
+                  <CardTitle>Activity Timeline</CardTitle>
+                  <CardDescription>POLE entity activity over the last 7 days</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {poleData.people.map((person) => (
-                      <div
-                        key={person.id}
-                        className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/50 cursor-pointer transition-all"
-                        onClick={() => setSelectedEntity(person)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${getRiskColor(person.riskLevel)}`} />
-                          <div>
-                            <div className="font-semibold">{person.name}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                              <span>{person.id}</span>
-                              <span>•</span>
-                              <Camera className="w-3 h-3" />
-                              <span>{person.camera}</span>
-                              <span>•</span>
-                              <span>{person.region}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-sm text-right">
-                            <div>{person.appearances} sightings</div>
-                            <div className="text-xs text-muted-foreground">{person.locations} locations</div>
-                          </div>
-                          <Badge className={`${getRiskColor(person.riskLevel)} text-white`}>
-                            {person.riskLevel}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={timelineData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="date" stroke="#9CA3AF" />
+                      <YAxis stroke="#9CA3AF" />
+                      <Tooltip contentStyle={{ backgroundColor: "#374151", border: "1px solid #4B5563" }} labelStyle={{ color: "#F9FAFB" }} />
+                      <Legend />
+                      <Line type="monotone" dataKey="people" stroke={NODE_COLORS.person} strokeWidth={2} name="People" />
+                      <Line type="monotone" dataKey="objects" stroke={NODE_COLORS.object} strokeWidth={2} name="Objects" />
+                      <Line type="monotone" dataKey="events" stroke={NODE_COLORS.event} strokeWidth={2} name="Events" />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </CardContent>
               </Card>
             </TabsContent>
-
-            <TabsContent value="objects" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Tracked Vehicles</CardTitle>
-                  <CardDescription>Vehicles on watch lists detected by license plate recognition</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {poleData.objects.map((object) => (
-                      <div
-                        key={object.id}
-                        className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/50 cursor-pointer transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          {object.flagged && <AlertTriangle className="w-4 h-4 text-red-500" />}
-                          <div>
-                            <div className="font-semibold">{object.description}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                              <span>{object.id}</span>
-                              <span>•</span>
-                              <Camera className="w-3 h-3" />
-                              <span>{object.camera}</span>
-                              <span>•</span>
-                              <span>{object.region}</span>
-                            </div>
+            
+            <TabsContent value="list" className="flex-1 m-0 p-6 overflow-auto">
+              <div className="space-y-4">
+                {/* Search */}
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search entities..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                {/* Entity Grid */}
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredNodes.map((node) => (
+                    <Card
+                      key={node.id}
+                      className={`cursor-pointer hover:border-primary/50 transition-all ${selectedNode?.id === node.id ? "border-primary" : ""}`}
+                      onClick={() => {
+                        setSelectedNode(node);
+                        setActiveTab("graph");
+                      }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: NODE_COLORS[node.type] }}
+                            />
+                            <span className="font-medium">{node.name}</span>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-sm text-right">
-                            <div>{object.appearances} sightings</div>
-                            <div className="text-xs text-muted-foreground">{object.locations} locations</div>
-                          </div>
-                          {object.flagged && (
-                            <Badge className="bg-red-500 text-white">Flagged</Badge>
+                          {node.riskLevel && (
+                            <Badge className={`${getRiskColor(node.riskLevel)} text-white text-xs`}>
+                              {node.riskLevel}
+                            </Badge>
+                          )}
+                          {node.status && (
+                            <Badge className={`${getStatusColor(node.status)} text-white text-xs`}>
+                              {node.status}
+                            </Badge>
                           )}
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="locations" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Watch Zones</CardTitle>
-                  <CardDescription>High-priority surveillance zones with camera coverage</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {poleData.locations.map((location) => (
-                      <div
-                        key={location.id}
-                        className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/50 cursor-pointer transition-all"
-                      >
-                        <div>
-                          <div className="font-semibold">{location.name}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-2">
-                            <span>{location.id}</span>
-                            <span>•</span>
-                            <Camera className="w-3 h-3" />
-                            <span>{location.cameras} cameras</span>
-                            <span>•</span>
-                            <span>Risk: {location.riskScore}%</span>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <div className="flex items-center gap-1">
+                            {getTypeIcon(node.type)}
+                            <span className="capitalize">{node.type}</span>
+                            {node.role && <span>• {node.role}</span>}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <div className="text-center">
-                            <div className="font-semibold">{location.events}</div>
-                            <div className="text-xs text-muted-foreground">Events</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="font-semibold">{location.people}</div>
-                            <div className="text-xs text-muted-foreground">People</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="font-semibold">{location.vehicles}</div>
-                            <div className="text-xs text-muted-foreground">Vehicles</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="events" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Events</CardTitle>
-                  <CardDescription>Latest POLE-related incidents from surveillance network</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {poleData.events.map((event) => (
-                      <div
-                        key={event.id}
-                        className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/50 cursor-pointer transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${getRiskColor(event.priority)}`} />
-                          <div>
-                            <div className="font-semibold">{event.type}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                              <Camera className="w-3 h-3" />
-                              <span>{event.camera}</span>
-                              <span>•</span>
-                              <span>{event.location}</span>
-                              <span>•</span>
-                              <Clock className="w-3 h-3" />
-                              <span>{event.timestamp}</span>
+                          {node.region && (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {node.region}
                             </div>
-                          </div>
+                          )}
+                          {node.description && (
+                            <div className="truncate">{node.description}</div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-sm text-right">
-                            <div>{event.people} people, {event.objects} vehicles</div>
-                          </div>
-                          <Badge className={`${getStatusColor(event.status)} text-white`}>
-                            {event.status}
-                          </Badge>
-                          <Badge variant="outline">{event.priority}</Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
-        </motion.div>
-
-        {/* Pattern Recognition */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.4 }}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Pattern Recognition</CardTitle>
-              <CardDescription>AI-identified patterns and intelligence insights</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {patternData.map((pattern) => (
-                  <div key={pattern.pattern} className="p-4 border border-border rounded-lg hover:border-primary/50 transition-all">
-                    <div className="text-2xl font-bold mb-1">{pattern.count}</div>
-                    <div className="text-sm text-muted-foreground mb-2">{pattern.pattern}</div>
-                    <Badge variant={pattern.trend === "up" ? "default" : pattern.trend === "down" ? "destructive" : "secondary"}>
-                      {pattern.trend === "up" ? "↑ Increasing" : pattern.trend === "down" ? "↓ Decreasing" : "→ Stable"}
-                    </Badge>
+        </div>
+        
+        {/* Detail Sidebar */}
+        <AnimatePresence>
+          {selectedNode && (
+            <motion.div
+              initial={{ x: 320, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 320, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="w-80 border-l border-border bg-card/50 backdrop-blur overflow-y-auto"
+            >
+              <div className="p-4 space-y-4">
+                {/* Header */}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: NODE_COLORS[selectedNode.type] }}
+                      />
+                      <span className="text-xs text-muted-foreground uppercase">{selectedNode.type}</span>
+                    </div>
+                    <h3 className="text-lg font-bold">{selectedNode.name}</h3>
+                    <p className="text-sm text-muted-foreground">{selectedNode.id}</p>
                   </div>
-                ))}
+                  <Button variant="ghost" size="icon" onClick={() => setSelectedNode(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                {/* Badges */}
+                <div className="flex flex-wrap gap-2">
+                  {selectedNode.riskLevel && (
+                    <Badge className={`${getRiskColor(selectedNode.riskLevel)} text-white`}>
+                      {selectedNode.riskLevel} risk
+                    </Badge>
+                  )}
+                  {selectedNode.status && (
+                    <Badge className={`${getStatusColor(selectedNode.status)} text-white`}>
+                      {selectedNode.status}
+                    </Badge>
+                  )}
+                  {selectedNode.priority && (
+                    <Badge variant="outline">{selectedNode.priority}</Badge>
+                  )}
+                  {selectedNode.role && (
+                    <Badge variant="outline">{selectedNode.role}</Badge>
+                  )}
+                </div>
+                
+                {/* Details */}
+                <Card>
+                  <CardContent className="p-3 space-y-2">
+                    {selectedNode.region && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Region</span>
+                        <span>{selectedNode.region}</span>
+                      </div>
+                    )}
+                    {selectedNode.camera && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Camera</span>
+                        <span className="font-mono text-xs">{selectedNode.camera}</span>
+                      </div>
+                    )}
+                    {selectedNode.timestamp && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Time</span>
+                        <span className="text-xs">{selectedNode.timestamp}</span>
+                      </div>
+                    )}
+                    {selectedNode.description && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground block mb-1">Description</span>
+                        <span>{selectedNode.description}</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                {/* Connections */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Connections</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    {graphData.links
+                      .filter((link) => {
+                        const sourceId = typeof link.source === "string" ? link.source : (link.source as any).id;
+                        const targetId = typeof link.target === "string" ? link.target : (link.target as any).id;
+                        return sourceId === selectedNode.id || targetId === selectedNode.id;
+                      })
+                      .slice(0, 8)
+                      .map((link, idx) => {
+                        const sourceId = typeof link.source === "string" ? link.source : (link.source as any).id;
+                        const targetId = typeof link.target === "string" ? link.target : (link.target as any).id;
+                        const connectedId = sourceId === selectedNode.id ? targetId : sourceId;
+                        const connectedNode = graphData.nodes.find((n) => n.id === connectedId);
+                        const relType = link.type as keyof typeof RELATIONSHIP_TYPES;
+                        
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50 cursor-pointer"
+                            onClick={() => connectedNode && setSelectedNode(connectedNode)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: connectedNode ? NODE_COLORS[connectedNode.type] : "#888" }}
+                              />
+                              <span className="truncate max-w-[120px]">{connectedNode?.name || connectedId}</span>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="text-xs"
+                              style={{ borderColor: RELATIONSHIP_TYPES[relType]?.color }}
+                            >
+                              {link.label || RELATIONSHIP_TYPES[relType]?.label || link.type}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                  </CardContent>
+                </Card>
+                
+                {/* Navigation Actions */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    {selectedNode.type === "location" && selectedNode.coordinates && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setLocation(`/dashboard/map?lat=${selectedNode.coordinates?.lat}&lng=${selectedNode.coordinates?.lng}`)}
+                      >
+                        <Map className="w-4 h-4 mr-2 text-blue-500" />
+                        View on Map
+                        <ExternalLink className="w-3 h-3 ml-auto" />
+                      </Button>
+                    )}
+                    {selectedNode.region && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setLocation(`/dashboard/map?region=${encodeURIComponent(selectedNode.region!)}`)}
+                      >
+                        <MapPin className="w-4 h-4 mr-2 text-purple-500" />
+                        View Region
+                        <ExternalLink className="w-3 h-3 ml-auto" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => setLocation(`/dashboard/topology?entity=${encodeURIComponent(selectedNode.id)}`)}
+                    >
+                      <Network className="w-4 h-4 mr-2 text-green-500" />
+                      View in Topology
+                      <ExternalLink className="w-3 h-3 ml-auto" />
+                    </Button>
+                    {selectedNode.type === "event" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setLocation(`/dashboard/incidents?id=${encodeURIComponent(selectedNode.id)}`)}
+                      >
+                        <AlertTriangle className="w-4 h-4 mr-2 text-red-500" />
+                        View Incident
+                        <ExternalLink className="w-3 h-3 ml-auto" />
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        </>
-        )}
-      </main>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

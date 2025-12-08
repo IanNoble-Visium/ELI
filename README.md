@@ -40,14 +40,21 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Detailed incident reports
    - Officer and unit assignment
    - Peru-specific locations and context
+   - **Quick Navigation** - Drill into Map, Topology, and POLE Analytics from incidents
+   - **POLE Entity Display** - Related people, objects, and locations per incident
+   - **Cross-page linking** - Navigate to related entities across the application
 
-5. **POLE Analytics**
-   - People, Objects, Locations, Events analysis
-   - Timeline visualization
-   - Pattern recognition dashboard
-   - Entity relationship tracking
-   - Intelligence assessment panel
-   - Risk level classification
+5. **POLE Analytics** *(ENHANCED)*
+   - **Interactive Crime Network Graph** - Force-directed visualization using react-force-graph-2d
+   - **Multiple Layout Modes** - Force-directed, Hierarchical, Radial layouts
+   - **33 Mock Entities** - Realistic crime hierarchy with suspects, victims, witnesses, evidence
+   - **37 Relationships** - Connections like "knows", "owns", "witnessed", "suspect_of"
+   - **Entity Types** - Different shapes/colors for People (circles), Objects (diamonds), Locations (squares), Events (triangles)
+   - **Hover Highlighting** - Dim unconnected nodes when hovering over an entity
+   - **Detail Sidebar** - Click any entity to see connections and navigation options
+   - **Timeline Tab** - Activity charts over 7 days
+   - **Entity List Tab** - Searchable grid view of all entities
+   - **Cross-page Navigation** - Jump to Map, Topology, or Incidents from any entity
 
 6. **Real-Time Webhook Viewer**
    - Live event stream with auto-refresh (3s)
@@ -71,7 +78,16 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - InfluxDB integration for time-series data storage
    - Credit breakdown analysis by category
 
-9. **Image Processing Throttle Control**
+9. **PostgreSQL Monitoring Dashboard** *(NEW)*
+   - Real-time database storage usage with progress bar (512MB Neon free tier limit)
+   - Table breakdown with row counts and storage per table
+   - Connection monitoring (active vs max connections)
+   - Database version and uptime tracking
+   - Historical trends with time-series charts
+   - Daily growth rate calculations and projections
+   - Accessible from main dashboard menu and Settings page
+
+10. **Image Processing Throttle Control**
    - Configurable throttle to prevent exceeding Cloudinary limits during demo
    - Processing ratio slider (10 to 10,000 images per 100K incoming)
    - Maximum per hour hard limit (10 to 1,000 images)
@@ -148,7 +164,8 @@ eli-unified-dashboard/
 │   │   │   ├── POLEAnalytics.tsx
 │   │   │   ├── RealtimeWebhooks.tsx
 │   │   │   ├── Settings.tsx    # Settings with CRON job management
-│   │   │   └── CloudinaryMonitoring.tsx  # Usage monitoring & throttle control
+│   │   ├── CloudinaryMonitoring.tsx  # Usage monitoring & throttle control
+│   │   └── PostgreSQLMonitoring.tsx  # Database monitoring dashboard
 │   │   ├── components/         # Reusable UI components (shadcn/ui)
 │   │   ├── lib/                # Utilities and tRPC client
 │   │   ├── App.tsx             # Routes and layout
@@ -159,6 +176,9 @@ eli-unified-dashboard/
 │   │   ├── metrics.ts          # InfluxDB time-series metrics
 │   │   ├── throttle.ts         # Image processing throttle config
 │   │   └── test-influxdb.ts    # InfluxDB configuration testing
+│   ├── postgresql/             # PostgreSQL monitoring endpoints
+│   │   ├── usage.ts            # Database size, tables, connections
+│   │   └── metrics.ts          # Historical metrics and projections
 │   ├── cron/                   # Scheduled job endpoints
 │   │   ├── status.ts           # CRON job management API
 │   │   ├── record-cloudinary-metrics.ts  # Every 15 min
@@ -260,6 +280,14 @@ These endpoints query real data from the PostgreSQL/TiDB database:
 | `/api/cloudinary/test-influxdb` | GET | Tests InfluxDB connection and configuration |
 | `/api/cloudinary/test-influxdb?action=write` | GET | Writes test data to InfluxDB |
 | `/api/cloudinary/test-influxdb?action=debug` | GET | Returns raw InfluxDB query results for debugging |
+
+**PostgreSQL Monitoring APIs:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/postgresql/usage` | GET | Returns current database size, table stats, row counts, connections |
+| `/api/postgresql/metrics` | GET | Queries historical PostgreSQL metrics with time range filtering |
+| `/api/postgresql/metrics` | POST | Records current PostgreSQL stats for historical tracking |
 
 **CRON Job Management APIs:**
 
@@ -574,6 +602,11 @@ Edit `client/src/index.css` to change colors:
 - [x] **CRON Job: Record Cloudinary Metrics** - Every 15 minutes to InfluxDB
 - [x] **CRON Job: Record Throttle Metrics** - Every 5 minutes to InfluxDB
 - [x] **InfluxDB Test Endpoint** - Configuration verification and debugging
+- [x] **PostgreSQL Monitoring Dashboard** - Database storage, tables, connections tracking
+- [x] **PostgreSQL Usage API** - Real-time database metrics endpoint
+- [x] **PostgreSQL Metrics API** - Historical data with projections
+- [x] **Settings Page PostgreSQL Stats** - Dynamic database stats display
+- [x] **Improved Cloudinary Bulk Delete** - Reliable batch deletion with pagination
 
 ### High Priority
 - [ ] Test webhook endpoint with real IREX surveillance data
@@ -623,6 +656,20 @@ MIT License - See LICENSE file for details
 **Demo Date**: December 2024
 
 ### Recent Updates (December 8, 2024)
+- **POLE Analytics Graph Visualization** - Interactive crime network graph with react-force-graph-2d
+  - 33 entities (people, objects, locations, events) with 37 relationships
+  - Multiple layouts (force-directed, hierarchical, radial)
+  - Hover highlighting, click-to-select, detail sidebar
+  - Cross-page navigation to Map, Topology, Incidents
+- **Incident Management Enhancements** - POLE entity display and quick navigation buttons
+  - View on Map, View Topology, POLE Analysis navigation
+  - Related people, objects, locations displayed per incident
+  - Click-through to POLE Analytics for entity details
+- **PostgreSQL Monitoring Dashboard** - Full database monitoring with storage, tables, connections
+- **PostgreSQL API Endpoints** - `/api/postgresql/usage` and `/api/postgresql/metrics`
+- **Settings Page Enhancement** - Dynamic PostgreSQL stats with navigation links
+- **Improved Cloudinary Bulk Delete** - Reliable batch deletion using list-then-delete approach
+- **Dashboard Menu Update** - PostgreSQL Monitoring added to main dashboard
 - Cloudinary Monitoring Dashboard with usage tracking
 - InfluxDB integration for time-series metrics
 - Historical trends visualization (1H-30D)

@@ -16,6 +16,7 @@ import RealtimeWebhooks from "./pages/RealtimeWebhooks";
 import Settings from "./pages/Settings";
 import CloudinaryMonitoring from "./pages/CloudinaryMonitoring";
 import PostgreSQLMonitoring from "./pages/PostgreSQLMonitoring";
+import ImageAnalysisDashboard from "./pages/ImageAnalysisDashboard";
 import { useAuth } from "./_core/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -63,7 +64,7 @@ function AnimatedPage({ children }: { children: React.ReactNode }) {
  */
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -74,11 +75,11 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
   }
-  
+
   return <Component />;
 }
 
@@ -123,6 +124,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/postgresql">
           {() => <AnimatedPage><ProtectedRoute component={PostgreSQLMonitoring} /></AnimatedPage>}
+        </Route>
+        <Route path="/dashboard/analysis">
+          {() => <AnimatedPage><ProtectedRoute component={ImageAnalysisDashboard} /></AnimatedPage>}
         </Route>
         <Route path="/404">
           {() => <AnimatedPage><NotFound /></AnimatedPage>}
