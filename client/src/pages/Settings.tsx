@@ -109,6 +109,7 @@ export default function Settings() {
   const [purgeAllProgress, setPurgeAllProgress] = useState<string | null>(null);
   const [showPurgeAllDialog, setShowPurgeAllDialog] = useState(false);
   const [includeCloudinary, setIncludeCloudinary] = useState(true);
+  const [includeNeo4j, setIncludeNeo4j] = useState(true);
   
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
 
@@ -221,17 +222,22 @@ export default function Settings() {
         body: JSON.stringify({
           confirmPhrase: "DELETE ALL DATA",
           includeCloudinary,
+          includeNeo4j,
         }),
       });
       
       const data = await response.json();
       
       if (data.success) {
-        const cloudinaryMsg = data.cloudinary?.totalDeleted > 0 
-          ? `, ${data.cloudinary.totalDeleted} Cloudinary images`
-          : "";
+        const parts: string[] = ["Database cleared"];
+        if (data.neo4j?.nodesDeleted > 0) {
+          parts.push(`${data.neo4j.nodesDeleted} Neo4j nodes`);
+        }
+        if (data.cloudinary?.totalDeleted > 0) {
+          parts.push(`${data.cloudinary.totalDeleted} Cloudinary images`);
+        }
         toast.success("All data purged successfully", {
-          description: `Database cleared${cloudinaryMsg}. Duration: ${data.duration_ms}ms`,
+          description: `${parts.join(", ")}. Duration: ${data.duration_ms}ms`,
         });
         
         // Refresh the page data
@@ -251,7 +257,7 @@ export default function Settings() {
       setPurgeAllProgress(null);
       setShowPurgeAllDialog(false);
     }
-  }, [includeCloudinary, fetchCloudinaryData]);
+  }, [includeCloudinary, includeNeo4j, fetchCloudinaryData]);
 
   useEffect(() => {
     fetchCloudinaryData();
@@ -467,7 +473,8 @@ export default function Settings() {
                       This action will permanently delete:
                     </p>
                     <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
-                      <li>All events and snapshots from the database</li>
+                      <li>All events and snapshots from PostgreSQL</li>
+                      <li>All graph relationships from Neo4j</li>
                       <li>All images from Cloudinary (batch deleted)</li>
                       <li>All webhook request logs</li>
                       <li>All AI inference jobs and detections</li>
@@ -477,15 +484,27 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="includeCloudinary"
-                  checked={includeCloudinary}
-                  onCheckedChange={(checked) => setIncludeCloudinary(checked === true)}
-                />
-                <Label htmlFor="includeCloudinary" className="text-sm">
-                  Include Cloudinary images (may take several minutes for large datasets)
-                </Label>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeNeo4j"
+                    checked={includeNeo4j}
+                    onCheckedChange={(checked) => setIncludeNeo4j(checked === true)}
+                  />
+                  <Label htmlFor="includeNeo4j" className="text-sm">
+                    Include Neo4j graph data
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeCloudinary"
+                    checked={includeCloudinary}
+                    onCheckedChange={(checked) => setIncludeCloudinary(checked === true)}
+                  />
+                  <Label htmlFor="includeCloudinary" className="text-sm">
+                    Include Cloudinary images (may take several minutes for large datasets)
+                  </Label>
+                </div>
               </div>
 
               <AlertDialog open={showPurgeAllDialog} onOpenChange={setShowPurgeAllDialog}>
@@ -517,11 +536,16 @@ export default function Settings() {
                     <AlertDialogDescription className="space-y-2">
                       <p>
                         This will <strong>permanently delete ALL data</strong> from the application,
-                        including all events, snapshots, images, and logs.
+                        including all events, snapshots, graph relationships, images, and logs.
                       </p>
                       <p className="text-red-400">
                         This action cannot be undone. The application will be reset to its initial state.
                       </p>
+                      {includeNeo4j && (
+                        <p className="text-purple-400">
+                          🔗 Neo4j graph data will be deleted.
+                        </p>
+                      )}
                       {includeCloudinary && (
                         <p className="text-yellow-400">
                           ⚠️ Cloudinary purge is enabled - this may take several minutes for large image libraries.

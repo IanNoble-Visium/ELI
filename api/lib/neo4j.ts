@@ -6,7 +6,7 @@
  * - Neo4j: Graph relationships and topology queries
  * - PostgreSQL: Primary data storage (events, channels, etc.)
  */
-import neo4j, { Driver, Session, Result } from "neo4j-driver";
+import neo4j, { Driver, Session } from "neo4j-driver";
 
 // Cache the driver instance
 let _driver: Driver | null = null;
@@ -109,7 +109,7 @@ export async function runQuery<T = any>(
   }
 
   try {
-    const result: Result = await session.run(cypher, params);
+    const result = await session.run(cypher, params);
     return result.records.map((record) => record.toObject() as T);
   } finally {
     await session.close();

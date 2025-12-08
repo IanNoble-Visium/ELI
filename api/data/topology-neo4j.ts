@@ -559,7 +559,8 @@ export async function bulkSyncCameras(
     );
 
     // Create location nodes for unique regions
-    const regions = [...new Set(cameras.map((c) => c.region).filter(Boolean))];
+    const regionSet = new Set(cameras.map((c) => c.region).filter(Boolean));
+    const regions = Array.from(regionSet);
     if (regions.length > 0) {
       await tx.run(
         `

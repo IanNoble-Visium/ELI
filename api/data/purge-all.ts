@@ -3,6 +3,7 @@
  * 
  * Deletes ALL data from the application for testing/reset purposes:
  * - All events and snapshots from PostgreSQL
+ * - All graph data from Neo4j
  * - All images from Cloudinary (batch delete)
  * - All webhook request logs
  * 
@@ -13,6 +14,7 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { events, snapshots, webhookRequests, aiInferenceJobs, aiDetections, aiAnomalies, aiInsights, aiBaselines } from "../../drizzle/schema";
 import { sql } from "drizzle-orm";
+import { getDriver, isNeo4jConfigured } from "../lib/neo4j.js";
 
 interface PurgeResult {
   success: boolean;
@@ -22,6 +24,12 @@ interface PurgeResult {
     snapshotsDeleted: number;
     webhookRequestsDeleted: number;
     aiJobsDeleted: number;
+  };
+  neo4j?: {
+    nodesDeleted: number;
+    relationshipsDeleted: number;
+    success: boolean;
+    error?: string;
   };
   cloudinary?: {
     totalDeleted: number;
@@ -164,6 +172,92 @@ async function purgeCloudinaryImages(
   };
 }
 
+/**
+ * Purge all data from Neo4j graph database
+ * Deletes all nodes and relationships
+ */
+async function purgeNeo4jData(): Promise<{
+  nodesDeleted: number;
+  relationshipsDeleted: number;
+  success: boolean;
+  error?: string;
+}> {
+  if (!isNeo4jConfigured()) {
+    return {
+      nodesDeleted: 0,
+      relationshipsDeleted: 0,
+      success: false,
+      error: "Neo4j not configured",
+    };
+  }
+
+  const driver = getDriver();
+  if (!driver) {
+    return {
+      nodesDeleted: 0,
+      relationshipsDeleted: 0,
+      success: false,
+      error: "Failed to get Neo4j driver",
+    };
+  }
+
+  const session = driver.session();
+  
+  try {
+    // First, count existing nodes and relationships for reporting
+    const countResult = await session.run(`
+      MATCH (n)
+      OPTIONAL MATCH (n)-[r]-()
+      RETURN count(DISTINCT n) as nodeCount, count(DISTINCT r) as relCount
+    `);
+    
+    const nodeCount = countResult.records[0]?.get("nodeCount")?.toNumber() || 0;
+    const relCount = countResult.records[0]?.get("relCount")?.toNumber() || 0;
+
+    // Delete all relationships first, then all nodes
+    // Using DETACH DELETE to remove nodes and their relationships in one go
+    // Process in batches to avoid memory issues with large graphs
+    let totalNodesDeleted = 0;
+    let totalRelsDeleted = 0;
+    let hasMore = true;
+    const batchSize = 10000;
+
+    while (hasMore) {
+      const deleteResult = await session.run(`
+        MATCH (n)
+        WITH n LIMIT ${batchSize}
+        DETACH DELETE n
+        RETURN count(*) as deleted
+      `);
+      
+      const deleted = deleteResult.records[0]?.get("deleted")?.toNumber() || 0;
+      totalNodesDeleted += deleted;
+      
+      if (deleted < batchSize) {
+        hasMore = false;
+      }
+    }
+
+    console.log(`[Purge] Neo4j: deleted ${nodeCount} nodes and ${relCount} relationships`);
+    
+    return {
+      nodesDeleted: nodeCount,
+      relationshipsDeleted: relCount,
+      success: true,
+    };
+  } catch (error) {
+    console.error("[Purge] Neo4j error:", error);
+    return {
+      nodesDeleted: 0,
+      relationshipsDeleted: 0,
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  } finally {
+    await session.close();
+  }
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -188,7 +282,7 @@ export default async function handler(
   const result: PurgeResult = { success: false };
 
   try {
-    const { confirmPhrase, includeCloudinary = true } = req.body || {};
+    const { confirmPhrase, includeCloudinary = true, includeNeo4j = true } = req.body || {};
 
     // Require confirmation phrase for safety
     if (confirmPhrase !== "DELETE ALL DATA") {
@@ -249,7 +343,26 @@ export default async function handler(
       console.log("[Purge] Database tables cleared");
     }
 
-    // Phase 2: Purge Cloudinary
+    // Phase 2: Purge Neo4j
+    result.phase = "neo4j";
+    
+    if (includeNeo4j) {
+      result.neo4j = await purgeNeo4jData();
+      if (result.neo4j.success) {
+        console.log(`[Purge] Neo4j: deleted ${result.neo4j.nodesDeleted} nodes, ${result.neo4j.relationshipsDeleted} relationships`);
+      } else {
+        console.log(`[Purge] Neo4j: ${result.neo4j.error}`);
+      }
+    } else {
+      result.neo4j = {
+        nodesDeleted: 0,
+        relationshipsDeleted: 0,
+        success: true,
+        error: "Skipped by request",
+      };
+    }
+
+    // Phase 3: Purge Cloudinary
     result.phase = "cloudinary";
     
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
