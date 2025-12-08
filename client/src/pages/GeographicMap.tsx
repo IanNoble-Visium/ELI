@@ -446,7 +446,15 @@ export default function GeographicMap() {
                       <Clock className="w-3 h-3" /> Last Event
                     </span>
                     <span className="text-xs font-mono">
-                      {format(new Date(selectedCamera.lastEventTime), "MM/dd HH:mm")}
+                      {(() => {
+                        try {
+                          const date = new Date(selectedCamera.lastEventTime);
+                          if (isNaN(date.getTime())) return "N/A";
+                          return format(date, "MM/dd HH:mm");
+                        } catch {
+                          return "N/A";
+                        }
+                      })()}
                     </span>
                   </div>
                   {selectedCamera.status === "alert" && (

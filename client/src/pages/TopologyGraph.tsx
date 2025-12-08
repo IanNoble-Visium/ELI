@@ -218,7 +218,7 @@ export default function TopologyGraph() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="w-80 border-r border-border bg-card/50 backdrop-blur p-4 space-y-4 overflow-y-auto"
+          className="w-80 border-r border-border bg-card/50 backdrop-blur p-4 space-y-4 overflow-y-auto z-20 relative"
         >
           {/* Search */}
           <motion.div variants={itemVariants} className="relative">
