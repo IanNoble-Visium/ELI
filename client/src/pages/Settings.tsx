@@ -85,6 +85,22 @@ interface CronJobsData {
   error?: string;
 }
 
+interface PostgreSQLUsageData {
+  success: boolean;
+  usage?: {
+    database_size: { bytes: number; pretty: string };
+    tables: Array<{ name: string; rows: number; size_bytes: number; size_pretty: string }>;
+    total_rows: number;
+    connections: { active: number; max: number };
+    version: string;
+    uptime_seconds: number;
+  };
+  plan?: string;
+  region?: string;
+  error?: string;
+  configured?: boolean;
+}
+
 function formatBytes(bytes: number, decimals = 2): string {
   if (bytes === 0) return "0 Bytes";
   const k = 1024;
@@ -99,6 +115,8 @@ export default function Settings() {
   const [retentionDays, setRetentionDays] = useState([7]);
   const [cloudinaryData, setCloudinaryData] = useState<CloudinaryUsageData | null>(null);
   const [cloudinaryLoading, setCloudinaryLoading] = useState(true);
+  const [postgresData, setPostgresData] = useState<PostgreSQLUsageData | null>(null);
+  const [postgresLoading, setPostgresLoading] = useState(true);
   const [cronJobsData, setCronJobsData] = useState<CronJobsData | null>(null);
   const [cronJobsLoading, setCronJobsLoading] = useState(true);
   const [triggeringJob, setTriggeringJob] = useState<string | null>(null);
@@ -125,6 +143,21 @@ export default function Settings() {
       setCloudinaryData({ success: false, error: "Failed to connect" });
     } finally {
       setCloudinaryLoading(false);
+    }
+  }, []);
+
+  // Fetch PostgreSQL usage data
+  const fetchPostgresData = useCallback(async () => {
+    try {
+      setPostgresLoading(true);
+      const response = await fetch("/api/postgresql/usage", { credentials: "include" });
+      const data = await response.json();
+      setPostgresData(data);
+    } catch (error) {
+      console.error("[Settings] Failed to fetch PostgreSQL data:", error);
+      setPostgresData({ success: false, error: "Failed to connect" });
+    } finally {
+      setPostgresLoading(false);
     }
   }, []);
 
@@ -261,8 +294,9 @@ export default function Settings() {
 
   useEffect(() => {
     fetchCloudinaryData();
+    fetchPostgresData();
     fetchCronJobs();
-  }, [fetchCloudinaryData, fetchCronJobs]);
+  }, [fetchCloudinaryData, fetchPostgresData, fetchCronJobs]);
   const updateConfigMutation = trpc.config.set.useMutation({
     onSuccess: () => {
       toast.success("Settings saved successfully");
@@ -592,22 +626,45 @@ export default function Settings() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={fetchCloudinaryData}
-                  disabled={cloudinaryLoading}
+                  onClick={() => {
+                    fetchCloudinaryData();
+                    fetchPostgresData();
+                  }}
+                  disabled={cloudinaryLoading || postgresLoading}
                 >
-                  <RefreshCw className={`w-4 h-4 ${cloudinaryLoading ? "animate-spin" : ""}`} />
+                  <RefreshCw className={`w-4 h-4 ${(cloudinaryLoading || postgresLoading) ? "animate-spin" : ""}`} />
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-3 gap-4">
-                <div className="p-4 border border-border rounded-lg">
+                <div className="p-4 border border-green-500/20 rounded-lg bg-green-500/5">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                    <Database className="w-4 h-4" />
+                    <Database className="w-4 h-4 text-green-400" />
                     PostgreSQL
                   </div>
-                  <div className="text-2xl font-bold">~250 MB</div>
-                  <div className="text-xs text-muted-foreground mt-1">Events & Snapshots</div>
+                  {postgresLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">Loading...</span>
+                    </div>
+                  ) : postgresData?.success && postgresData.usage ? (
+                    <>
+                      <div className="text-2xl font-bold text-green-400">
+                        {postgresData.usage.database_size.pretty}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {postgresData.usage.total_rows.toLocaleString()} rows • {postgresData.plan}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg font-medium text-yellow-500">Not configured</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {postgresData?.error || "Add DATABASE_URL"}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="p-4 border border-border rounded-lg">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -647,21 +704,33 @@ export default function Settings() {
                 </div>
               </div>
               
-              {/* Cloudinary Details Link */}
-              {cloudinaryData?.success && (
-                <div className="mt-4 pt-4 border-t border-border/50">
+              {/* Monitoring Links */}
+              <div className="mt-4 pt-4 border-t border-border/50 grid md:grid-cols-2 gap-3">
+                {postgresData?.success && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLocation("/dashboard/postgresql")}
+                    className="border-green-500/30 hover:bg-green-500/10"
+                  >
+                    <Database className="w-4 h-4 mr-2 text-green-400" />
+                    View PostgreSQL Metrics
+                    <ExternalLink className="w-3 h-3 ml-2" />
+                  </Button>
+                )}
+                {cloudinaryData?.success && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setLocation("/dashboard/cloudinary")}
-                    className="w-full border-blue-500/30 hover:bg-blue-500/10"
+                    className="border-blue-500/30 hover:bg-blue-500/10"
                   >
                     <Cloud className="w-4 h-4 mr-2 text-blue-400" />
-                    View Detailed Cloudinary Metrics
+                    View Cloudinary Metrics
                     <ExternalLink className="w-3 h-3 ml-2" />
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
         </motion.div>

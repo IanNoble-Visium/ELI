@@ -15,6 +15,7 @@ import POLEAnalytics from "./pages/POLEAnalytics";
 import RealtimeWebhooks from "./pages/RealtimeWebhooks";
 import Settings from "./pages/Settings";
 import CloudinaryMonitoring from "./pages/CloudinaryMonitoring";
+import PostgreSQLMonitoring from "./pages/PostgreSQLMonitoring";
 import { useAuth } from "./_core/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -119,6 +120,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/cloudinary">
           {() => <AnimatedPage><ProtectedRoute component={CloudinaryMonitoring} /></AnimatedPage>}
+        </Route>
+        <Route path="/dashboard/postgresql">
+          {() => <AnimatedPage><ProtectedRoute component={PostgreSQLMonitoring} /></AnimatedPage>}
         </Route>
         <Route path="/404">
           {() => <AnimatedPage><NotFound /></AnimatedPage>}

@@ -43,8 +43,8 @@ interface PurgeResult {
 }
 
 /**
- * Purge images from Cloudinary using delete_resources_by_prefix for bulk deletion
- * This is much faster than deleting individual resources
+ * Purge images from Cloudinary by listing and deleting in batches
+ * Uses the reliable list-then-delete approach for consistent results
  */
 async function purgeCloudinaryImages(
   cloudName: string,
@@ -66,113 +66,22 @@ async function purgeCloudinaryImages(
   
   let totalDeleted = 0;
   let batchesRun = 0;
+  let cursor: string | undefined;
   let hasMore = true;
   const errors: string[] = [];
 
-  console.log(`[Purge] Starting Cloudinary bulk delete with prefix: ${prefix}`);
+  console.log(`[Purge] Starting Cloudinary delete with prefix: ${prefix}`);
 
   while (hasMore) {
-    // Check if we're approaching time limit (leave 10 second buffer)
+    // Check if we're approaching time limit (leave 15 second buffer)
     const elapsed = Date.now() - startTime;
-    if (elapsed > maxTimeMs - 10000) {
-      console.log(`[Purge] Cloudinary stopping: approaching time limit (${elapsed}ms elapsed)`);
+    if (elapsed > maxTimeMs - 15000) {
+      console.log(`[Purge] Cloudinary stopping: approaching time limit (${elapsed}ms elapsed, ${totalDeleted} deleted so far)`);
       break;
     }
 
     try {
-      // Use delete_resources_by_prefix API - deletes up to 1000 resources at once
-      const deleteUrl = `https://api.cloudinary.com/v1_1/${cloudName}/resources/image/upload`;
-      
-      const deleteResponse = await fetch(deleteUrl, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prefix: prefix,
-          keep_original: false,
-          invalidate: true,
-          all: true, // Delete all matching resources
-        }),
-      });
-
-      if (!deleteResponse.ok) {
-        const errorText = await deleteResponse.text();
-        console.error(`[Purge] Cloudinary delete failed: ${deleteResponse.status} - ${errorText}`);
-        
-        // If bulk delete fails, fall back to individual deletion
-        console.log(`[Purge] Falling back to individual resource deletion...`);
-        const fallbackResult = await purgeCloudinaryIndividual(cloudName, apiKey, apiSecret, prefix, maxTimeMs - elapsed - 10000);
-        totalDeleted += fallbackResult.deleted;
-        batchesRun += fallbackResult.batches;
-        if (fallbackResult.error) errors.push(fallbackResult.error);
-        hasMore = fallbackResult.hasMore;
-        break;
-      }
-
-      const deleteData = await deleteResponse.json();
-      console.log(`[Purge] Cloudinary delete response:`, JSON.stringify(deleteData));
-      
-      // Count deleted resources
-      const deleted = deleteData.deleted
-        ? Object.values(deleteData.deleted).filter((v: any) => v === 'deleted').length
-        : (deleteData.deleted_counts?.original || 0);
-      
-      totalDeleted += deleted;
-      batchesRun++;
-      
-      // Check if there are more resources (partial: true means more to delete)
-      hasMore = deleteData.partial === true || (deleteData.next_cursor !== undefined);
-      
-      console.log(`[Purge] Cloudinary batch ${batchesRun}: deleted ${deleted}, total ${totalDeleted}, hasMore: ${hasMore}`);
-
-      if (deleted === 0 && !hasMore) {
-        // No more resources to delete
-        break;
-      }
-
-      // Small delay between batches
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-    } catch (err) {
-      console.error(`[Purge] Cloudinary error:`, err);
-      errors.push(err instanceof Error ? err.message : 'Unknown error');
-      break;
-    }
-  }
-
-  const timeElapsed = Math.round((Date.now() - startTime) / 1000);
-  return {
-    totalDeleted,
-    batchesRun,
-    timeElapsed,
-    completed: !hasMore,
-    errors,
-  };
-}
-
-/**
- * Fallback: Delete Cloudinary resources individually by listing and deleting
- */
-async function purgeCloudinaryIndividual(
-  cloudName: string,
-  apiKey: string,
-  apiSecret: string,
-  prefix: string,
-  maxTimeMs: number
-): Promise<{ deleted: number; batches: number; hasMore: boolean; error?: string }> {
-  const startTime = Date.now();
-  const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
-  
-  let totalDeleted = 0;
-  let batchesRun = 0;
-  let cursor: string | undefined;
-  let hasMore = true;
-
-  while (hasMore && (Date.now() - startTime) < maxTimeMs - 5000) {
-    try {
-      // List resources
+      // List resources - get 500 at a time for efficiency
       const listUrl = new URL(`https://api.cloudinary.com/v1_1/${cloudName}/resources/image/upload`);
       listUrl.searchParams.set('max_results', '500');
       if (prefix) listUrl.searchParams.set('prefix', prefix);
@@ -184,23 +93,35 @@ async function purgeCloudinaryIndividual(
       });
 
       if (!listResponse.ok) {
-        return { deleted: totalDeleted, batches: batchesRun, hasMore: true, error: `List failed: ${listResponse.status}` };
+        const errorText = await listResponse.text();
+        console.error(`[Purge] Cloudinary list failed: ${listResponse.status} - ${errorText}`);
+        errors.push(`List failed: ${listResponse.status}`);
+        break;
       }
 
       const listData = await listResponse.json();
       const resources = listData.resources || [];
       cursor = listData.next_cursor;
-      hasMore = !!cursor;
+      
+      console.log(`[Purge] Listed ${resources.length} resources, cursor: ${cursor ? 'yes' : 'no'}`);
 
       if (resources.length === 0) {
         hasMore = false;
+        console.log(`[Purge] No more resources to delete`);
         break;
       }
 
       const publicIds = resources.map((r: any) => r.public_id);
       
-      // Delete in batches of 100
+      // Delete in batches of 100 (Cloudinary API limit)
       for (let i = 0; i < publicIds.length; i += 100) {
+        // Check time limit before each batch
+        if (Date.now() - startTime > maxTimeMs - 10000) {
+          console.log(`[Purge] Time limit approaching during deletion, stopping`);
+          hasMore = !!cursor || (i + 100 < publicIds.length);
+          break;
+        }
+
         const batch = publicIds.slice(i, i + 100);
         
         const deleteResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/resources/image/upload`, {
@@ -216,20 +137,40 @@ async function purgeCloudinaryIndividual(
           const deleteData = await deleteResponse.json();
           const deleted = deleteData.deleted
             ? Object.values(deleteData.deleted).filter((v: any) => v === 'deleted').length
-            : 0;
+            : batch.length; // Assume all deleted if no detailed response
           totalDeleted += deleted;
+        } else {
+          const errorText = await deleteResponse.text();
+          console.error(`[Purge] Delete batch failed: ${deleteResponse.status} - ${errorText}`);
+          errors.push(`Delete failed: ${deleteResponse.status}`);
         }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       batchesRun++;
-      console.log(`[Purge] Individual batch ${batchesRun}: deleted ${resources.length}, total ${totalDeleted}`);
+      hasMore = !!cursor;
+      
+      console.log(`[Purge] Batch ${batchesRun}: processed ${resources.length}, total deleted ${totalDeleted}, hasMore: ${hasMore}`);
 
     } catch (err) {
-      return { deleted: totalDeleted, batches: batchesRun, hasMore: true, error: err instanceof Error ? err.message : 'Unknown error' };
+      console.error(`[Purge] Cloudinary error:`, err);
+      errors.push(err instanceof Error ? err.message : 'Unknown error');
+      break;
     }
   }
 
-  return { deleted: totalDeleted, batches: batchesRun, hasMore };
+  const timeElapsed = Math.round((Date.now() - startTime) / 1000);
+  console.log(`[Purge] Cloudinary complete: ${totalDeleted} deleted in ${timeElapsed}s, ${batchesRun} batches, completed: ${!hasMore}`);
+  
+  return {
+    totalDeleted,
+    batchesRun,
+    timeElapsed,
+    completed: !hasMore,
+    errors,
+  };
 }
 
 /**
