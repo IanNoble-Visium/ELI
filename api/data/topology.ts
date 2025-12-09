@@ -2,10 +2,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getDb, getChannelsList, getRecentEvents, count, sql } from "../lib/db.js";
 import { events, channels } from "../../drizzle/schema.js";
 import { isNeo4jConfigured } from "../lib/neo4j.js";
+import { getTopologyFromNeo4j } from "./topology-neo4j.js";
 
 /**
  * API endpoint to retrieve topology graph data from the database
- * Returns cameras as nodes and events as connections for force-directed graph visualization
+ * Uses Neo4j when configured (includes image URLs), falls back to PostgreSQL
  */
 
 interface GraphNode {
@@ -18,6 +19,11 @@ interface GraphNode {
   longitude?: number;
   region?: string;
   eventCount?: number;
+  imageUrl?: string;
+  tags?: string[];
+  objects?: string[];
+  dominantColors?: string[];
+  qualityScore?: number;
 }
 
 interface GraphLink {
@@ -42,8 +48,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const db = await getDb();
     const neo4jConnected = isNeo4jConfigured();
+
+    // Try Neo4j first if configured (has image URLs and analysis data)
+    if (neo4jConnected) {
+      try {
+        const neo4jData = await getTopologyFromNeo4j();
+        if (neo4jData && neo4jData.nodes.length > 0) {
+          console.log(`[Topology API] Using Neo4j data: ${neo4jData.nodes.length} nodes, ${neo4jData.links.length} links`);
+          return res.status(200).json({
+            success: true,
+            ...neo4jData,
+            dbConnected: true,
+            neo4jConnected: true,
+            dataSource: "neo4j",
+            lastUpdated: new Date().toISOString(),
+          });
+        }
+      } catch (neo4jError) {
+        console.warn("[Topology API] Neo4j query failed, falling back to PostgreSQL:", neo4jError);
+      }
+    }
+
+    // Fall back to PostgreSQL
+    const db = await getDb();
 
     if (!db) {
       return res.status(200).json({
@@ -54,12 +82,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         message: "Database not configured. No topology data available.",
         dbConnected: false,
         neo4jConnected,
+        dataSource: "none",
       });
     }
 
+    console.log("[Topology API] Using PostgreSQL fallback data");
+
     // Fetch cameras/channels
     const channelsList = await getChannelsList({ limit: 200 });
-    
+
     // Fetch recent events
     const eventsList = await getRecentEvents({ limit: 500 });
 
@@ -114,7 +145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     eventsList.forEach((event: any) => {
       const params = event.params as any;
       const cameraNodeId = `camera-${event.channelId}`;
-      
+
       // Check if camera node exists
       const cameraExists = nodes.some(n => n.id === cameraNodeId);
       if (!cameraExists) return;
@@ -183,6 +214,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       stats,
       dbConnected: true,
       neo4jConnected,
+      dataSource: "postgresql",
       lastUpdated: new Date().toISOString(),
     });
   } catch (error) {
