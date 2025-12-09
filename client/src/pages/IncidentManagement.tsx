@@ -70,71 +70,83 @@ interface IncidentPOLEDisplayData {
  * Get POLE data for an incident - first tries structured data, then falls back to database incident matching
  */
 const getIncidentPOLEDisplayData = (incident: IncidentData): IncidentPOLEDisplayData => {
-  // First, try to find matching POLE incident by ID
-  const poleIncident = poleIncidentsData.find(p => p.id === incident.id);
-  
-  if (poleIncident) {
-    // Use structured POLE data
-    const poleData = getIncidentPOLEData(poleIncident.id);
-    return {
-      people: poleData.people.map(p => ({
-        id: p.id,
-        name: p.name,
-        role: p.role,
-        riskLevel: p.riskLevel,
-      })),
-      objects: poleData.objects.map(o => ({
-        id: o.id,
-        name: o.name,
-        type: o.type,
-        description: o.description,
-        status: o.status,
-        plateNumber: o.plateNumber,
-      })),
-      locations: poleData.locations.map(l => ({
-        id: l.id,
-        name: l.name,
-        type: l.type,
-        coordinates: { lat: l.latitude, lng: l.longitude },
-      })),
-    };
+  try {
+    // Safely access POLE data with fallbacks
+    const incidentsData = poleIncidentsData || [];
+    
+    // First, try to find matching POLE incident by ID
+    const poleIncident = incidentsData.find(p => p?.id === incident.id);
+    
+    if (poleIncident) {
+      // Use structured POLE data
+      const poleData = getIncidentPOLEData(poleIncident.id);
+      if (poleData) {
+        return {
+          people: (poleData.people || []).map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            riskLevel: p.riskLevel,
+          })),
+          objects: (poleData.objects || []).map(o => ({
+            id: o.id,
+            name: o.name,
+            type: o.type,
+            description: o.description,
+            status: o.status,
+            plateNumber: o.plateNumber,
+          })),
+          locations: (poleData.locations || []).map(l => ({
+            id: l.id,
+            name: l.name,
+            type: l.type,
+            coordinates: { lat: l.latitude, lng: l.longitude },
+          })),
+        };
+      }
+    }
+    
+    // Try to match by region and type for database incidents
+    const matchingPoleIncident = incidentsData.find(
+      p => p?.region === incident.region && 
+           (p?.type?.toLowerCase().includes(incident.type.toLowerCase().split(' ')[0]) ||
+            incident.type.toLowerCase().includes(p?.type?.toLowerCase().split(' ')[0] || ''))
+    );
+    
+    if (matchingPoleIncident) {
+      const poleData = getIncidentPOLEData(matchingPoleIncident.id);
+      if (poleData) {
+        return {
+          people: (poleData.people || []).map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            riskLevel: p.riskLevel,
+          })),
+          objects: (poleData.objects || []).map(o => ({
+            id: o.id,
+            name: o.name,
+            type: o.type,
+            description: o.description,
+            status: o.status,
+            plateNumber: o.plateNumber,
+          })),
+          locations: (poleData.locations || []).map(l => ({
+            id: l.id,
+            name: l.name,
+            type: l.type,
+            coordinates: { lat: l.latitude, lng: l.longitude },
+          })),
+        };
+      }
+    }
+    
+    // No matching POLE data - return empty (no mock data fallback)
+    return { people: [], objects: [], locations: [] };
+  } catch (error) {
+    console.error("[IncidentManagement] Error getting POLE data:", error);
+    return { people: [], objects: [], locations: [] };
   }
-  
-  // Try to match by region and type for database incidents
-  const matchingPoleIncident = poleIncidentsData.find(
-    p => p.region === incident.region && 
-         (p.type.toLowerCase().includes(incident.type.toLowerCase().split(' ')[0]) ||
-          incident.type.toLowerCase().includes(p.type.toLowerCase().split(' ')[0]))
-  );
-  
-  if (matchingPoleIncident) {
-    const poleData = getIncidentPOLEData(matchingPoleIncident.id);
-    return {
-      people: poleData.people.map(p => ({
-        id: p.id,
-        name: p.name,
-        role: p.role,
-        riskLevel: p.riskLevel,
-      })),
-      objects: poleData.objects.map(o => ({
-        id: o.id,
-        name: o.name,
-        type: o.type,
-        description: o.description,
-        status: o.status,
-        plateNumber: o.plateNumber,
-      })),
-      locations: poleData.locations.map(l => ({
-        id: l.id,
-        name: l.name,
-        type: l.type,
-        coordinates: { lat: l.latitude, lng: l.longitude },
-      })),
-    };
-  }
-  
-  // No matching POLE data - return empty (no mock data fallback)
-  return { people: [], objects: [], locations: [] };
 };
 
 export default function IncidentManagement() {

@@ -2,6 +2,9 @@
 // Realistic Peruvian police investigation dataset for POLE Analytics
 // This data is designed to be linked to real camera events from IREX webhooks
 
+// Note: This is a pure data module with no external dependencies
+// All data is statically defined to avoid runtime initialization issues
+
 // =============================================================================
 // TYPE DEFINITIONS
 // =============================================================================
@@ -1167,7 +1170,7 @@ export function findIncidentsByPlate(plateNumber: string): POLEIncident[] {
   }
   
   // Remove duplicates
-  return [...new Map(incidents.map(inc => [inc.id, inc])).values()];
+  return Array.from(new Map(incidents.map(inc => [inc.id, inc])).values());
 }
 
 // =============================================================================

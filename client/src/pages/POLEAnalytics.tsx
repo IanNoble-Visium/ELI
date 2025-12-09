@@ -49,29 +49,42 @@ interface RealEventData {
 
 // Generate timeline data based on actual incidents
 const generateTimelineData = () => {
-  const data = [];
-  const now = new Date();
-  
-  // Group incidents by day
-  const incidentsByDay = new Map<string, number>();
-  poleIncidents.forEach(inc => {
-    const day = format(new Date(inc.createdAt), "MMM dd");
-    incidentsByDay.set(day, (incidentsByDay.get(day) || 0) + 1);
-  });
-  
-  for (let i = 6; i >= 0; i--) {
-    const date = subDays(now, i);
-    const dayKey = format(date, "MMM dd");
-    const incidentCount = incidentsByDay.get(dayKey) || 0;
+  try {
+    const data = [];
+    const now = new Date();
     
-    data.push({
-      date: dayKey,
-      people: polePeople.filter(p => p.role === "suspect" || p.role === "witness").length,
-      objects: poleObjects.filter(o => o.status === "evidence" || o.status === "flagged").length,
-      events: incidentCount > 0 ? incidentCount : Math.floor(Math.random() * 3), // Show real or minimal activity
+    // Safely access POLE data with fallbacks
+    const incidents = poleIncidents || [];
+    const people = polePeople || [];
+    const objects = poleObjects || [];
+    
+    // Group incidents by day
+    const incidentsByDay = new Map<string, number>();
+    incidents.forEach(inc => {
+      if (inc?.createdAt) {
+        const day = format(new Date(inc.createdAt), "MMM dd");
+        incidentsByDay.set(day, (incidentsByDay.get(day) || 0) + 1);
+      }
     });
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = subDays(now, i);
+      const dayKey = format(date, "MMM dd");
+      const incidentCount = incidentsByDay.get(dayKey) || 0;
+      
+      data.push({
+        date: dayKey,
+        people: people.filter(p => p?.role === "suspect" || p?.role === "witness").length,
+        objects: objects.filter(o => o?.status === "evidence" || o?.status === "flagged").length,
+        events: incidentCount > 0 ? incidentCount : 0,
+      });
+    }
+    return data;
+  } catch (error) {
+    console.error("[POLEAnalytics] Error generating timeline data:", error);
+    // Return empty data on error
+    return [];
   }
-  return data;
 };
 
 type LayoutType = "force" | "hierarchical" | "radial";
@@ -90,10 +103,22 @@ export default function POLEAnalytics() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   
   // Use structured POLE data from poleData.ts (memoized to prevent re-renders)
-  const graphData = useMemo(() => ({
-    nodes: poleGraphData.nodes as POLENode[],
-    links: poleGraphData.links,
-  }), []);
+  const graphData = useMemo(() => {
+    try {
+      // Safely access poleGraphData with fallback
+      if (poleGraphData && poleGraphData.nodes && poleGraphData.links) {
+        return {
+          nodes: poleGraphData.nodes as POLENode[],
+          links: poleGraphData.links,
+        };
+      }
+      console.warn("[POLEAnalytics] poleGraphData not available, using empty data");
+      return { nodes: [], links: [] };
+    } catch (error) {
+      console.error("[POLEAnalytics] Error loading graph data:", error);
+      return { nodes: [], links: [] };
+    }
+  }, []);
   const timelineData = useMemo(() => generateTimelineData(), []);
   
   // Parse URL parameters for deep linking
