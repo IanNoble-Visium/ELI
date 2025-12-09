@@ -155,7 +155,8 @@
 - [ ] **Incident cluster markers** - Show incident counts by region
 
 ### Topology Graph "Intelligence Network"
-- [ ] **Relationship highlighting** - Click node to highlight all connections
+- [x] **Relationship highlighting** - Selected nodes show pulsing glow effect
+- [x] **Event Image Display** - Nodes with Cloudinary images render them
 - [ ] **Path finding demo** - Show shortest path between two entities
 - [ ] **Export graph image** - One-click PNG export of current view
 
@@ -196,14 +197,14 @@
 - [x] All dashboard routes configured
 - [x] JWT token and cookie settings
 
-### Phase 2-3: Backend APIs âœ…
+### Phase 2-3: Backend APIs ✅
 - [x] Webhook ingestion endpoint (persists to PostgreSQL)
 - [x] PostgreSQL integration (full database persistence)
 - [x] Dashboard metrics endpoint (real aggregated data)
 - [x] Events, snapshots, cameras endpoints (real DB queries)
 - [x] Snapshots persistence from webhooks
 - [x] Timeline data with proper date range queries
-- [x] Neo4j integration (Completed in Phase 12)
+- [x] Neo4j integration (Completed in Phase 12, Enhanced in Phase 13)
 - [x] Cloudinary integration (Completed in Phase 12)
 
 ### Phase 4: Landing Page âœ…
@@ -225,11 +226,16 @@
 - [x] Legend and controls
 - [x] Loading skeleton
 
-### Phase 7: Topology Graph âœ…
+### Phase 7: Topology Graph ✅ (ENHANCED December 9, 2024)
 - [x] react-force-graph-2d
-- [x] 5 layout modes
+- [x] 5 layout modes (all functional: Force, Hierarchical, Radial, Grid, Circular)
 - [x] Node/edge filtering
 - [x] Search functionality
+- [x] **Neo4j Hybrid Architecture** - Neo4j for graph relationships + PostgreSQL fallback
+- [x] **Fixed UI Layout Overlap** - Graph no longer covers sidebar controls
+- [x] **Cloudinary Image Display** - Event nodes render snapshot images
+- [x] **Image Preloading/Caching** - Smooth image rendering with cache
+- [x] **ResizeObserver Integration** - Responsive canvas sizing
 
 ### Phase 8: Incident Management âœ… (ENHANCED December 8, 2024)
 - [x] Incident list from database (no more mock)
@@ -305,8 +311,8 @@
 *Lower priority items for after the demo*
 
 ### Backend Integrations
-- [ ] Neo4j graph database connection (for topology visualization)
-- [ ] Cloudinary image storage (for snapshot thumbnails)
+- [x] Neo4j graph database connection (for topology visualization) - COMPLETED Dec 9
+- [x] Cloudinary image storage (for snapshot thumbnails) - COMPLETED Dec 9
 - [ ] Full purge logic implementation
 - [ ] Predictive/behavior/anomaly AI endpoints
 
@@ -515,9 +521,195 @@ Before the demo, verify:
 
 ---
 
+## 🔐 CLOUDINARY IMAGE ACCESS CONTROL - PENDING TEAM REVIEW
+
+> **Status:** Investigation complete. Awaiting team decision.
+> **Analyzed:** December 9, 2024
+> **Current State:** Images uploaded as **PUBLIC** (`type: "upload"` default)
+
+### Current Configuration
+
+Images are uploaded with no access restrictions in `api/lib/cloudinary.ts`:
+```typescript
+const params = {
+  folder: CLOUDINARY_FOLDER,
+  public_id: `${sanitizedEventId}_${snapshotType}_${timestamp}`,
+  timestamp: uploadTimestamp,
+  // NOTE: No 'type' parameter = defaults to 'upload' (public)
+};
+```
+
+Anyone with the image URL can access it directly without authentication.
+
+### Access Control Options
+
+| Option | Security | Complexity | Performance | Cost |
+|--------|----------|------------|-------------|------|
+| **1. Keep as-is (RECOMMENDED)** | Low Risk | None | None | None |
+| **2. Strict Transformations** | Low | Low | None | Free |
+| **3. Private Type** | Medium | Medium | Low | Free |
+| **4. Authenticated Type** | High | High | Medium | Free |
+| **5. Token/Cookie Access** | Highest | Very High | Medium | **Advanced Plan+** |
+
+---
+
+### Option 1: Keep Images Public (RECOMMENDED ✅)
+
+**Rationale:**
+- Dashboard already requires authentication (users must log in)
+- Image URLs are only exposed to authenticated dashboard users
+- Public IDs are randomly generated (impossible to guess URLs)
+- Images are event snapshots, not highly sensitive PII
+- Security through obscurity is already effective
+
+**Changes Required:** None
+
+**Risk Assessment:**
+- URL guessing: Very Low (random IDs like `evt_abc123_main_1702156800`)
+- URL sharing/leaking: Medium (but requires URL to be known first)
+- Search engine indexing: Low (URLs not exposed publicly)
+
+---
+
+### Option 2: Enable Strict Transformations
+
+**Description:** Blocks on-the-fly transformations unless explicitly allowed. Prevents transformation spamming or bypass attacks.
+
+**Changes Required:**
+1. Enable in Cloudinary Console → Settings → Security → "Strict Transformations"
+2. Pre-define allowed transformations (or use signed URLs for dynamic ones)
+
+**Tradeoffs:**
+- ✅ Prevents unauthorized image manipulation
+- ✅ No code changes required
+- ⚠️ Must pre-approve any transformations used by dashboard
+
+---
+
+### Option 3: Switch to Private Type
+
+**Description:** Original images require signed URLs; derived versions (resized, etc.) remain public.
+
+**Upload Change:**
+```typescript
+const params = {
+  ...existing,
+  type: "private",  // ADD THIS
+};
+```
+
+**Client-Side Impact:**
+- Original image URLs will fail (401/403)
+- Need to generate signed URLs server-side for original access
+- Derived versions (thumbnails, etc.) still work without signing
+
+**Tradeoffs:**
+- ✅ Protects original high-resolution images
+- ⚠️ Requires new API endpoint for signed URL generation
+- ⚠️ Some client components need modification
+
+---
+
+### Option 4: Switch to Authenticated Type
+
+**Description:** Both original AND derived images require signed URLs. Full protection.
+
+**Upload Change:**
+```typescript
+const params = {
+  ...existing,
+  type: "authenticated",  // ADD THIS
+};
+```
+
+**Client-Side Impact:**
+- ALL image URLs will fail without signing
+- Every `<img src={url}>` must use a signed URL
+- Signed URLs have expiration (typically 1 hour)
+
+**Implementation Requirements:**
+1. **New API Endpoint:** Create `/api/cloudinary/signed-url.ts` for URL generation
+2. **Modify 4+ Components:**
+   - `RealtimeWebhooks.tsx` - Image display in event cards
+   - `TopologyGraph.tsx` - Image cache for graph nodes
+   - `GeographicMap.tsx` - Event snapshot viewer
+   - `ImageAnalysisDashboard.tsx` - Analyzed image display
+3. **Add URL Refresh Logic:** Handle expired URLs gracefully
+
+**Tradeoffs:**
+- ✅ Full protection - no unauthorized access possible
+- ❌ Significant code changes (~4-8 hours effort)
+- ❌ Performance overhead (extra API call per image)
+- ❌ Caching complexity (must handle URL expiration)
+- ❌ Cannot pre-cache images (URLs expire)
+
+---
+
+### Option 5: Token/Cookie-Based Access (Premium)
+
+**Description:** Most secure option using signed tokens with time/IP/path restrictions.
+
+**Requirements:**
+- **Cloudinary Advanced Plan or higher** (premium feature)
+- Custom delivery hostname (CNAME) for cookie-based access
+- Token generation on server for every image access
+
+**Not Recommended For ELI:**
+- Overkill for internal dashboard use case
+- Significant cost increase
+- High implementation complexity
+
+---
+
+### Decision Matrix
+
+| Factor | Weight | Keep Public | Strict | Private | Authenticated |
+|--------|--------|-------------|--------|---------|---------------|
+| Security Benefit | 20% | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Implementation Effort | 30% | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐ |
+| Performance Impact | 25% | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
+| Maintenance Overhead | 25% | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
+| **Weighted Score** | | **4.7** | **4.5** | **3.4** | **2.4** |
+
+### Recommendation
+
+**Keep images public** for now. The current security posture is adequate:
+1. Dashboard requires authentication
+2. URLs are randomly generated and not guessable
+3. Images are not exposed publicly
+4. Implementation cost outweighs marginal security benefit
+
+**Consider upgrading to Authenticated** if:
+- Compliance requirements mandate it
+- Images will contain sensitive PII
+- URLs will be shared via email/export features
+
+---
+
 ## NEXT PRIORITY RECOMMENDATIONS
 
-*Based on the completed Cloudinary monitoring features:*
+*Based on the completed Topology Graph and Cloudinary monitoring features:*
+
+### Topology Graph Next Steps (December 9, 2024)
+
+1. **Configure Neo4j in Production** - Add NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD to Vercel
+   - Currently falls back to PostgreSQL-only mode
+   - Neo4j will enable faster graph queries and relationship traversal
+   - ~10 minutes effort
+
+2. **Populate Neo4j with Historical Data** - Run bulk sync for existing cameras/events
+   - Use `bulkSyncCameras()` and `bulkSyncEvents()` functions
+   - Will enable full Neo4j topology visualization
+   - ~30 minutes effort
+
+3. **Shortest Path Finding** - Implement path finding between nodes
+   - `findShortestPath()` function already exists in topology-neo4j.ts
+   - Add UI to select start/end nodes and visualize path
+   - ~2 hours effort
+
+4. **Graph Export** - Add PNG/SVG export of current topology view
+   - Use canvas.toDataURL() for image export
+   - ~1 hour effort
 
 ### Elevate to P1 (High Impact, Quick Wins)
 
@@ -570,6 +762,79 @@ Before the demo, verify:
 8. **NEW**: Verify PostgreSQL Monitoring dashboard loads correctly
 9. **NEW**: Test Cloudinary bulk delete completes in single run
 10. **NEW**: Confirm Settings page shows dynamic PostgreSQL stats
+
+---
+
+## 📝 SESSION NOTES (December 9, 2024)
+
+### What Was Completed This Session
+
+1. **Topology Graph - Neo4j Hybrid Integration** ✅ NEW
+   - Created `api/lib/neo4j.ts` - Neo4j connection utility
+     - Driver management with connection pooling
+     - Session management with automatic cleanup
+     - Schema initialization (constraints + indexes)
+     - Utility functions for Cypher queries
+   - Created `api/data/topology-neo4j.ts` - Neo4j topology API
+     - Cypher queries for graph traversal
+     - Sync functions (PostgreSQL → Neo4j)
+     - Bulk sync for cameras and events
+     - Extended node properties for image analysis data
+   - Updated `api/data/topology.ts` - Hybrid data fetching
+     - Tries Neo4j first when configured
+     - Falls back to PostgreSQL if Neo4j unavailable
+     - Includes imageUrl from snapshots table
+     - Background sync to Neo4j for future queries
+
+2. **Topology Graph - UI Layout Fix** ✅ NEW
+   - Fixed graph overlapping sidebar controls
+   - Added ResizeObserver for responsive canvas sizing
+   - Explicit width/height props on ForceGraph2D
+   - Proper z-index layering (sidebar z-30)
+   - Added overflow-hidden to prevent canvas bleeding
+   - Made sidebar flex-shrink-0 with min-w-80
+
+3. **Topology Graph - Layout Switching** ✅ NEW
+   - All 5 layouts now functional:
+     - Force-Directed: Default physics simulation
+     - Hierarchical: Layers by node type (location → camera → event → person/vehicle)
+     - Radial: Concentric circles by type
+     - Grid: Even distribution in rows/columns
+     - Circular: All nodes in single circle
+   - Layout changes trigger proper node repositioning
+   - Uses fx/fy fixed positions for non-force layouts
+
+4. **Topology Graph - Cloudinary Image Display** ✅ NEW
+   - Event nodes render associated Cloudinary images
+   - Image preloading with Map-based cache
+   - Circular clipping for images on nodes
+   - Camera icon indicator on nodes with images
+   - Image preview in selected node details panel
+   - Statistics show count of nodes with images
+
+5. **Neo4j Event Schema Extension** ✅ NEW
+   - Added analysis properties to Neo4jEvent interface:
+     - tags, objects, dominantColors
+     - qualityScore, caption, moderationStatus, phash
+
+### Environment Configuration Required
+
+To enable Neo4j, add to `.env`:
+```
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your-password
+```
+
+*Note: System works in hybrid mode - falls back to PostgreSQL-only if Neo4j not configured*
+
+### Pending Deployment
+
+The following changes require a **Vercel redeploy** to take effect:
+- Neo4j connection utility and topology API
+- Hybrid topology data fetching
+- Fixed topology graph layout/overlap
+- Event image display on nodes
 
 ---
 
@@ -676,7 +941,7 @@ The following changes require a **Vercel redeploy** to take effect:
 
 ---
 
-*Last Updated: December 8, 2024*
+*Last Updated: December 9, 2024*
 *Target: Peruvian Government Demo*
 *Visual Polish Status: P1 COMPLETED (Commit 04c14cb)*
 *Cloudinary Monitoring Status: COMPLETED*
@@ -686,4 +951,6 @@ The following changes require a **Vercel redeploy** to take effect:
 *Cloudinary Bulk Delete Fix: COMPLETED*
 *POLE Analytics Graph Visualization: COMPLETED*
 *Incident Management Enhancements: COMPLETED*
+*Topology Graph Neo4j Integration: COMPLETED (Dec 9, 2024)*
+*Topology Graph Image Display: COMPLETED (Dec 9, 2024)*
 

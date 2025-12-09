@@ -260,12 +260,25 @@ export default function RealtimeWebhooks() {
     return () => clearInterval(interval);
   }, [fetchServiceHealth]);
 
-  // Helper function to check if an event has valid images
+  // Helper function to check if an event has valid Cloudinary images
   const hasValidImages = (webhook: WebhookData): boolean => {
-    // Check if event has snapshots with actual image URLs
+    // Check if event has snapshots with actual Cloudinary URLs
     if (!webhook.snapshots || webhook.snapshots.length === 0) return false;
-    // Check if at least one snapshot has a valid imageUrl
-    return webhook.snapshots.some(snap => snap.imageUrl && snap.imageUrl.trim() !== '');
+    // Check if at least one snapshot has a valid Cloudinary URL (not a local path)
+    return webhook.snapshots.some(snap =>
+      snap.imageUrl &&
+      snap.imageUrl.trim() !== '' &&
+      snap.imageUrl.includes('cloudinary.com')
+    );
+  };
+
+  // Helper function to get only valid Cloudinary snapshots
+  const getValidSnapshots = (webhook: WebhookData) => {
+    if (!webhook.snapshots) return [];
+    return webhook.snapshots.filter(snap =>
+      snap.imageUrl &&
+      snap.imageUrl.includes('cloudinary.com')
+    );
   };
 
   // Filter webhooks based on level, topic, and image availability
@@ -325,18 +338,24 @@ export default function RealtimeWebhooks() {
   };
 
   const nextImage = () => {
-    if (selectedEvent && selectedEvent.snapshots) {
-      setCurrentImageIndex((prev) => 
-        prev < selectedEvent.snapshots!.length - 1 ? prev + 1 : 0
-      );
+    if (selectedEvent) {
+      const validSnapshots = getValidSnapshots(selectedEvent);
+      if (validSnapshots.length > 0) {
+        setCurrentImageIndex((prev) =>
+          prev < validSnapshots.length - 1 ? prev + 1 : 0
+        );
+      }
     }
   };
 
   const prevImage = () => {
-    if (selectedEvent && selectedEvent.snapshots) {
-      setCurrentImageIndex((prev) => 
-        prev > 0 ? prev - 1 : selectedEvent.snapshots!.length - 1
-      );
+    if (selectedEvent) {
+      const validSnapshots = getValidSnapshots(selectedEvent);
+      if (validSnapshots.length > 0) {
+        setCurrentImageIndex((prev) =>
+          prev > 0 ? prev - 1 : validSnapshots.length - 1
+        );
+      }
     }
   };
 
@@ -985,46 +1004,48 @@ export default function RealtimeWebhooks() {
                                   <span>{webhook.processingTime}ms</span>
                                 </div>
 
-                                {/* Image Preview */}
-                                {webhook.hasImages && webhook.snapshots && webhook.snapshots.length > 0 && (
-                                  <div className="mt-2">
-                                    <div className="flex items-center gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => openImageViewer(webhook, 0)}
-                                        className="h-6 px-2 text-xs hover:border-primary/50 hover:bg-primary/10"
-                                      >
-                                        <Eye className="w-3 h-3 mr-1" />
-                                        View {webhook.snapshotsCount} Image{webhook.snapshotsCount > 1 ? 's' : ''}
-                                      </Button>
-                                      {webhook.snapshots.slice(0, 3).map((snapshot, index) => (
-                                        <div
-                                          key={snapshot.id}
-                                          className="relative w-8 h-8 rounded cursor-pointer hover:opacity-80 transition-opacity"
-                                          onClick={() => openImageViewer(webhook, index)}
+                                {/* Image Preview - Only show for valid Cloudinary images */}
+                                {(() => {
+                                  const validSnapshots = getValidSnapshots(webhook);
+                                  if (validSnapshots.length === 0) return null;
+                                  return (
+                                    <div className="mt-2">
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => openImageViewer(webhook, 0)}
+                                          className="h-6 px-2 text-xs hover:border-primary/50 hover:bg-primary/10"
                                         >
-                                          {snapshot.imageUrl ? (
+                                          <Eye className="w-3 h-3 mr-1" />
+                                          View {validSnapshots.length} Image{validSnapshots.length > 1 ? 's' : ''}
+                                        </Button>
+                                        {validSnapshots.slice(0, 3).map((snapshot, index) => (
+                                          <div
+                                            key={snapshot.id}
+                                            className="relative w-8 h-8 rounded cursor-pointer hover:opacity-80 transition-opacity"
+                                            onClick={() => openImageViewer(webhook, index)}
+                                          >
                                             <img
                                               src={snapshot.imageUrl}
                                               alt={`Snapshot ${index + 1}`}
                                               className="w-full h-full object-cover rounded"
+                                              onError={(e) => {
+                                                // Hide broken images
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                              }}
                                             />
-                                          ) : (
-                                            <div className="w-full h-full bg-muted rounded flex items-center justify-center">
-                                              <Image className="w-4 h-4 text-muted-foreground" />
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                      {webhook.snapshots.length > 3 && (
-                                        <div className="w-8 h-8 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
-                                          +{webhook.snapshots.length - 3}
-                                        </div>
-                                      )}
+                                          </div>
+                                        ))}
+                                        {validSnapshots.length > 3 && (
+                                          <div className="w-8 h-8 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
+                                            +{validSnapshots.length - 3}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })()}
                               </div>
                             </div>
 
@@ -1078,79 +1099,86 @@ export default function RealtimeWebhooks() {
                 </Button>
               </div>
 
-              {/* Image Display */}
+              {/* Image Display - Only valid Cloudinary images */}
               <div className="relative p-4">
-                {selectedEvent.snapshots && selectedEvent.snapshots.length > 0 && (
-                  <>
-                    <div className="flex items-center justify-center">
-                      {selectedEvent.snapshots[currentImageIndex]?.imageUrl ? (
-                        <img
-                          src={selectedEvent.snapshots[currentImageIndex].imageUrl}
-                          alt={`Event snapshot ${currentImageIndex + 1}`}
-                          className="max-w-full max-h-[60vh] object-contain rounded"
-                        />
-                      ) : (
-                        <div className="w-96 h-64 bg-muted rounded flex items-center justify-center">
+                {(() => {
+                  const validSnapshots = getValidSnapshots(selectedEvent);
+                  if (validSnapshots.length === 0) {
+                    return (
+                      <div className="flex items-center justify-center">
+                        <div className="w-96 h-64 bg-muted rounded flex items-center justify-center flex-col gap-2">
                           <Image className="w-16 h-16 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">No images available</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const safeIndex = Math.min(currentImageIndex, validSnapshots.length - 1);
+
+                  return (
+                    <>
+                      <div className="flex items-center justify-center">
+                        <img
+                          src={validSnapshots[safeIndex].imageUrl}
+                          alt={`Event snapshot ${safeIndex + 1}`}
+                          className="max-w-full max-h-[60vh] object-contain rounded"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+
+                      {/* Navigation */}
+                      {validSnapshots.length > 1 && (
+                        <div className="flex items-center justify-between mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={prevImage}
+                            className="hover:border-primary/50 hover:bg-primary/10"
+                          >
+                            ← Previous
+                          </Button>
+                          <div className="text-sm text-muted-foreground">
+                            {safeIndex + 1} / {validSnapshots.length}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={nextImage}
+                            className="hover:border-primary/50 hover:bg-primary/10"
+                          >
+                            Next →
+                          </Button>
                         </div>
                       )}
-                    </div>
 
-                    {/* Navigation */}
-                    {selectedEvent.snapshots.length > 1 && (
-                      <div className="flex items-center justify-between mt-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={prevImage}
-                          className="hover:border-primary/50 hover:bg-primary/10"
-                        >
-                          ← Previous
-                        </Button>
-                        <div className="text-sm text-muted-foreground">
-                          {currentImageIndex + 1} / {selectedEvent.snapshots.length}
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={nextImage}
-                          className="hover:border-primary/50 hover:bg-primary/10"
-                        >
-                          Next →
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Thumbnail Strip */}
-                    {selectedEvent.snapshots.length > 1 && (
-                      <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
-                        {selectedEvent.snapshots.map((snapshot, index) => (
-                          <div
-                            key={snapshot.id}
-                            className={`flex-shrink-0 w-16 h-16 rounded cursor-pointer border-2 transition-all ${
-                              index === currentImageIndex
-                                ? 'border-primary'
-                                : 'border-transparent hover:border-border'
-                            }`}
-                            onClick={() => setCurrentImageIndex(index)}
-                          >
-                            {snapshot.imageUrl ? (
+                      {/* Thumbnail Strip */}
+                      {validSnapshots.length > 1 && (
+                        <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+                          {validSnapshots.map((snapshot, index) => (
+                            <div
+                              key={snapshot.id}
+                              className={`flex-shrink-0 w-16 h-16 rounded cursor-pointer border-2 transition-all ${
+                                index === safeIndex
+                                  ? 'border-primary'
+                                  : 'border-transparent hover:border-border'
+                              }`}
+                              onClick={() => setCurrentImageIndex(index)}
+                            >
                               <img
                                 src={snapshot.imageUrl}
                                 alt={`Thumbnail ${index + 1}`}
                                 className="w-full h-full object-cover rounded"
                               />
-                            ) : (
-                              <div className="w-full h-full bg-muted rounded flex items-center justify-center">
-                                <Image className="w-6 h-6 text-muted-foreground" />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </motion.div>
           </motion.div>

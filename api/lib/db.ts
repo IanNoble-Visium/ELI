@@ -236,12 +236,20 @@ export async function getRecentEvents(options: {
     });
 
     // Attach snapshots to events
-    return eventsList.map(event => ({
-      ...event,
-      snapshots: snapshotsByEvent[event.id] || [],
-      snapshotsCount: snapshotsByEvent[event.id]?.length || 0,
-      hasImages: (snapshotsByEvent[event.id]?.length || 0) > 0,
-    }));
+    return eventsList.map(event => {
+      const eventSnapshots = snapshotsByEvent[event.id] || [];
+      // Only count snapshots that have valid Cloudinary URLs (not local paths)
+      const cloudinarySnapshots = eventSnapshots.filter(
+        (snap: any) => snap.imageUrl && snap.imageUrl.includes('cloudinary.com')
+      );
+      return {
+        ...event,
+        snapshots: eventSnapshots,
+        snapshotsCount: eventSnapshots.length,
+        // hasImages is true only if there are valid Cloudinary URLs
+        hasImages: cloudinarySnapshots.length > 0,
+      };
+    });
   }
 
   return eventsList;

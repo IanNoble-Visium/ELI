@@ -25,13 +25,16 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Click-to-view camera details
    - Professional legend and controls
 
-3. **Topology Graph**
+3. **Topology Graph** *(ENHANCED)*
    - React-force-graph-2d network visualization
-   - 5 layout modes: Force-Directed, Hierarchical, Radial, Grid, Circular
+   - **Hybrid Database Architecture** - Neo4j for graph relationships + PostgreSQL for primary data
+   - 5 layout modes: Force-Directed, Hierarchical, Radial, Grid, Circular (all functional)
+   - **Cloudinary Image Display** - Event nodes render associated snapshot images
    - Node/edge filtering and search
-   - Mini-map navigator
-   - Zoom controls and fit-to-screen
-   - Color-coded entity types
+   - Zoom controls and fit-to-screen with proper container sizing
+   - Color-coded entity types (Camera, Location, Vehicle, Person, Event)
+   - **ResizeObserver** for responsive graph canvas sizing
+   - Image preloading with caching for smooth rendering
 
 4. **Incident Management**
    - Real-time alert tracking
@@ -194,10 +197,13 @@ eli-unified-dashboard/
 │   ├── lib/                    # Shared utilities
 │   │   ├── db.ts               # Database helpers
 │   │   ├── cloudinary.ts       # Cloudinary upload utilities
-│   │   └── influxdb.ts         # InfluxDB client library
+│   │   ├── influxdb.ts         # InfluxDB client library
+│   │   └── neo4j.ts            # Neo4j driver and connection utilities
 │   ├── webhook/                # Webhook ingestion
 │   │   └── irex.ts             # IREX event processor (with throttle)
 │   └── data/                   # Data query endpoints
+│       ├── topology.ts         # Hybrid topology API (Neo4j + PostgreSQL)
+│       └── topology-neo4j.ts   # Neo4j-specific topology queries
 ├── server/                      # Backend Express + tRPC
 │   ├── auth.ts                 # Hardcoded authentication
 │   ├── db.ts                   # Database helpers
@@ -300,7 +306,7 @@ graph LR
 | **Location** | `id`, `name`, `region` |
 | **Vehicle** | `id`, `plate`, `name` |
 | **Person** | `id`, `faceId`, `name` |
-| **Event** | `id`, `eventId`, `type`, `timestamp`, `imageUrl`, `tags`, `objects`, `dominantColors`, `qualityScore`, `caption` |
+| **Event** | `id`, `eventId`, `type`, `timestamp`, `imageUrl`, `tags`, `objects`, `dominantColors`, `qualityScore`, `caption`, `moderationStatus`, `phash` |
 
 **Relationship Types:**
 
@@ -534,6 +540,7 @@ These endpoints query real data from the PostgreSQL/TiDB database:
 | `/api/data/events` | GET | Returns surveillance events with filtering | `events` |
 | `/api/data/stats` | GET | Returns aggregated dashboard statistics | `events`, `channels` |
 | `/api/data/incidents` | GET | Returns incident management data | `incidents` |
+| `/api/data/topology` | GET | Returns topology graph data (hybrid Neo4j + PostgreSQL) | Neo4j nodes + `snapshots` |
 
 **Cloudinary & Monitoring APIs:**
 
@@ -733,11 +740,11 @@ The `cloudinary_metrics` bucket stores:
 
 #### External Services (Optional - User-Configured via Settings → Secrets)
 
-**Neo4j Graph Database (Future):**
-- `NEO4J_URI` - Connection URI (neo4j+s://...)
-- `NEO4J_USERNAME` - Database username
+**Neo4j Graph Database (Topology Graph):**
+- `NEO4J_URI` - Connection URI (bolt://localhost:7687 or neo4j+s://...)
+- `NEO4J_USER` - Database username
 - `NEO4J_PASSWORD` - Database password
-- `NEO4J_DATABASE` - Database name
+- *Note: Neo4j is optional - system falls back to PostgreSQL-only topology if not configured*
 
 **Cloudinary (Image Storage & Monitoring):**
 - `CLOUDINARY_URL` - Full connection URL
@@ -797,8 +804,8 @@ pnpm format
 ### From ELI-DEMO
 - ✅ Webhook ingestion endpoint (`/webhook/irex`)
 - ✅ PostgreSQL event/snapshot storage
-- ❌ Neo4j integration (schema ready, not connected)
-- ❌ Cloudinary integration (schema ready, not connected)
+- ✅ Neo4j integration (hybrid topology with PostgreSQL fallback)
+- ✅ Cloudinary integration (image storage and display on topology nodes)
 
 ### From eli-dashboard
 - ✅ Executive dashboard with KPIs
@@ -879,9 +886,10 @@ Edit `client/src/index.css` to change colors:
 ### High Priority
 - [ ] Test webhook endpoint with real IREX surveillance data
 - [ ] Create database seeding script for demo data
-- [ ] Connect Neo4j for topology graph real data
+- [x] Connect Neo4j for topology graph real data (Hybrid PostgreSQL + Neo4j)
 - [ ] Implement actual data purge logic
 - [ ] Add WebSocket for true real-time updates
+- [ ] Configure Neo4j credentials in production environment
 
 ### Medium Priority
 - [ ] Add data management tables (CRUD)
@@ -923,7 +931,19 @@ MIT License - See LICENSE file for details
 **Based on**: ELI-DEMO, eli-dashboard, IREX-DEMO repositories  
 **Demo Date**: December 2024
 
-### Recent Updates (December 8, 2024)
+### Recent Updates (December 9, 2024)
+- **Topology Graph Overhaul** - Complete rewrite with hybrid Neo4j + PostgreSQL architecture
+  - Neo4j connection utility (`api/lib/neo4j.ts`) with driver management and schema initialization
+  - Neo4j topology API (`api/data/topology-neo4j.ts`) with Cypher queries for graph traversal
+  - Hybrid data fetching - tries Neo4j first, falls back to PostgreSQL
+  - Fixed UI layout overlap - graph no longer covers sidebar controls
+  - Implemented all 5 layout algorithms (Force, Hierarchical, Radial, Grid, Circular)
+  - Event nodes display Cloudinary images with circular clipping
+  - Image preloading with cache for smooth rendering
+  - ResizeObserver for responsive canvas sizing
+  - Background sync to Neo4j for future queries
+
+### Previous Updates (December 8, 2024)
 - **POLE Analytics Graph Visualization** - Interactive crime network graph with react-force-graph-2d
   - 33 entities (people, objects, locations, events) with 37 relationships
   - Multiple layouts (force-directed, hierarchical, radial)
