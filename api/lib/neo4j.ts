@@ -5,12 +5,13 @@
  * Used alongside PostgreSQL for hybrid data storage:
  * - Neo4j: Graph relationships and topology queries
  * - PostgreSQL: Primary data storage (events, channels, etc.)
+ * 
+ * NOTE: Using 'any' types due to neo4j-driver v6 API type incompatibilities
  */
 import neo4j from "neo4j-driver";
-import type { Driver, Session } from "neo4j-driver";
 
-// Cache the driver instance
-let _driver: Driver | null = null;
+// Cache the driver instance (using any due to neo4j-driver v6 type issues)
+let _driver: any = null;
 
 /**
  * Neo4j configuration from environment variables
@@ -48,7 +49,7 @@ export function isNeo4jConfigured(): boolean {
  * Get or create a Neo4j driver instance
  * Returns null if not configured
  */
-export function getDriver(): Driver | null {
+export function getDriver(): any {
   if (_driver) return _driver;
 
   const config = getNeo4jConfig();
@@ -79,11 +80,11 @@ export function getDriver(): Driver | null {
  * Get a new Neo4j session
  * Returns null if driver is not available
  */
-export function getSession(): Session | null {
+export function getSession(): any {
   const driver = getDriver();
   if (!driver) return null;
 
-  return driver.session({});
+  return driver.session();
 }
 
 /**

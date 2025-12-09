@@ -159,7 +159,7 @@ async function checkCloudinary(now: string): Promise<ServiceStatus> {
 
 async function checkNeo4j(now: string): Promise<ServiceStatus> {
   const startTime = Date.now();
-  let driver: neo4j.Driver | null = null;
+  let driver: any = null;
 
   try {
     const neo4jUri = process.env.NEO4J_URI;
