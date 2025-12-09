@@ -6,7 +6,8 @@
  * - Neo4j: Graph relationships and topology queries
  * - PostgreSQL: Primary data storage (events, channels, etc.)
  */
-import neo4j, { Driver, Session } from "neo4j-driver";
+import neo4j from "neo4j-driver";
+import type { Driver, Session } from "neo4j-driver";
 
 // Cache the driver instance
 let _driver: Driver | null = null;
@@ -82,7 +83,7 @@ export function getSession(): Session | null {
   const driver = getDriver();
   if (!driver) return null;
 
-  return driver.session();
+  return driver.session({});
 }
 
 /**
@@ -110,7 +111,7 @@ export async function runQuery<T = any>(
 
   try {
     const result = await session.run(cypher, params);
-    return result.records.map((record) => record.toObject() as T);
+    return result.records.map((record: any) => record.toObject() as T);
   } finally {
     await session.close();
   }
@@ -165,7 +166,7 @@ export async function initializeSchema(): Promise<void> {
     return;
   }
 
-  const session = driver.session();
+  const session = driver.session({});
   try {
     // Create constraints for unique node IDs
     const constraints = [

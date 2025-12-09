@@ -59,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function checkPostgres(now: string): Promise<ServiceStatus> {
   const startTime = Date.now();
-  
+
   try {
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
@@ -105,7 +105,7 @@ async function checkPostgres(now: string): Promise<ServiceStatus> {
 
 async function checkCloudinary(now: string): Promise<ServiceStatus> {
   const startTime = Date.now();
-  
+
   try {
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
     const apiKey = process.env.CLOUDINARY_API_KEY;
@@ -182,7 +182,7 @@ async function checkNeo4j(now: string): Promise<ServiceStatus> {
     );
 
     // Verify connectivity with a simple query
-    const session = driver.session();
+    const session = driver.session({});
     try {
       await session.run("RETURN 1");
       const latency = Date.now() - startTime;

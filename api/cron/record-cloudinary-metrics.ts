@@ -8,13 +8,12 @@
  * {
  *   "crons": [{
  *     "path": "/api/cron/record-cloudinary-metrics",
- *     "schedule": "*/15 * * * * "
-  *   }]
+ *     "schedule": "0/15 * * * *"
+ *   }]
  * }
- * 
- * Last rebuilt: 2025 - 12 -09
-  */
+ */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+
 import {
   isInfluxDBConfigured,
   writeMetricPoint,
