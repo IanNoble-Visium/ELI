@@ -176,6 +176,30 @@ export async function uploadImage(
     const result = await response.json();
 
     console.log("[Cloudinary] Upload successful:", result.public_id);
+    console.log("[Cloudinary] Response keys:", Object.keys(result).join(", "));
+
+    // Map Cloudinary response to analysis data structure
+    // Colors and phash are returned at top level when requested
+    const analysisInfo: any = {};
+
+    // Map colors if present (from colors=true parameter)
+    if (result.colors) {
+      analysisInfo.colors = {
+        predominant: {
+          google: result.colors,  // [[colorName, percentage], ...]
+        },
+      };
+    }
+
+    // Map phash if present (from phash=true parameter)  
+    if (result.phash) {
+      analysisInfo.phash = result.phash;
+    }
+
+    // Include image metadata if present
+    if (result.image_metadata) {
+      analysisInfo.image_metadata = result.image_metadata;
+    }
 
     return {
       success: true,
@@ -187,11 +211,12 @@ export async function uploadImage(
         width: result.width,
         height: result.height,
         bytes: result.bytes,
-        info: result.info ? result.info : result, // Map analysis data if present
+        info: Object.keys(analysisInfo).length > 0 ? analysisInfo : undefined,
       },
     };
   } catch (error) {
     console.error("[Cloudinary] Upload error:", error);
+
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown upload error",

@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Users, Car, MapPin, Activity, Camera, Clock, AlertTriangle, Network, ZoomIn, ZoomOut, Maximize2, Map, ExternalLink, Search, X, Package, Calendar, Database, AlertCircle } from "lucide-react";
+import { ArrowLeft, Users, Car, MapPin, Activity, Camera, Clock, AlertTriangle, Network, ZoomIn, ZoomOut, Maximize2, Map, ExternalLink, Search, X, Package, Calendar, Database, AlertCircle, Globe } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { format, subDays } from "date-fns";
@@ -20,6 +20,7 @@ import {
   polePeople,
   poleObjects,
   poleLocations,
+  poleRelationships,
   NODE_COLORS,
   RELATIONSHIP_TYPES,
   PERU_REGIONS,
@@ -28,6 +29,22 @@ import {
   type RiskLevel,
   type POLEEntityType,
 } from "@/data/poleData";
+
+// Import translation helpers
+import {
+  type Language,
+  getStoredLanguage,
+  setStoredLanguage,
+  t,
+  getDescription,
+  getName,
+  getType,
+  getRelationshipLabel,
+  getRole,
+  getRiskLevel,
+  getStatus,
+  getEntityType,
+} from "@/lib/translations";
 
 // Local interface for graph node (extends imported type)
 interface POLENode extends POLEGraphNode {
@@ -98,6 +115,19 @@ export default function POLEAnalytics() {
   const [activeTab, setActiveTab] = useState("graph");
   const [layout, setLayout] = useState<LayoutType>("force");
   const [searchQuery, setSearchQuery] = useState("");
+  const [language, setLanguage] = useState<Language>("en");
+  
+  // Load language preference from localStorage on mount
+  useEffect(() => {
+    setLanguage(getStoredLanguage());
+  }, []);
+  
+  // Toggle language and persist to localStorage
+  const toggleLanguage = () => {
+    const newLang = language === "en" ? "es" : "en";
+    setLanguage(newLang);
+    setStoredLanguage(newLang);
+  };
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -478,23 +508,33 @@ export default function POLEAnalytics() {
               onClick={() => setLocation("/dashboard")}
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
+              {t("back", language)}
             </Button>
             <div>
-              <h1 className="text-xl font-bold">POLE Analytics</h1>
+              <h1 className="text-xl font-bold">{t("poleAnalytics", language)}</h1>
               <p className="text-xs text-muted-foreground">
-                People, Objects, Locations, Events • Crime Network Analysis
+                {t("people", language)}, {t("objects", language)}, {t("locations", language)}, {t("events", language)} • {t("crimeNetworkAnalysis", language)}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Language Toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleLanguage}
+              className="gap-1.5 text-xs"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              {language === "en" ? "EN" : "ES"}
+            </Button>
             <Badge variant="outline" className="text-xs">
               <Network className="w-3 h-3 mr-1" />
-              {stats.people + stats.objects + stats.locations + stats.events} Entities
+              {stats.people + stats.objects + stats.locations + stats.events} {t("entities", language)}
             </Badge>
             <Badge variant="outline" className="text-xs">
               <AlertTriangle className="w-3 h-3 mr-1 text-red-500" />
-              {stats.highRisk} High Risk
+              {stats.highRisk} {t("highRisk", language)}
             </Badge>
           </div>
         </div>
@@ -507,25 +547,50 @@ export default function POLEAnalytics() {
           {/* Stats Bar */}
           <div className="border-b border-border bg-card/30 p-4">
             <div className="grid grid-cols-6 gap-4">
-              <div className="flex items-center gap-2">
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="flex items-center gap-2"
+              >
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_COLORS.person }} />
-                <span className="text-sm">People: {stats.people}</span>
-              </div>
-              <div className="flex items-center gap-2">
+                <span className="text-sm">{t("people", language)}: {stats.people}</span>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="flex items-center gap-2"
+              >
                 <div className="w-3 h-3 rotate-45" style={{ backgroundColor: NODE_COLORS.object }} />
-                <span className="text-sm">Objects: {stats.objects}</span>
-              </div>
-              <div className="flex items-center gap-2">
+                <span className="text-sm">{t("objects", language)}: {stats.objects}</span>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="flex items-center gap-2"
+              >
                 <div className="w-3 h-3" style={{ backgroundColor: NODE_COLORS.location }} />
-                <span className="text-sm">Locations: {stats.locations}</span>
-              </div>
-              <div className="flex items-center gap-2">
+                <span className="text-sm">{t("locations", language)}: {stats.locations}</span>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="flex items-center gap-2"
+              >
                 <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-b-[10px] border-l-transparent border-r-transparent" style={{ borderBottomColor: NODE_COLORS.event }} />
-                <span className="text-sm">Events: {stats.events}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Links: {stats.links}</span>
-              </div>
+                <span className="text-sm">{t("events", language)}: {stats.events}</span>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex items-center gap-2"
+              >
+                <span className="text-sm text-muted-foreground">{t("links", language)}: {stats.links}</span>
+              </motion.div>
               <div className="flex items-center gap-2 justify-end">
                 <Select value={layout} onValueChange={(v) => setLayout(v as LayoutType)}>
                   <SelectTrigger className="w-[150px] h-8">
@@ -547,35 +612,59 @@ export default function POLEAnalytics() {
               <TabsList className="h-10">
                 <TabsTrigger value="graph" className="gap-2">
                   <Network className="w-4 h-4" />
-                  Relationship Graph
+                  {t("relationshipGraph", language)}
                 </TabsTrigger>
                 <TabsTrigger value="timeline" className="gap-2">
                   <Activity className="w-4 h-4" />
-                  Timeline
+                  {t("timeline", language)}
                 </TabsTrigger>
                 <TabsTrigger value="list" className="gap-2">
                   <Users className="w-4 h-4" />
-                  Entity List
+                  {t("entityList", language)}
                 </TabsTrigger>
               </TabsList>
             </div>
             
             <TabsContent value="graph" className="flex-1 m-0 relative">
               {isLoading ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur z-10">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur z-10"
+                >
                   <div className="relative w-72 h-72 mb-6">
                     <Skeleton className="absolute inset-0 rounded-full opacity-20" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-primary/60 rounded-full animate-pulse" />
-                    <div className="absolute top-1/4 left-1/4 w-6 h-6 bg-blue-500/60 rounded-full animate-pulse" style={{ animationDelay: "0.1s" }} />
-                    <div className="absolute top-1/4 right-1/4 w-6 h-6 bg-orange-500/60 rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
-                    <div className="absolute bottom-1/4 left-1/4 w-6 h-6 bg-purple-500/60 rounded-full animate-pulse" style={{ animationDelay: "0.3s" }} />
-                    <div className="absolute bottom-1/4 right-1/4 w-6 h-6 bg-red-500/60 rounded-full animate-pulse" style={{ animationDelay: "0.4s" }} />
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-primary/60 rounded-full"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.1 }}
+                      className="absolute top-1/4 left-1/4 w-6 h-6 bg-blue-500/60 rounded-full"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
+                      className="absolute top-1/4 right-1/4 w-6 h-6 bg-orange-500/60 rounded-full"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                      className="absolute bottom-1/4 left-1/4 w-6 h-6 bg-purple-500/60 rounded-full"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
+                      className="absolute bottom-1/4 right-1/4 w-6 h-6 bg-red-500/60 rounded-full"
+                    />
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Network className="w-5 h-5 animate-pulse" />
-                    <span className="text-sm font-medium">Building crime network graph...</span>
+                    <span className="text-sm font-medium">{t("buildingGraph", language)}</span>
                   </div>
-                </div>
+                </motion.div>
               ) : (
                 <div ref={containerRef} className="absolute inset-0 bg-card/30">
                   <ForceGraph2D
@@ -633,61 +722,77 @@ export default function POLEAnalytics() {
                   </div>
                   
                   {/* Legend */}
-                  <div className="absolute bottom-4 left-4 bg-card/90 backdrop-blur rounded-lg p-3 border border-border">
-                    <div className="text-xs font-semibold mb-2">Legend</div>
+                  <motion.div 
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="absolute bottom-4 left-4 bg-card/90 backdrop-blur rounded-lg p-3 border border-border"
+                  >
+                    <div className="text-xs font-semibold mb-2">{t("legend", language)}</div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-xs">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_COLORS.person }} />
-                        <span>Person</span>
+                        <span>{getEntityType("person", language)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <div className="w-3 h-3 rotate-45" style={{ backgroundColor: NODE_COLORS.object }} />
-                        <span>Object</span>
+                        <span>{getEntityType("object", language)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <div className="w-3 h-3" style={{ backgroundColor: NODE_COLORS.location }} />
-                        <span>Location</span>
+                        <span>{getEntityType("location", language)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[8px] border-l-transparent border-r-transparent" style={{ borderBottomColor: NODE_COLORS.event }} />
-                        <span>Event</span>
+                        <span>{getEntityType("event", language)}</span>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
               )}
             </TabsContent>
             
             <TabsContent value="timeline" className="flex-1 m-0 p-6 overflow-auto">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Activity Timeline</CardTitle>
-                  <CardDescription>POLE entity activity over the last 7 days</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart data={timelineData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="date" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
-                      <Tooltip contentStyle={{ backgroundColor: "#374151", border: "1px solid #4B5563" }} labelStyle={{ color: "#F9FAFB" }} />
-                      <Legend />
-                      <Line type="monotone" dataKey="people" stroke={NODE_COLORS.person} strokeWidth={2} name="People" />
-                      <Line type="monotone" dataKey="objects" stroke={NODE_COLORS.object} strokeWidth={2} name="Objects" />
-                      <Line type="monotone" dataKey="events" stroke={NODE_COLORS.event} strokeWidth={2} name="Events" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t("activityTimeline", language)}</CardTitle>
+                    <CardDescription>{t("activityTimelineDesc", language)}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <LineChart data={timelineData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="date" stroke="#9CA3AF" />
+                        <YAxis stroke="#9CA3AF" />
+                        <Tooltip contentStyle={{ backgroundColor: "#374151", border: "1px solid #4B5563" }} labelStyle={{ color: "#F9FAFB" }} />
+                        <Legend />
+                        <Line type="monotone" dataKey="people" stroke={NODE_COLORS.person} strokeWidth={2} name={t("people", language)} />
+                        <Line type="monotone" dataKey="objects" stroke={NODE_COLORS.object} strokeWidth={2} name={t("objects", language)} />
+                        <Line type="monotone" dataKey="events" stroke={NODE_COLORS.event} strokeWidth={2} name={t("events", language)} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </TabsContent>
             
             <TabsContent value="list" className="flex-1 m-0 p-6 overflow-auto">
-              <div className="space-y-4">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-4"
+              >
                 {/* Search */}
                 <div className="relative max-w-md">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search entities..."
+                    placeholder={t("searchEntities", language)}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
@@ -769,7 +874,7 @@ export default function POLEAnalytics() {
                         className="w-4 h-4 rounded-full"
                         style={{ backgroundColor: NODE_COLORS[selectedNode.type] }}
                       />
-                      <span className="text-xs text-muted-foreground uppercase">{selectedNode.type}</span>
+                      <span className="text-xs text-muted-foreground uppercase">{getEntityType(selectedNode.type, language)}</span>
                     </div>
                     <h3 className="text-lg font-bold">{selectedNode.name}</h3>
                     <p className="text-sm text-muted-foreground">{selectedNode.id}</p>
@@ -782,20 +887,25 @@ export default function POLEAnalytics() {
                 {/* Badges */}
                 <div className="flex flex-wrap gap-2">
                   {selectedNode.riskLevel && (
-                    <Badge className={`${getRiskColor(selectedNode.riskLevel)} text-white`}>
-                      {selectedNode.riskLevel} risk
-                    </Badge>
+                    <motion.div
+                      animate={selectedNode.riskLevel === "high" ? { scale: [1, 1.05, 1] } : {}}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      <Badge className={`${getRiskColor(selectedNode.riskLevel)} text-white`}>
+                        {getRiskLevel(selectedNode.riskLevel, language)} {language === "en" ? "risk" : "riesgo"}
+                      </Badge>
+                    </motion.div>
                   )}
                   {selectedNode.status && (
                     <Badge className={`${getStatusColor(selectedNode.status)} text-white`}>
-                      {selectedNode.status}
+                      {getStatus(selectedNode.status, language)}
                     </Badge>
                   )}
                   {selectedNode.priority && (
                     <Badge variant="outline">{selectedNode.priority}</Badge>
                   )}
                   {selectedNode.role && (
-                    <Badge variant="outline">{selectedNode.role}</Badge>
+                    <Badge variant="outline">{getRole(selectedNode.role, language)}</Badge>
                   )}
                 </div>
                 
@@ -804,25 +914,25 @@ export default function POLEAnalytics() {
                   <CardContent className="p-3 space-y-2">
                     {selectedNode.region && (
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Region</span>
+                        <span className="text-muted-foreground">{t("region", language)}</span>
                         <span>{selectedNode.region}</span>
                       </div>
                     )}
                     {selectedNode.camera && (
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Camera</span>
+                        <span className="text-muted-foreground">{t("camera", language)}</span>
                         <span className="font-mono text-xs">{selectedNode.camera}</span>
                       </div>
                     )}
                     {selectedNode.timestamp && (
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Time</span>
+                        <span className="text-muted-foreground">{t("time", language)}</span>
                         <span className="text-xs">{selectedNode.timestamp}</span>
                       </div>
                     )}
                     {selectedNode.description && (
                       <div className="text-sm">
-                        <span className="text-muted-foreground block mb-1">Description</span>
+                        <span className="text-muted-foreground block mb-1">{t("description", language)}</span>
                         <span>{selectedNode.description}</span>
                       </div>
                     )}
@@ -832,7 +942,7 @@ export default function POLEAnalytics() {
                 {/* Connections */}
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Connections</CardTitle>
+                    <CardTitle className="text-sm">{t("connections", language)}</CardTitle>
                   </CardHeader>
                   <CardContent className="p-3 space-y-2">
                     {graphData.links
@@ -848,11 +958,21 @@ export default function POLEAnalytics() {
                         const connectedId = sourceId === selectedNode.id ? targetId : sourceId;
                         const connectedNode = graphData.nodes.find((n) => n.id === connectedId);
                         const relType = link.type as keyof typeof RELATIONSHIP_TYPES;
+                        // Find the full relationship data to get labelEn
+                        const fullRelationship = poleRelationships.find(
+                          r => (r.source === sourceId && r.target === targetId) || (r.source === targetId && r.target === sourceId)
+                        );
+                        const displayLabel = language === "en" 
+                          ? (fullRelationship?.labelEn || RELATIONSHIP_TYPES[relType]?.en || link.label)
+                          : (link.label || RELATIONSHIP_TYPES[relType]?.label || link.type);
                         
                         return (
-                          <div
+                          <motion.div
                             key={idx}
-                            className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50 cursor-pointer"
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50 cursor-pointer transition-colors"
                             onClick={() => connectedNode && setSelectedNode(connectedNode)}
                           >
                             <div className="flex items-center gap-2">
@@ -867,9 +987,9 @@ export default function POLEAnalytics() {
                               className="text-xs"
                               style={{ borderColor: RELATIONSHIP_TYPES[relType]?.color }}
                             >
-                              {link.label || RELATIONSHIP_TYPES[relType]?.label || link.type}
+                              {displayLabel}
                             </Badge>
-                          </div>
+                          </motion.div>
                         );
                       })}
                   </CardContent>
@@ -878,18 +998,18 @@ export default function POLEAnalytics() {
                 {/* Navigation Actions */}
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Actions</CardTitle>
+                    <CardTitle className="text-sm">{t("actions", language)}</CardTitle>
                   </CardHeader>
                   <CardContent className="p-3 space-y-2">
                     {selectedNode.type === "location" && selectedNode.coordinates && (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start"
+                        className="w-full justify-start hover:border-blue-500 hover:bg-blue-500/10 transition-colors"
                         onClick={() => setLocation(`/dashboard/map?lat=${selectedNode.coordinates?.lat}&lng=${selectedNode.coordinates?.lng}`)}
                       >
                         <Map className="w-4 h-4 mr-2 text-blue-500" />
-                        View on Map
+                        {t("viewOnMap", language)}
                         <ExternalLink className="w-3 h-3 ml-auto" />
                       </Button>
                     )}
@@ -897,33 +1017,33 @@ export default function POLEAnalytics() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start"
+                        className="w-full justify-start hover:border-purple-500 hover:bg-purple-500/10 transition-colors"
                         onClick={() => setLocation(`/dashboard/map?region=${encodeURIComponent(selectedNode.region!)}`)}
                       >
                         <MapPin className="w-4 h-4 mr-2 text-purple-500" />
-                        View Region
+                        {t("viewRegion", language)}
                         <ExternalLink className="w-3 h-3 ml-auto" />
                       </Button>
                     )}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full justify-start"
+                      className="w-full justify-start hover:border-green-500 hover:bg-green-500/10 transition-colors"
                       onClick={() => setLocation(`/dashboard/topology?entity=${encodeURIComponent(selectedNode.id)}`)}
                     >
                       <Network className="w-4 h-4 mr-2 text-green-500" />
-                      View in Topology
+                      {t("viewTopology", language)}
                       <ExternalLink className="w-3 h-3 ml-auto" />
                     </Button>
                     {selectedNode.type === "event" && (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start"
+                        className="w-full justify-start hover:border-red-500 hover:bg-red-500/10 transition-colors"
                         onClick={() => setLocation(`/dashboard/incidents?id=${encodeURIComponent(selectedNode.id)}`)}
                       >
                         <AlertTriangle className="w-4 h-4 mr-2 text-red-500" />
-                        View Incident
+                        {t("viewIncident", language)}
                         <ExternalLink className="w-3 h-3 ml-auto" />
                       </Button>
                     )}

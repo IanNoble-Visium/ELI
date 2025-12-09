@@ -26,8 +26,10 @@ export interface POLEPerson {
   riskLevel: RiskLevel;
   region: string;
   description?: string;
+  descriptionEn?: string; // English translation
   knownAliases?: string[];
   lastSeenLocation?: string;
+  lastSeenLocationEn?: string; // English translation
   lastSeenTimestamp?: string;
   associatedPlateNumbers?: string[]; // For matching with PlateMatched events
   faceEncodingId?: string; // For matching with FaceMatched events
@@ -36,8 +38,10 @@ export interface POLEPerson {
 export interface POLEObject {
   id: string;
   name: string;
+  nameEn?: string; // English translation
   type: ObjectType;
   description: string;
+  descriptionEn?: string; // English translation
   status: "evidence" | "recovered" | "missing" | "tracked" | "flagged";
   plateNumber?: string; // For vehicles - matches PlateMatched events
   serialNumber?: string;
@@ -47,6 +51,7 @@ export interface POLEObject {
 export interface POLELocation {
   id: string;
   name: string;
+  nameEn?: string; // English translation
   type: LocationType;
   region: string;
   district: string;
@@ -58,7 +63,9 @@ export interface POLELocation {
 export interface POLEIncident {
   id: string;
   type: string; // Robo agravado, Tráfico de drogas, etc.
+  typeEn?: string; // English translation (e.g., "Armed Robbery")
   description: string;
+  descriptionEn?: string; // English translation
   region: string;
   district: string;
   latitude: number;
@@ -81,6 +88,7 @@ export interface POLERelationship {
   target: string;
   type: string; // conoce_a, posee, ocurrió_en, usó_en, testigo_de, etc.
   label: string;
+  labelEn?: string; // English translation
   value: number; // Strength of relationship 1-5
 }
 
@@ -179,8 +187,10 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "high",
     region: "Lima",
     description: "Líder de organización criminal dedicada al robo agravado",
+    descriptionEn: "Leader of criminal organization dedicated to armed robbery",
     knownAliases: ["El Chino", "Carlitos"],
     lastSeenLocation: "San Juan de Lurigancho",
+    lastSeenLocationEn: "San Juan de Lurigancho",
     associatedPlateNumbers: ["ABC-123", "D4E-567"],
   },
   {
@@ -192,6 +202,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "high",
     region: "Lima",
     description: "Asociado principal, especialista en vehículos",
+    descriptionEn: "Main associate, vehicle specialist",
     knownAliases: ["El Flaco"],
     associatedPlateNumbers: ["XYZ-789"],
   },
@@ -204,7 +215,9 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "medium",
     region: "Cusco",
     description: "Contacto regional para distribución",
+    descriptionEn: "Regional contact for distribution",
     lastSeenLocation: "San Sebastián, Cusco",
+    lastSeenLocationEn: "San Sebastian, Cusco",
     associatedPlateNumbers: ["CUS-456"],
   },
   {
@@ -216,6 +229,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "medium",
     region: "Lima",
     description: "Cómplice en múltiples robos",
+    descriptionEn: "Accomplice in multiple robberies",
   },
   {
     id: "P-005",
@@ -226,6 +240,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "medium",
     region: "Lima",
     description: "Proveedor de información y logística",
+    descriptionEn: "Information and logistics provider",
   },
   // Victims
   {
@@ -237,6 +252,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Lima",
     description: "Víctima de robo agravado en Miraflores",
+    descriptionEn: "Victim of armed robbery in Miraflores",
   },
   {
     id: "P-007",
@@ -247,6 +263,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Arequipa",
     description: "Víctima de fraude financiero",
+    descriptionEn: "Victim of financial fraud",
   },
   {
     id: "P-008",
@@ -257,6 +274,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Lima",
     description: "Comerciante víctima de extorsión",
+    descriptionEn: "Merchant victim of extortion",
   },
   // Witnesses
   {
@@ -268,6 +286,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Lima",
     description: "Testigo presencial del robo en banco",
+    descriptionEn: "Eyewitness of the bank robbery",
   },
   {
     id: "P-010",
@@ -278,6 +297,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Cusco",
     description: "Testigo de actividad sospechosa",
+    descriptionEn: "Witness of suspicious activity",
   },
   {
     id: "P-011",
@@ -288,6 +308,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Trujillo",
     description: "Guardia de seguridad, testigo clave",
+    descriptionEn: "Security guard, key witness",
   },
   // Informants
   {
@@ -299,6 +320,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Lima",
     description: "Informante confidencial CI-2024-015",
+    descriptionEn: "Confidential informant CI-2024-015",
   },
   {
     id: "P-013",
@@ -309,6 +331,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Piura",
     description: "Fuente de información sobre tráfico",
+    descriptionEn: "Information source on trafficking",
   },
   // Drug trafficking network
   {
@@ -320,6 +343,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "high",
     region: "Puno",
     description: "Presunto líder de red de narcotráfico",
+    descriptionEn: "Alleged leader of drug trafficking network",
     knownAliases: ["El Patrón"],
     associatedPlateNumbers: ["PUN-321"],
   },
@@ -332,6 +356,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "medium",
     region: "Puno",
     description: "Coordinadora de transporte de sustancias",
+    descriptionEn: "Coordinator of substance transport",
   },
   // Domestic violence cases
   {
@@ -343,6 +368,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Chiclayo",
     description: "Víctima de violencia familiar",
+    descriptionEn: "Victim of domestic violence",
   },
   {
     id: "P-017",
@@ -353,6 +379,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "medium",
     region: "Chiclayo",
     description: "Agresor en caso de violencia familiar",
+    descriptionEn: "Aggressor in domestic violence case",
   },
   // Additional suspects
   {
@@ -364,6 +391,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "medium",
     region: "Arequipa",
     description: "Involucrado en robo de vehículos",
+    descriptionEn: "Involved in vehicle theft",
     associatedPlateNumbers: ["ARQ-159"],
   },
   {
@@ -375,6 +403,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "high",
     region: "Tacna",
     description: "Contrabandista conocido en frontera sur",
+    descriptionEn: "Known smuggler on the southern border",
     associatedPlateNumbers: ["TAC-753"],
   },
   {
@@ -386,6 +415,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Lima",
     description: "Asociada menor, lavado de activos",
+    descriptionEn: "Minor associate, money laundering",
   },
   // Officers (for assignment)
   {
@@ -397,6 +427,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Lima",
     description: "Comandante DIVINCRI Lima",
+    descriptionEn: "Commander DIVINCRI Lima",
   },
   {
     id: "P-022",
@@ -407,6 +438,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Cusco",
     description: "Capitán investigaciones Cusco",
+    descriptionEn: "Captain Investigations Cusco",
   },
   {
     id: "P-023",
@@ -417,6 +449,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Arequipa",
     description: "Teniente antinarcóticos Arequipa",
+    descriptionEn: "Anti-narcotics Lieutenant Arequipa",
   },
   {
     id: "P-024",
@@ -427,6 +460,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Puno",
     description: "Sargento patrullaje Puno",
+    descriptionEn: "Patrol Sergeant Puno",
   },
   {
     id: "P-025",
@@ -437,6 +471,7 @@ export const polePeople: POLEPerson[] = [
     riskLevel: "low",
     region: "Tacna",
     description: "Alférez control fronterizo Tacna",
+    descriptionEn: "Border Control Ensign Tacna",
   },
 ];
 
@@ -449,8 +484,10 @@ export const poleObjects: POLEObject[] = [
   {
     id: "O-001",
     name: "Honda Civic Blanco 2019",
+    nameEn: "White Honda Civic 2019",
     type: "vehicle",
     description: "Placa ABC-123, vehículo de fuga principal",
+    descriptionEn: "Plate ABC-123, main getaway vehicle",
     status: "tracked",
     plateNumber: "ABC-123",
     ownerId: "P-001",
@@ -458,8 +495,10 @@ export const poleObjects: POLEObject[] = [
   {
     id: "O-002",
     name: "Toyota Hilux Negra 2020",
+    nameEn: "Black Toyota Hilux 2020",
     type: "vehicle",
     description: "Placa XYZ-789, visto en múltiples ubicaciones",
+    descriptionEn: "Plate XYZ-789, seen at multiple locations",
     status: "flagged",
     plateNumber: "XYZ-789",
     ownerId: "P-002",
@@ -467,8 +506,10 @@ export const poleObjects: POLEObject[] = [
   {
     id: "O-003",
     name: "Yamaha FZ 150cc",
+    nameEn: "Yamaha FZ 150cc",
     type: "vehicle",
     description: "Placa MNO-456, motocicleta asociada a P-003",
+    descriptionEn: "Plate MNO-456, motorcycle associated with P-003",
     status: "tracked",
     plateNumber: "MNO-456",
     ownerId: "P-003",
@@ -476,8 +517,10 @@ export const poleObjects: POLEObject[] = [
   {
     id: "O-004",
     name: "Nissan Frontier 2018",
+    nameEn: "Nissan Frontier 2018",
     type: "vehicle",
     description: "Placa D4E-567, usado para transporte de mercancía",
+    descriptionEn: "Plate D4E-567, used for merchandise transport",
     status: "flagged",
     plateNumber: "D4E-567",
     ownerId: "P-001",
@@ -485,8 +528,10 @@ export const poleObjects: POLEObject[] = [
   {
     id: "O-005",
     name: "Hyundai Accent Gris 2021",
+    nameEn: "Gray Hyundai Accent 2021",
     type: "vehicle",
     description: "Placa CUS-456, vehículo de contacto Cusco",
+    descriptionEn: "Plate CUS-456, Cusco contact vehicle",
     status: "tracked",
     plateNumber: "CUS-456",
     ownerId: "P-003",
@@ -494,8 +539,10 @@ export const poleObjects: POLEObject[] = [
   {
     id: "O-006",
     name: "Suzuki Alto Rojo 2017",
+    nameEn: "Red Suzuki Alto 2017",
     type: "vehicle",
     description: "Placa PUN-321, transporte de sustancias",
+    descriptionEn: "Plate PUN-321, substance transport",
     status: "flagged",
     plateNumber: "PUN-321",
     ownerId: "P-014",
@@ -504,16 +551,20 @@ export const poleObjects: POLEObject[] = [
   {
     id: "O-007",
     name: "Pistola 9mm Glock 17",
+    nameEn: "9mm Glock 17 Pistol",
     type: "weapon",
     description: "Serial: GN-45892, recuperada en escena",
+    descriptionEn: "Serial: GN-45892, recovered at scene",
     status: "evidence",
     serialNumber: "GN-45892",
   },
   {
     id: "O-008",
     name: "Revólver .38 Special",
+    nameEn: ".38 Special Revolver",
     type: "weapon",
     description: "Serial: RV-78234, vinculada a P-002",
+    descriptionEn: "Serial: RV-78234, linked to P-002",
     status: "evidence",
     serialNumber: "RV-78234",
     ownerId: "P-002",
@@ -521,91 +572,115 @@ export const poleObjects: POLEObject[] = [
   {
     id: "O-009",
     name: "Cuchillo táctico",
+    nameEn: "Tactical Knife",
     type: "weapon",
     description: "Hoja de 15cm, encontrado en vehículo",
+    descriptionEn: "15cm blade, found in vehicle",
     status: "evidence",
   },
   // Electronics
   {
     id: "O-010",
     name: "Laptop Dell XPS 15",
+    nameEn: "Dell XPS 15 Laptop",
     type: "electronics",
     description: "Contiene registros financieros",
+    descriptionEn: "Contains financial records",
     status: "evidence",
     serialNumber: "DL-2024-78945",
   },
   {
     id: "O-011",
     name: "Teléfono prepago Samsung",
+    nameEn: "Samsung Prepaid Phone",
     type: "electronics",
     description: "Celular desechable con historial SMS",
+    descriptionEn: "Disposable phone with SMS history",
     status: "evidence",
   },
   {
     id: "O-012",
     name: "iPhone 14 Pro",
+    nameEn: "iPhone 14 Pro",
     type: "electronics",
     description: "Teléfono de P-001, datos encriptados",
+    descriptionEn: "P-001's phone, encrypted data",
     status: "evidence",
     ownerId: "P-001",
   },
   {
     id: "O-013",
     name: "Tablet iPad Air",
+    nameEn: "iPad Air Tablet",
     type: "electronics",
     description: "Usada para comunicaciones",
+    descriptionEn: "Used for communications",
     status: "recovered",
   },
   // Documents
   {
     id: "O-014",
     name: "DNI Falso",
+    nameEn: "Fake ID",
     type: "document",
     description: "Documento de identidad falsificado",
+    descriptionEn: "Falsified identity document",
     status: "evidence",
   },
   {
     id: "O-015",
     name: "Licencia de conducir adulterada",
+    nameEn: "Tampered Driver's License",
     type: "document",
     description: "Licencia con datos alterados",
+    descriptionEn: "License with altered data",
     status: "evidence",
   },
   // Currency
   {
     id: "O-016",
     name: "Efectivo S/. 45,000",
+    nameEn: "Cash S/. 45,000",
     type: "currency",
     description: "Dinero en efectivo incautado",
+    descriptionEn: "Seized cash",
     status: "recovered",
   },
   {
     id: "O-017",
     name: "Dólares USD $12,500",
+    nameEn: "USD $12,500",
     type: "currency",
     description: "Moneda extranjera sin declarar",
+    descriptionEn: "Undeclared foreign currency",
     status: "evidence",
   },
   // Contraband
   {
     id: "O-018",
     name: "Cocaína 5kg",
+    nameEn: "Cocaine 5kg",
     type: "contraband",
     description: "Sustancia ilícita incautada en Puno",
+    descriptionEn: "Illicit substance seized in Puno",
     status: "evidence",
   },
   {
     id: "O-019",
     name: "Mercadería de contrabando",
+    nameEn: "Contraband Merchandise",
     type: "contraband",
     description: "Electrónicos sin declarar, valor $25,000",
+    descriptionEn: "Undeclared electronics, value $25,000",
     status: "recovered",
   },
   {
     id: "O-020",
     name: "Mochila negra",
+    nameEn: "Black Backpack",
     type: "contraband",
     description: "Contenedor encontrado en escena del crimen",
+    descriptionEn: "Container found at crime scene",
     status: "evidence",
   },
 ];
@@ -619,6 +694,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-001",
     name: "Banco de la Nación - Miraflores",
+    nameEn: "Bank of the Nation - Miraflores",
     type: "crime_scene",
     region: "Lima",
     district: "Miraflores",
@@ -629,6 +705,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-002",
     name: "Almacén San Isidro",
+    nameEn: "San Isidro Warehouse",
     type: "safehouse",
     region: "Lima",
     district: "San Isidro",
@@ -639,6 +716,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-003",
     name: "Departamento Barranco",
+    nameEn: "Barranco Apartment",
     type: "residence",
     region: "Lima",
     district: "Barranco",
@@ -649,6 +727,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-004",
     name: "Terminal Terrestre Lima Norte",
+    nameEn: "Lima North Bus Terminal",
     type: "transit",
     region: "Lima",
     district: "Independencia",
@@ -658,6 +737,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-005",
     name: "Puerto del Callao - Zona de carga",
+    nameEn: "Callao Port - Cargo Zone",
     type: "meeting_point",
     region: "Lima",
     district: "Callao",
@@ -668,6 +748,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-006",
     name: "Mercado Central de Cusco",
+    nameEn: "Cusco Central Market",
     type: "meeting_point",
     region: "Cusco",
     district: "Cusco",
@@ -678,6 +759,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-007",
     name: "Hotel Turístico San Blas",
+    nameEn: "San Blas Tourist Hotel",
     type: "safehouse",
     region: "Cusco",
     district: "San Blas",
@@ -688,6 +770,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-008",
     name: "Terminal Terrestre Arequipa",
+    nameEn: "Arequipa Bus Terminal",
     type: "transit",
     region: "Arequipa",
     district: "Arequipa",
@@ -697,6 +780,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-009",
     name: "Centro Comercial Real Plaza",
+    nameEn: "Real Plaza Shopping Center",
     type: "business",
     region: "Arequipa",
     district: "Cayma",
@@ -707,6 +791,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-010",
     name: "Frontera Desaguadero",
+    nameEn: "Desaguadero Border Crossing",
     type: "transit",
     region: "Puno",
     district: "Desaguadero",
@@ -716,6 +801,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-011",
     name: "Almacén clandestino Juliaca",
+    nameEn: "Juliaca Clandestine Warehouse",
     type: "safehouse",
     region: "Puno",
     district: "Juliaca",
@@ -726,6 +812,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-012",
     name: "Vivienda familiar - Chiclayo",
+    nameEn: "Family Residence - Chiclayo",
     type: "residence",
     region: "Chiclayo",
     district: "Chiclayo",
@@ -737,6 +824,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-013",
     name: "Control Fronterizo Santa Rosa",
+    nameEn: "Santa Rosa Border Control",
     type: "transit",
     region: "Tacna",
     district: "Tacna",
@@ -746,6 +834,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-014",
     name: "Zona Franca de Tacna",
+    nameEn: "Tacna Free Trade Zone",
     type: "business",
     region: "Tacna",
     district: "Tacna",
@@ -756,6 +845,7 @@ export const poleLocations: POLELocation[] = [
   {
     id: "L-015",
     name: "Centro Histórico Trujillo",
+    nameEn: "Trujillo Historic Center",
     type: "crime_scene",
     region: "Trujillo",
     district: "Trujillo",
@@ -773,7 +863,9 @@ export const poleIncidents: POLEIncident[] = [
   {
     id: "INC-2024-001",
     type: "Robo agravado",
+    typeEn: "Armed Robbery",
     description: "Asalto a mano armada en sucursal bancaria de Miraflores. Tres sospechosos armados sustrajeron aproximadamente S/. 150,000. Vehículo de fuga identificado.",
+    descriptionEn: "Armed robbery at Miraflores bank branch. Three armed suspects stole approximately S/. 150,000. Getaway vehicle identified.",
     region: "Lima",
     district: "Miraflores",
     latitude: -12.1191,
@@ -791,7 +883,9 @@ export const poleIncidents: POLEIncident[] = [
   {
     id: "INC-2024-002",
     type: "Tráfico de drogas",
+    typeEn: "Drug Trafficking",
     description: "Incautación de 5kg de cocaína en operativo fronterizo. Dos detenidos intentando cruzar a Bolivia con sustancias ocultas en vehículo.",
+    descriptionEn: "Seizure of 5kg of cocaine in border operation. Two detained attempting to cross to Bolivia with substances hidden in vehicle.",
     region: "Puno",
     district: "Desaguadero",
     latitude: -16.5667,
@@ -803,13 +897,15 @@ export const poleIncidents: POLEIncident[] = [
     relatedObjectIds: ["O-006", "O-018", "O-017"],
     relatedLocationIds: ["L-010", "L-011"],
     assignedOfficer: "Sgto. Luis Ccallo Mamani",
-    assignedUnit: "Antinarcóticos Puno",
+    assignedUnit: "Puno Anti-Narcotics",
     responseTime: 15,
   },
   {
     id: "INC-2024-003",
     type: "Violencia familiar",
+    typeEn: "Domestic Violence",
     description: "Denuncia por agresión física contra cónyuge. Víctima presenta lesiones leves. Agresor con antecedentes previos.",
+    descriptionEn: "Report of physical assault against spouse. Victim has minor injuries. Aggressor has prior record.",
     region: "Chiclayo",
     district: "Chiclayo",
     latitude: -6.7714,
@@ -820,14 +916,16 @@ export const poleIncidents: POLEIncident[] = [
     relatedPeopleIds: ["P-016", "P-017"],
     relatedObjectIds: [],
     relatedLocationIds: ["L-012"],
-    assignedOfficer: "Unidad de Familia",
-    assignedUnit: "Comisaría Chiclayo",
+    assignedOfficer: "Family Unit",
+    assignedUnit: "Chiclayo Police Station",
     responseTime: 12,
   },
   {
     id: "INC-2024-004",
     type: "Robo de vehículo",
+    typeEn: "Vehicle Theft",
     description: "Sustracción de camioneta Toyota Hilux en estacionamiento de centro comercial. Cámaras captaron a dos individuos.",
+    descriptionEn: "Theft of Toyota Hilux truck in shopping center parking lot. Cameras captured two individuals.",
     region: "Arequipa",
     district: "Cayma",
     latitude: -16.3890,
@@ -845,7 +943,9 @@ export const poleIncidents: POLEIncident[] = [
   {
     id: "INC-2024-005",
     type: "Contrabando",
+    typeEn: "Smuggling",
     description: "Decomiso de mercadería electrónica de contrabando valorizada en $25,000 USD en zona franca.",
+    descriptionEn: "Seizure of contraband electronics valued at $25,000 USD in free trade zone.",
     region: "Tacna",
     district: "Tacna",
     latitude: -18.0146,
@@ -857,13 +957,15 @@ export const poleIncidents: POLEIncident[] = [
     relatedObjectIds: ["O-019"],
     relatedLocationIds: ["L-013", "L-014"],
     assignedOfficer: "Alférez Patricia Condori Yupanqui",
-    assignedUnit: "Control Fronterizo Tacna",
+    assignedUnit: "Tacna Border Control",
     responseTime: 30,
   },
   {
     id: "INC-2024-006",
     type: "Fraude financiero",
+    typeEn: "Financial Fraud",
     description: "Estafa mediante suplantación de identidad. Víctima perdió S/. 35,000 en transferencias fraudulentas.",
+    descriptionEn: "Identity theft scam. Victim lost S/. 35,000 in fraudulent transfers.",
     region: "Arequipa",
     district: "Arequipa",
     latitude: -16.4090,
@@ -875,13 +977,15 @@ export const poleIncidents: POLEIncident[] = [
     relatedObjectIds: ["O-010", "O-014"],
     relatedLocationIds: ["L-008"],
     assignedOfficer: "Tte. Jorge Ramos Quispe",
-    assignedUnit: "División de Estafas",
+    assignedUnit: "Fraud Division",
     responseTime: 48,
   },
   {
     id: "INC-2024-007",
     type: "Extorsión",
+    typeEn: "Extortion",
     description: "Comerciante denuncia amenazas y exigencia de cupos semanales por parte de organización criminal.",
+    descriptionEn: "Merchant reports threats and weekly quota demands from criminal organization.",
     region: "Lima",
     district: "San Juan de Lurigancho",
     latitude: -12.0200,
@@ -899,7 +1003,9 @@ export const poleIncidents: POLEIncident[] = [
   {
     id: "INC-2024-008",
     type: "Robo agravado",
+    typeEn: "Armed Robbery",
     description: "Asalto a turistas en centro histórico. Sustracción de pertenencias bajo amenaza con arma blanca.",
+    descriptionEn: "Assault on tourists in historic center. Theft of belongings under knife threat.",
     region: "Trujillo",
     district: "Trujillo",
     latitude: -8.1116,
@@ -910,14 +1016,16 @@ export const poleIncidents: POLEIncident[] = [
     relatedPeopleIds: ["P-011"],
     relatedObjectIds: ["O-009"],
     relatedLocationIds: ["L-015"],
-    assignedOfficer: "Patrullaje Trujillo",
-    assignedUnit: "Comisaría Central",
+    assignedOfficer: "Trujillo Patrol",
+    assignedUnit: "Central Police Station",
     responseTime: 10,
   },
   {
     id: "INC-2024-009",
     type: "Tráfico de drogas",
+    typeEn: "Drug Trafficking",
     description: "Detención de sospechoso con indicios de microcomercialización en zona turística de Cusco.",
+    descriptionEn: "Suspect detained with evidence of micro-dealing in Cusco tourist area.",
     region: "Cusco",
     district: "Cusco",
     latitude: -13.5183,
@@ -935,7 +1043,9 @@ export const poleIncidents: POLEIncident[] = [
   {
     id: "INC-2024-010",
     type: "Falsificación de documentos",
+    typeEn: "Document Forgery",
     description: "Desarticulación de red de falsificación de documentos de identidad y licencias de conducir.",
+    descriptionEn: "Dismantling of ID and driver's license forgery network.",
     region: "Lima",
     district: "Cercado de Lima",
     latitude: -12.0464,
@@ -958,122 +1068,123 @@ export const poleIncidents: POLEIncident[] = [
 
 export const poleRelationships: POLERelationship[] = [
   // People -> People relationships
-  { source: "P-001", target: "P-002", type: "CONOCE_A", label: "Cómplices", value: 5 },
-  { source: "P-001", target: "P-004", type: "CONOCE_A", label: "Asociado", value: 4 },
-  { source: "P-001", target: "P-005", type: "TRABAJA_PARA", label: "Logística", value: 3 },
-  { source: "P-002", target: "P-003", type: "CONOCE_A", label: "Contacto regional", value: 3 },
-  { source: "P-002", target: "P-004", type: "ASOCIADO_CON", label: "Operaciones", value: 3 },
-  { source: "P-014", target: "P-015", type: "TRABAJA_PARA", label: "Coordinadora", value: 4 },
-  { source: "P-003", target: "P-014", type: "CONOCE_A", label: "Contacto", value: 2 },
-  { source: "P-017", target: "P-016", type: "CONOCE_A", label: "Cónyuge", value: 5 },
-  { source: "P-012", target: "P-002", type: "ASOCIADO_CON", label: "Informante sobre", value: 2 },
-  { source: "P-005", target: "P-020", type: "CONOCE_A", label: "Contacto financiero", value: 2 },
+  { source: "P-001", target: "P-002", type: "CONOCE_A", label: "Cómplices", labelEn: "Accomplices", value: 5 },
+  { source: "P-001", target: "P-004", type: "CONOCE_A", label: "Asociado", labelEn: "Associate", value: 4 },
+  { source: "P-001", target: "P-005", type: "TRABAJA_PARA", label: "Logística", labelEn: "Logistics", value: 3 },
+  { source: "P-002", target: "P-003", type: "CONOCE_A", label: "Contacto regional", labelEn: "Regional contact", value: 3 },
+  { source: "P-002", target: "P-004", type: "ASOCIADO_CON", label: "Operaciones", labelEn: "Operations", value: 3 },
+  { source: "P-014", target: "P-015", type: "TRABAJA_PARA", label: "Coordinadora", labelEn: "Coordinator", value: 4 },
+  { source: "P-003", target: "P-014", type: "CONOCE_A", label: "Contacto", labelEn: "Contact", value: 2 },
+  { source: "P-017", target: "P-016", type: "CONOCE_A", label: "Cónyuge", labelEn: "Spouse", value: 5 },
+  { source: "P-012", target: "P-002", type: "ASOCIADO_CON", label: "Informante sobre", labelEn: "Informant about", value: 2 },
+  { source: "P-005", target: "P-020", type: "CONOCE_A", label: "Contacto financiero", labelEn: "Financial contact", value: 2 },
   
   // People -> Objects relationships
-  { source: "P-001", target: "O-001", type: "POSEE", label: "Propietario", value: 4 },
-  { source: "P-001", target: "O-004", type: "POSEE", label: "Propietario", value: 3 },
-  { source: "P-001", target: "O-012", type: "POSEE", label: "Teléfono personal", value: 3 },
-  { source: "P-002", target: "O-002", type: "POSEE", label: "Vehículo asociado", value: 4 },
-  { source: "P-002", target: "O-008", type: "POSEE", label: "Arma vinculada", value: 4 },
-  { source: "P-003", target: "O-003", type: "POSEE", label: "Motocicleta", value: 3 },
-  { source: "P-003", target: "O-005", type: "POSEE", label: "Vehículo", value: 3 },
-  { source: "P-014", target: "O-006", type: "POSEE", label: "Vehículo transporte", value: 4 },
-  { source: "P-019", target: "O-019", type: "ASOCIADO_CON", label: "Mercadería", value: 3 },
+  { source: "P-001", target: "O-001", type: "POSEE", label: "Propietario", labelEn: "Owner", value: 4 },
+  { source: "P-001", target: "O-004", type: "POSEE", label: "Propietario", labelEn: "Owner", value: 3 },
+  { source: "P-001", target: "O-012", type: "POSEE", label: "Teléfono personal", labelEn: "Personal phone", value: 3 },
+  { source: "P-002", target: "O-002", type: "POSEE", label: "Vehículo asociado", labelEn: "Associated vehicle", value: 4 },
+  { source: "P-002", target: "O-008", type: "POSEE", label: "Arma vinculada", labelEn: "Linked weapon", value: 4 },
+  { source: "P-003", target: "O-003", type: "POSEE", label: "Motocicleta", labelEn: "Motorcycle", value: 3 },
+  { source: "P-003", target: "O-005", type: "POSEE", label: "Vehículo", labelEn: "Vehicle", value: 3 },
+  { source: "P-014", target: "O-006", type: "POSEE", label: "Vehículo transporte", labelEn: "Transport vehicle", value: 4 },
+  { source: "P-019", target: "O-019", type: "ASOCIADO_CON", label: "Mercadería", labelEn: "Merchandise", value: 3 },
   
   // People -> Incidents relationships
-  { source: "P-001", target: "INC-2024-001", type: "SOSPECHOSO_DE", label: "Sospechoso principal", value: 5 },
-  { source: "P-002", target: "INC-2024-001", type: "SOSPECHOSO_DE", label: "Cómplice", value: 4 },
-  { source: "P-004", target: "INC-2024-001", type: "SOSPECHOSO_DE", label: "Participante", value: 3 },
-  { source: "P-006", target: "INC-2024-001", type: "VICTIMA_DE", label: "Víctima", value: 4 },
-  { source: "P-009", target: "INC-2024-001", type: "TESTIGO_DE", label: "Testigo presencial", value: 3 },
-  { source: "P-014", target: "INC-2024-002", type: "SOSPECHOSO_DE", label: "Líder operación", value: 5 },
-  { source: "P-015", target: "INC-2024-002", type: "SOSPECHOSO_DE", label: "Coordinadora", value: 4 },
-  { source: "P-017", target: "INC-2024-003", type: "SOSPECHOSO_DE", label: "Agresor", value: 5 },
-  { source: "P-016", target: "INC-2024-003", type: "VICTIMA_DE", label: "Víctima", value: 5 },
-  { source: "P-018", target: "INC-2024-004", type: "SOSPECHOSO_DE", label: "Sospechoso", value: 4 },
-  { source: "P-019", target: "INC-2024-005", type: "SOSPECHOSO_DE", label: "Contrabandista", value: 4 },
-  { source: "P-007", target: "INC-2024-006", type: "VICTIMA_DE", label: "Víctima estafa", value: 4 },
-  { source: "P-020", target: "INC-2024-006", type: "SOSPECHOSO_DE", label: "Sospechosa", value: 3 },
-  { source: "P-008", target: "INC-2024-007", type: "VICTIMA_DE", label: "Víctima extorsión", value: 4 },
-  { source: "P-005", target: "INC-2024-007", type: "SOSPECHOSO_DE", label: "Extorsionador", value: 4 },
-  { source: "P-011", target: "INC-2024-008", type: "TESTIGO_DE", label: "Testigo", value: 3 },
-  { source: "P-003", target: "INC-2024-009", type: "SOSPECHOSO_DE", label: "Detenido", value: 4 },
-  { source: "P-010", target: "INC-2024-009", type: "TESTIGO_DE", label: "Testigo", value: 2 },
-  { source: "P-004", target: "INC-2024-010", type: "SOSPECHOSO_DE", label: "Falsificador", value: 4 },
-  { source: "P-012", target: "INC-2024-010", type: "TESTIGO_DE", label: "Informante", value: 3 },
+  { source: "P-001", target: "INC-2024-001", type: "SOSPECHOSO_DE", label: "Sospechoso principal", labelEn: "Main suspect", value: 5 },
+  { source: "P-002", target: "INC-2024-001", type: "SOSPECHOSO_DE", label: "Cómplice", labelEn: "Accomplice", value: 4 },
+  { source: "P-004", target: "INC-2024-001", type: "SOSPECHOSO_DE", label: "Participante", labelEn: "Participant", value: 3 },
+  { source: "P-006", target: "INC-2024-001", type: "VICTIMA_DE", label: "Víctima", labelEn: "Victim", value: 4 },
+  { source: "P-009", target: "INC-2024-001", type: "TESTIGO_DE", label: "Testigo presencial", labelEn: "Eyewitness", value: 3 },
+  { source: "P-014", target: "INC-2024-002", type: "SOSPECHOSO_DE", label: "Líder operación", labelEn: "Operation leader", value: 5 },
+  { source: "P-015", target: "INC-2024-002", type: "SOSPECHOSO_DE", label: "Coordinadora", labelEn: "Coordinator", value: 4 },
+  { source: "P-017", target: "INC-2024-003", type: "SOSPECHOSO_DE", label: "Agresor", labelEn: "Aggressor", value: 5 },
+  { source: "P-016", target: "INC-2024-003", type: "VICTIMA_DE", label: "Víctima", labelEn: "Victim", value: 5 },
+  { source: "P-018", target: "INC-2024-004", type: "SOSPECHOSO_DE", label: "Sospechoso", labelEn: "Suspect", value: 4 },
+  { source: "P-019", target: "INC-2024-005", type: "SOSPECHOSO_DE", label: "Contrabandista", labelEn: "Smuggler", value: 4 },
+  { source: "P-007", target: "INC-2024-006", type: "VICTIMA_DE", label: "Víctima estafa", labelEn: "Fraud victim", value: 4 },
+  { source: "P-020", target: "INC-2024-006", type: "SOSPECHOSO_DE", label: "Sospechosa", labelEn: "Suspect", value: 3 },
+  { source: "P-008", target: "INC-2024-007", type: "VICTIMA_DE", label: "Víctima extorsión", labelEn: "Extortion victim", value: 4 },
+  { source: "P-005", target: "INC-2024-007", type: "SOSPECHOSO_DE", label: "Extorsionador", labelEn: "Extortionist", value: 4 },
+  { source: "P-011", target: "INC-2024-008", type: "TESTIGO_DE", label: "Testigo", labelEn: "Witness", value: 3 },
+  { source: "P-003", target: "INC-2024-009", type: "SOSPECHOSO_DE", label: "Detenido", labelEn: "Detained", value: 4 },
+  { source: "P-010", target: "INC-2024-009", type: "TESTIGO_DE", label: "Testigo", labelEn: "Witness", value: 2 },
+  { source: "P-004", target: "INC-2024-010", type: "SOSPECHOSO_DE", label: "Falsificador", labelEn: "Forger", value: 4 },
+  { source: "P-012", target: "INC-2024-010", type: "TESTIGO_DE", label: "Informante", labelEn: "Informant", value: 3 },
   
   // Objects -> Incidents relationships
-  { source: "O-001", target: "INC-2024-001", type: "USO_EN", label: "Vehículo de fuga", value: 5 },
-  { source: "O-007", target: "INC-2024-001", type: "EVIDENCIA_EN", label: "Arma usada", value: 5 },
-  { source: "O-016", target: "INC-2024-001", type: "EVIDENCIA_EN", label: "Dinero robado", value: 4 },
-  { source: "O-020", target: "INC-2024-001", type: "EVIDENCIA_EN", label: "Encontrado en escena", value: 3 },
-  { source: "O-006", target: "INC-2024-002", type: "USO_EN", label: "Transporte droga", value: 5 },
-  { source: "O-018", target: "INC-2024-002", type: "EVIDENCIA_EN", label: "Sustancia incautada", value: 5 },
-  { source: "O-017", target: "INC-2024-002", type: "EVIDENCIA_EN", label: "Dinero incautado", value: 4 },
-  { source: "O-002", target: "INC-2024-004", type: "EVIDENCIA_EN", label: "Vehículo robado", value: 5 },
-  { source: "O-019", target: "INC-2024-005", type: "EVIDENCIA_EN", label: "Contrabando", value: 5 },
-  { source: "O-010", target: "INC-2024-006", type: "EVIDENCIA_EN", label: "Registros", value: 4 },
-  { source: "O-014", target: "INC-2024-006", type: "USO_EN", label: "Documento falso", value: 4 },
-  { source: "O-011", target: "INC-2024-007", type: "EVIDENCIA_EN", label: "Comunicaciones", value: 3 },
-  { source: "O-009", target: "INC-2024-008", type: "USO_EN", label: "Arma blanca", value: 4 },
-  { source: "O-003", target: "INC-2024-009", type: "USO_EN", label: "Transporte", value: 3 },
-  { source: "O-005", target: "INC-2024-009", type: "USO_EN", label: "Vehículo", value: 3 },
-  { source: "O-014", target: "INC-2024-010", type: "EVIDENCIA_EN", label: "DNI falso", value: 5 },
-  { source: "O-015", target: "INC-2024-010", type: "EVIDENCIA_EN", label: "Licencia falsa", value: 5 },
-  { source: "O-012", target: "INC-2024-010", type: "EVIDENCIA_EN", label: "Comunicaciones", value: 3 },
+  { source: "O-001", target: "INC-2024-001", type: "USO_EN", label: "Vehículo de fuga", labelEn: "Getaway vehicle", value: 5 },
+  { source: "O-007", target: "INC-2024-001", type: "EVIDENCIA_EN", label: "Arma usada", labelEn: "Weapon used", value: 5 },
+  { source: "O-016", target: "INC-2024-001", type: "EVIDENCIA_EN", label: "Dinero robado", labelEn: "Stolen money", value: 4 },
+  { source: "O-020", target: "INC-2024-001", type: "EVIDENCIA_EN", label: "Encontrado en escena", labelEn: "Found at scene", value: 3 },
+  { source: "O-006", target: "INC-2024-002", type: "USO_EN", label: "Transporte droga", labelEn: "Drug transport", value: 5 },
+  { source: "O-018", target: "INC-2024-002", type: "EVIDENCIA_EN", label: "Sustancia incautada", labelEn: "Seized substance", value: 5 },
+  { source: "O-017", target: "INC-2024-002", type: "EVIDENCIA_EN", label: "Dinero incautado", labelEn: "Seized money", value: 4 },
+  { source: "O-002", target: "INC-2024-004", type: "EVIDENCIA_EN", label: "Vehículo robado", labelEn: "Stolen vehicle", value: 5 },
+  { source: "O-019", target: "INC-2024-005", type: "EVIDENCIA_EN", label: "Contrabando", labelEn: "Contraband", value: 5 },
+  { source: "O-010", target: "INC-2024-006", type: "EVIDENCIA_EN", label: "Registros", labelEn: "Records", value: 4 },
+  { source: "O-014", target: "INC-2024-006", type: "USO_EN", label: "Documento falso", labelEn: "Fake document", value: 4 },
+  { source: "O-011", target: "INC-2024-007", type: "EVIDENCIA_EN", label: "Comunicaciones", labelEn: "Communications", value: 3 },
+  { source: "O-009", target: "INC-2024-008", type: "USO_EN", label: "Arma blanca", labelEn: "Blade weapon", value: 4 },
+  { source: "O-003", target: "INC-2024-009", type: "USO_EN", label: "Transporte", labelEn: "Transport", value: 3 },
+  { source: "O-005", target: "INC-2024-009", type: "USO_EN", label: "Vehículo", labelEn: "Vehicle", value: 3 },
+  { source: "O-014", target: "INC-2024-010", type: "EVIDENCIA_EN", label: "DNI falso", labelEn: "Fake ID", value: 5 },
+  { source: "O-015", target: "INC-2024-010", type: "EVIDENCIA_EN", label: "Licencia falsa", labelEn: "Fake license", value: 5 },
+  { source: "O-012", target: "INC-2024-010", type: "EVIDENCIA_EN", label: "Comunicaciones", labelEn: "Communications", value: 3 },
   
   // Locations -> Incidents relationships
-  { source: "L-001", target: "INC-2024-001", type: "OCURRIO_EN", label: "Escena del crimen", value: 5 },
-  { source: "L-002", target: "INC-2024-001", type: "ASOCIADO_CON", label: "Escondite", value: 4 },
-  { source: "L-010", target: "INC-2024-002", type: "OCURRIO_EN", label: "Punto de detención", value: 5 },
-  { source: "L-011", target: "INC-2024-002", type: "ASOCIADO_CON", label: "Almacén", value: 4 },
-  { source: "L-012", target: "INC-2024-003", type: "OCURRIO_EN", label: "Domicilio", value: 5 },
-  { source: "L-009", target: "INC-2024-004", type: "OCURRIO_EN", label: "Lugar del robo", value: 5 },
-  { source: "L-013", target: "INC-2024-005", type: "OCURRIO_EN", label: "Control fronterizo", value: 5 },
-  { source: "L-014", target: "INC-2024-005", type: "ASOCIADO_CON", label: "Destino mercadería", value: 3 },
-  { source: "L-008", target: "INC-2024-006", type: "ASOCIADO_CON", label: "Ubicación víctima", value: 3 },
-  { source: "L-004", target: "INC-2024-007", type: "ASOCIADO_CON", label: "Zona de operación", value: 3 },
-  { source: "L-015", target: "INC-2024-008", type: "OCURRIO_EN", label: "Escena del crimen", value: 5 },
-  { source: "L-006", target: "INC-2024-009", type: "OCURRIO_EN", label: "Lugar detención", value: 5 },
-  { source: "L-007", target: "INC-2024-009", type: "ASOCIADO_CON", label: "Alojamiento", value: 3 },
-  { source: "L-003", target: "INC-2024-010", type: "OCURRIO_EN", label: "Taller falsificación", value: 5 },
+  { source: "L-001", target: "INC-2024-001", type: "OCURRIO_EN", label: "Escena del crimen", labelEn: "Crime scene", value: 5 },
+  { source: "L-002", target: "INC-2024-001", type: "ASOCIADO_CON", label: "Escondite", labelEn: "Hideout", value: 4 },
+  { source: "L-010", target: "INC-2024-002", type: "OCURRIO_EN", label: "Punto de detención", labelEn: "Detention point", value: 5 },
+  { source: "L-011", target: "INC-2024-002", type: "ASOCIADO_CON", label: "Almacén", labelEn: "Warehouse", value: 4 },
+  { source: "L-012", target: "INC-2024-003", type: "OCURRIO_EN", label: "Domicilio", labelEn: "Residence", value: 5 },
+  { source: "L-009", target: "INC-2024-004", type: "OCURRIO_EN", label: "Lugar del robo", labelEn: "Robbery location", value: 5 },
+  { source: "L-013", target: "INC-2024-005", type: "OCURRIO_EN", label: "Control fronterizo", labelEn: "Border control", value: 5 },
+  { source: "L-014", target: "INC-2024-005", type: "ASOCIADO_CON", label: "Destino mercadería", labelEn: "Merchandise destination", value: 3 },
+  { source: "L-008", target: "INC-2024-006", type: "ASOCIADO_CON", label: "Ubicación víctima", labelEn: "Victim location", value: 3 },
+  { source: "L-004", target: "INC-2024-007", type: "ASOCIADO_CON", label: "Zona de operación", labelEn: "Operation zone", value: 3 },
+  { source: "L-015", target: "INC-2024-008", type: "OCURRIO_EN", label: "Escena del crimen", labelEn: "Crime scene", value: 5 },
+  { source: "L-006", target: "INC-2024-009", type: "OCURRIO_EN", label: "Lugar detención", labelEn: "Detention location", value: 5 },
+  { source: "L-007", target: "INC-2024-009", type: "ASOCIADO_CON", label: "Alojamiento", labelEn: "Lodging", value: 3 },
+  { source: "L-003", target: "INC-2024-010", type: "OCURRIO_EN", label: "Taller falsificación", labelEn: "Forgery workshop", value: 5 },
   
   // People -> Locations relationships
-  { source: "P-001", target: "L-002", type: "FRECUENTA", label: "Escondite habitual", value: 4 },
-  { source: "P-001", target: "L-003", type: "UBICADO_EN", label: "Residencia", value: 3 },
-  { source: "P-002", target: "L-002", type: "VISTO_EN", label: "Visto frecuentemente", value: 3 },
-  { source: "P-003", target: "L-006", type: "FRECUENTA", label: "Punto de encuentro", value: 3 },
-  { source: "P-003", target: "L-007", type: "UBICADO_EN", label: "Alojamiento", value: 3 },
-  { source: "P-014", target: "L-010", type: "VISTO_EN", label: "Cruce fronterizo", value: 4 },
-  { source: "P-014", target: "L-011", type: "FRECUENTA", label: "Almacén", value: 4 },
-  { source: "P-019", target: "L-013", type: "VISTO_EN", label: "Control", value: 4 },
-  { source: "P-019", target: "L-014", type: "FRECUENTA", label: "Zona franca", value: 3 },
-  { source: "P-017", target: "L-012", type: "UBICADO_EN", label: "Domicilio", value: 5 },
-  { source: "P-016", target: "L-012", type: "UBICADO_EN", label: "Domicilio", value: 5 },
+  { source: "P-001", target: "L-002", type: "FRECUENTA", label: "Escondite habitual", labelEn: "Regular hideout", value: 4 },
+  { source: "P-001", target: "L-003", type: "UBICADO_EN", label: "Residencia", labelEn: "Residence", value: 3 },
+  { source: "P-002", target: "L-002", type: "VISTO_EN", label: "Visto frecuentemente", labelEn: "Frequently seen", value: 3 },
+  { source: "P-003", target: "L-006", type: "FRECUENTA", label: "Punto de encuentro", labelEn: "Meeting point", value: 3 },
+  { source: "P-003", target: "L-007", type: "UBICADO_EN", label: "Alojamiento", labelEn: "Lodging", value: 3 },
+  { source: "P-014", target: "L-010", type: "VISTO_EN", label: "Cruce fronterizo", labelEn: "Border crossing", value: 4 },
+  { source: "P-014", target: "L-011", type: "FRECUENTA", label: "Almacén", labelEn: "Warehouse", value: 4 },
+  { source: "P-019", target: "L-013", type: "VISTO_EN", label: "Control", labelEn: "Control point", value: 4 },
+  { source: "P-019", target: "L-014", type: "FRECUENTA", label: "Zona franca", labelEn: "Free trade zone", value: 3 },
+  { source: "P-017", target: "L-012", type: "UBICADO_EN", label: "Domicilio", labelEn: "Residence", value: 5 },
+  { source: "P-016", target: "L-012", type: "UBICADO_EN", label: "Domicilio", labelEn: "Residence", value: 5 },
 ];
 
 // =============================================================================
 // PLATE NUMBER INDEX (for matching PlateMatched events)
+// Using plain object instead of Map to avoid bundler/minification issues
 // =============================================================================
 
-export const plateNumberIndex: Map<string, { personId: string; objectId: string }> = new Map([
-  ["ABC-123", { personId: "P-001", objectId: "O-001" }],
-  ["ABC123", { personId: "P-001", objectId: "O-001" }],
-  ["XYZ-789", { personId: "P-002", objectId: "O-002" }],
-  ["XYZ789", { personId: "P-002", objectId: "O-002" }],
-  ["MNO-456", { personId: "P-003", objectId: "O-003" }],
-  ["MNO456", { personId: "P-003", objectId: "O-003" }],
-  ["D4E-567", { personId: "P-001", objectId: "O-004" }],
-  ["D4E567", { personId: "P-001", objectId: "O-004" }],
-  ["CUS-456", { personId: "P-003", objectId: "O-005" }],
-  ["CUS456", { personId: "P-003", objectId: "O-005" }],
-  ["PUN-321", { personId: "P-014", objectId: "O-006" }],
-  ["PUN321", { personId: "P-014", objectId: "O-006" }],
-  ["ARQ-159", { personId: "P-018", objectId: "O-002" }],
-  ["ARQ159", { personId: "P-018", objectId: "O-002" }],
-  ["TAC-753", { personId: "P-019", objectId: "O-019" }],
-  ["TAC753", { personId: "P-019", objectId: "O-019" }],
-]);
+export const plateNumberIndex: Record<string, { personId: string; objectId: string }> = {
+  "ABC-123": { personId: "P-001", objectId: "O-001" },
+  "ABC123": { personId: "P-001", objectId: "O-001" },
+  "XYZ-789": { personId: "P-002", objectId: "O-002" },
+  "XYZ789": { personId: "P-002", objectId: "O-002" },
+  "MNO-456": { personId: "P-003", objectId: "O-003" },
+  "MNO456": { personId: "P-003", objectId: "O-003" },
+  "D4E-567": { personId: "P-001", objectId: "O-004" },
+  "D4E567": { personId: "P-001", objectId: "O-004" },
+  "CUS-456": { personId: "P-003", objectId: "O-005" },
+  "CUS456": { personId: "P-003", objectId: "O-005" },
+  "PUN-321": { personId: "P-014", objectId: "O-006" },
+  "PUN321": { personId: "P-014", objectId: "O-006" },
+  "ARQ-159": { personId: "P-018", objectId: "O-002" },
+  "ARQ159": { personId: "P-018", objectId: "O-002" },
+  "TAC-753": { personId: "P-019", objectId: "O-019" },
+  "TAC753": { personId: "P-019", objectId: "O-019" },
+};
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -1084,7 +1195,7 @@ export const plateNumberIndex: Map<string, { personId: string; objectId: string 
  */
 export function getPersonByPlate(plateNumber: string): POLEPerson | undefined {
   const normalized = plateNumber.replace(/[-\s]/g, "").toUpperCase();
-  const match = plateNumberIndex.get(normalized) || plateNumberIndex.get(plateNumber.toUpperCase());
+  const match = plateNumberIndex[normalized] || plateNumberIndex[plateNumber.toUpperCase()];
   if (match) {
     return polePeople.find(p => p.id === match.personId);
   }
@@ -1096,7 +1207,7 @@ export function getPersonByPlate(plateNumber: string): POLEPerson | undefined {
  */
 export function getObjectByPlate(plateNumber: string): POLEObject | undefined {
   const normalized = plateNumber.replace(/[-\s]/g, "").toUpperCase();
-  const match = plateNumberIndex.get(normalized) || plateNumberIndex.get(plateNumber.toUpperCase());
+  const match = plateNumberIndex[normalized] || plateNumberIndex[plateNumber.toUpperCase()];
   if (match) {
     return poleObjects.find(o => o.id === match.objectId);
   }
