@@ -8,10 +8,12 @@
  * {
  *   "crons": [{
  *     "path": "/api/cron/record-cloudinary-metrics",
- *     "schedule": "*/15 * * * *"
- *   }]
+ *     "schedule": "*/15 * * * * "
+  *   }]
  * }
- */
+ * 
+ * Last rebuilt: 2025 - 12 -09
+  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   isInfluxDBConfigured,
@@ -98,7 +100,7 @@ export default async function handler(
     // Calculate total credits used
     let totalCreditsUsed = usageData.credits?.used || 0;
     if (totalCreditsUsed === 0) {
-      totalCreditsUsed = 
+      totalCreditsUsed =
         (usageData.storage?.credits_usage || 0) +
         (usageData.bandwidth?.credits_usage || 0) +
         (usageData.transformations?.credits_usage || 0);
