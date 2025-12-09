@@ -12,6 +12,7 @@ import {
   webhookRequests,
   snapshots,
   incidents,
+  systemConfig,
 } from "../../drizzle/schema.js";
 
 // Cache the drizzle instance to reuse across requests
@@ -45,7 +46,7 @@ export async function getDb(): Promise<NeonHttpDatabase | null> {
 export { and, desc, eq, gte, lte, sql, count };
 
 // Re-export schema tables
-export { events, channels, webhookRequests, snapshots, incidents };
+export { events, channels, webhookRequests, snapshots, incidents, systemConfig };
 
 // ========== Snapshots ==========
 
@@ -569,3 +570,63 @@ export async function getIncidentsList(options: {
   return query.orderBy(desc(incidents.createdAt)).limit(limit);
 }
 
+// ========== System Config ==========
+
+/**
+ * Get a system configuration value by key
+ */
+export async function getSystemConfig(key: string): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const [result] = await db
+      .select({ value: systemConfig.value })
+      .from(systemConfig)
+      .where(eq(systemConfig.key, key))
+      .limit(1);
+
+    return result?.value || null;
+  } catch (error) {
+    console.error(`[DB] Error getting system config '${key}':`, error);
+    return null;
+  }
+}
+
+/**
+ * Set a system configuration value
+ */
+export async function setSystemConfig(key: string, value: string, description?: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    // Try to update first
+    const updateResult = await db
+      .update(systemConfig)
+      .set({
+        value,
+        description: description || undefined,
+        updatedAt: new Date().toISOString()
+      })
+      .where(eq(systemConfig.key, key));
+
+    // If no rows updated, insert
+    // Note: drizzle-orm with neon doesn't return rowCount, so we need to check differently
+    // We'll use an upsert pattern by catching the error
+    const existing = await getSystemConfig(key);
+    if (existing === null) {
+      await db.insert(systemConfig).values({
+        key,
+        value,
+        description: description || null,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`[DB] Error setting system config '${key}':`, error);
+    return false;
+  }
+}

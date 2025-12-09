@@ -16,6 +16,7 @@ import {
   recordProcessingDecision,
   recordThrottleMetrics,
   getThrottleConfig,
+  loadThrottleConfigFromDb,
 } from "../cloudinary/throttle.js";
 import { isNeo4jConfigured } from "../lib/neo4j.js";
 import { syncCamera, syncEvent } from "../data/topology-neo4j.js";
@@ -64,6 +65,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Try to persist to database
     const db = await getDb();
+
+    // CRITICAL: Load throttle config from database BEFORE processing images
+    // This ensures we use the persisted config, not stale in-memory defaults
+    await loadThrottleConfigFromDb();
 
     for (const body of events) {
       try {

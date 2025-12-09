@@ -10,8 +10,11 @@
  * - GET ?action=stats: Get processing statistics
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getDb, events, snapshots, sql, count, gte, desc } from "../lib/db.js";
+import { getDb, events, snapshots, sql, count, gte, desc, getSystemConfig, setSystemConfig } from "../lib/db.js";
 import { isInfluxDBConfigured, writeMetricPoint } from "../lib/influxdb.js";
+
+// Config key for database storage
+const THROTTLE_CONFIG_KEY = "cloudinary_throttle_config";
 
 // Throttle configuration interface
 export interface ThrottleConfig {
@@ -76,8 +79,61 @@ let processingStats: ProcessingStats = {
 // Track hourly buckets for rolling statistics
 const hourlyBuckets: Map<string, { received: number; processed: number; skipped: number }> = new Map();
 
+// Flag to track if config has been loaded from DB in this invocation
+let configLoadedFromDb = false;
+
 /**
- * Get the current throttle configuration
+ * Load throttle configuration from database
+ * MUST be called at the start of webhook processing to ensure config is fresh
+ */
+export async function loadThrottleConfigFromDb(): Promise<ThrottleConfig> {
+  try {
+    const configJson = await getSystemConfig(THROTTLE_CONFIG_KEY);
+    if (configJson) {
+      const dbConfig = JSON.parse(configJson) as ThrottleConfig;
+      // Merge with defaults to handle any missing fields
+      currentConfig = {
+        ...DEFAULT_CONFIG,
+        ...dbConfig,
+      };
+      configLoadedFromDb = true;
+      console.log(`[Throttle] Loaded config from DB: enabled=${currentConfig.enabled}, ratio=${currentConfig.processRatio}`);
+    } else {
+      // No config in DB, use defaults
+      console.log(`[Throttle] No config in DB, using defaults: enabled=${DEFAULT_CONFIG.enabled}`);
+    }
+  } catch (error) {
+    console.error("[Throttle] Error loading config from DB:", error);
+    // Keep using current/default config
+  }
+  return { ...currentConfig };
+}
+
+/**
+ * Save throttle configuration to database
+ */
+export async function saveThrottleConfigToDb(config: ThrottleConfig): Promise<boolean> {
+  try {
+    const configJson = JSON.stringify(config);
+    const success = await setSystemConfig(
+      THROTTLE_CONFIG_KEY,
+      configJson,
+      "Cloudinary image processing throttle configuration"
+    );
+    if (success) {
+      currentConfig = { ...config };
+      console.log(`[Throttle] Saved config to DB: enabled=${config.enabled}, ratio=${config.processRatio}`);
+    }
+    return success;
+  } catch (error) {
+    console.error("[Throttle] Error saving config to DB:", error);
+    return false;
+  }
+}
+
+/**
+ * Get the current throttle configuration (sync - uses cached value)
+ * Call loadThrottleConfigFromDb() first in webhook handlers!
  */
 export function getThrottleConfig(): ThrottleConfig {
   return { ...currentConfig };
@@ -90,6 +146,11 @@ export function getThrottleConfig(): ThrottleConfig {
  * @returns Whether the image should be processed
  */
 export function shouldProcessImage(imageIndex: number, batchSize: number): boolean {
+  // CRITICAL: Log if config wasn't loaded from DB (debugging)
+  if (!configLoadedFromDb) {
+    console.warn(`[Throttle] WARNING: Config not loaded from DB! Using in-memory: enabled=${currentConfig.enabled}`);
+  }
+
   if (!currentConfig.enabled) {
     return true; // Throttle disabled, process all
   }
@@ -97,7 +158,7 @@ export function shouldProcessImage(imageIndex: number, batchSize: number): boole
   // Check hourly limit
   const currentHour = new Date().toISOString().substring(0, 13);
   const hourBucket = hourlyBuckets.get(currentHour) || { received: 0, processed: 0, skipped: 0 };
-  
+
   if (hourBucket.processed >= currentConfig.maxPerHour) {
     return false; // Hourly limit reached
   }
@@ -106,17 +167,17 @@ export function shouldProcessImage(imageIndex: number, batchSize: number): boole
   switch (currentConfig.samplingMethod) {
     case 'random':
       return Math.random() < currentConfig.processRatio;
-    
+
     case 'interval':
       // Process every Nth image based on ratio
       const interval = Math.max(1, Math.floor(1 / currentConfig.processRatio));
       return imageIndex % interval === 0;
-    
+
     case 'first':
       // Process first N images based on ratio
       const maxInBatch = Math.max(1, Math.ceil(batchSize * currentConfig.processRatio));
       return imageIndex < maxInBatch;
-    
+
     default:
       return Math.random() < currentConfig.processRatio;
   }
@@ -234,6 +295,9 @@ export default async function handler(
 
   // GET: Retrieve configuration or stats
   if (req.method === "GET") {
+    // Always load config from DB to show current persisted state
+    await loadThrottleConfigFromDb();
+
     if (action === "stats") {
       // Fetch REAL stats from database instead of unreliable in-memory state
       // (Vercel serverless functions don't share memory across invocations)
@@ -341,43 +405,58 @@ export default async function handler(
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
+      // Build updated config
+      const updatedConfig: ThrottleConfig = { ...currentConfig };
+
       // Validate and update configuration
       if (typeof body.enabled === "boolean") {
-        currentConfig.enabled = body.enabled;
+        updatedConfig.enabled = body.enabled;
       }
 
       if (typeof body.processRatio === "number") {
         // Clamp ratio between 0 and 1
-        currentConfig.processRatio = Math.max(0, Math.min(1, body.processRatio));
+        updatedConfig.processRatio = Math.max(0, Math.min(1, body.processRatio));
       }
 
       if (typeof body.maxPerHour === "number") {
-        currentConfig.maxPerHour = Math.max(1, Math.floor(body.maxPerHour));
+        updatedConfig.maxPerHour = Math.max(1, Math.floor(body.maxPerHour));
       }
 
       if (body.samplingMethod && ['random', 'interval', 'first'].includes(body.samplingMethod)) {
-        currentConfig.samplingMethod = body.samplingMethod;
+        updatedConfig.samplingMethod = body.samplingMethod;
       }
 
-      currentConfig.lastUpdated = new Date().toISOString();
+      updatedConfig.lastUpdated = new Date().toISOString();
 
       // Update description based on settings
-      if (currentConfig.enabled) {
-        const imagesPerTenK = Math.round(currentConfig.processRatio * 10000);
-        currentConfig.description = `Throttle active: Processing ~${imagesPerTenK} images per 10,000 incoming (${(currentConfig.processRatio * 100).toFixed(2)}%)`;
+      if (updatedConfig.enabled) {
+        const imagesPerTenK = Math.round(updatedConfig.processRatio * 10000);
+        updatedConfig.description = `Throttle active: Processing ~${imagesPerTenK} images per 10,000 incoming (${(updatedConfig.processRatio * 100).toFixed(2)}%)`;
       } else {
-        currentConfig.description = "Throttle disabled: Processing all images (Production mode)";
+        updatedConfig.description = "Throttle disabled: Processing all images (Production mode)";
       }
+
+      // CRITICAL: Save config to DATABASE so ALL serverless instances use it
+      const saveSuccess = await saveThrottleConfigToDb(updatedConfig);
+      if (!saveSuccess) {
+        console.warn("[Throttle] Failed to save config to database, only in-memory updated");
+      }
+
+      // Also update in-memory for this instance
+      currentConfig = { ...updatedConfig };
 
       // Record metrics update
       await recordThrottleMetrics();
 
-      console.log("[Throttle] Configuration updated:", currentConfig);
+      console.log("[Throttle] Configuration updated and saved to DB:", currentConfig);
 
       res.status(200).json({
         success: true,
         config: currentConfig,
-        message: "Throttle configuration updated",
+        message: saveSuccess
+          ? "Throttle configuration saved to database"
+          : "Throttle configuration updated (in-memory only - DB save failed)",
+        persistedToDb: saveSuccess,
       });
       return;
 
