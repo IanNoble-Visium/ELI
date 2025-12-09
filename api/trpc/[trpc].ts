@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { parse as parseCookieHeader, serialize } from "cookie";
+import * as cookie from "cookie";
 import { SignJWT, jwtVerify } from "jose";
 
 // Constants
@@ -63,7 +63,7 @@ async function generateToken(user: typeof DEMO_USER) {
 // Get current user from cookie
 async function getCurrentUser(req: VercelRequest) {
   const cookieHeader = req.headers.cookie || "";
-  const cookies = parseCookieHeader(cookieHeader);
+  const cookies = cookie.parse(cookieHeader);
   const token = cookies[COOKIE_NAME];
 
   if (!token) return null;
@@ -128,11 +128,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const token = await generateToken(DEMO_USER);
-      const cookie = serialize(COOKIE_NAME, token, {
+      const cookieValue = cookie.serialize(COOKIE_NAME, token, {
         ...cookieOptions,
         maxAge: 24 * 60 * 60, // 24 hours in seconds
       });
-      res.setHeader("Set-Cookie", cookie);
+      res.setHeader("Set-Cookie", cookieValue);
 
       return res.status(200).json([{
         result: {
@@ -164,11 +164,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Route: auth.logout
     if (path === "auth.logout") {
-      const cookie = serialize(COOKIE_NAME, "", {
+      const cookieValue = cookie.serialize(COOKIE_NAME, "", {
         ...cookieOptions,
         maxAge: -1,
       });
-      res.setHeader("Set-Cookie", cookie);
+      res.setHeader("Set-Cookie", cookieValue);
 
       return res.status(200).json([{
         result: {

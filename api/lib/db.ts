@@ -208,7 +208,7 @@ export async function getRecentEvents(options: {
     conditions.push(eq(events.topic, topic));
   }
   if (channelId) {
-    conditions.push(eq(events.channelId, parseInt(channelId)));
+    conditions.push(eq(events.channelId, channelId));
   }
 
   let query = db.select().from(events);
