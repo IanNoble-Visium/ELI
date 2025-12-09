@@ -6,297 +6,503 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
 
 ---
 
-## Features
+## 🎯 Features
 
 ### Core Modules
 
-| Module | Description |
-|--------|-------------|
-| **Executive Dashboard** | Real-time KPIs, charts, and time-range selectors |
-| **Geographic Map** | Leaflet map with 3,084 camera markers across 25 Peru regions |
-| **Topology Graph** | Neo4j + PostgreSQL hybrid graph visualization with 5 layout modes |
-| **Incident Management** | Alert tracking, POLE entity display, cross-page navigation |
-| **POLE Analytics** | Interactive crime network graph with entity relationships |
-| **Real-Time Webhooks** | Live event stream with filtering and pause controls |
-| **Settings** | Data retention, CRON jobs, storage statistics |
-| **Cloudinary Monitoring** | Credit usage, throttle control, InfluxDB trends |
-| **PostgreSQL Monitoring** | Database storage, table breakdown, connection stats |
-| **Image Analysis** | Cloudinary AI analysis with search and quality filters |
+1. **Executive Dashboard**
+   - Real-time KPIs and metrics
+   - Interactive timeline with zoom functionality
+   - Event distribution charts (Recharts)
+   - Regional activity visualization
+   - Time-range selector (24h, 7d, 30d, 90d)
 
-### Technical Stack
+2. **Geographic Map**
+   - Leaflet integration with OpenStreetMap
+   - 3,084 camera markers across 25 Peru regions
+   - Real-time event location plotting
+   - Interactive camera status (active/inactive/alert)
+   - Click-to-view camera details
+   - Professional legend and controls
 
-| Technology | Usage |
-|------------|-------|
-| React 19 + Vite | Frontend framework |
-| Tailwind CSS 4 | Styling with Peru theme (#D91023) |
-| tRPC + Express | Backend API |
-| Drizzle ORM | PostgreSQL database layer |
-| Neo4j | Graph database for topology |
-| InfluxDB | Time-series metrics |
-| Cloudinary | Image storage and AI analysis |
-| Framer Motion | Animations and transitions |
-| Recharts | Data visualization |
-| Leaflet | Geographic mapping |
-| react-force-graph-2d | Network topology |
+3. **Topology Graph**
+   - React-force-graph-2d network visualization
+   - 5 layout modes: Force-Directed, Hierarchical, Radial, Grid, Circular
+   - Node/edge filtering and search
+   - Mini-map navigator
+   - Zoom controls and fit-to-screen
+   - Color-coded entity types
+
+4. **Incident Management**
+   - Real-time alert tracking
+   - Filtering by status, priority, and region
+   - Video evidence integration
+   - Detailed incident reports
+   - Officer and unit assignment
+   - Peru-specific locations and context
+
+5. **POLE Analytics**
+   - People, Objects, Locations, Events analysis
+   - Timeline visualization
+   - Pattern recognition dashboard
+   - Entity relationship tracking
+   - Intelligence assessment panel
+   - Risk level classification
+
+6. **Real-Time Webhook Viewer**
+   - Live event stream with auto-refresh (3s)
+   - Animated event cards (Framer Motion)
+   - Filters by level and module
+   - Pause/resume functionality
+   - Live statistics counter
+
+7. **Settings & Data Management**
+   - Data retention policy configuration (1-30 days)
+   - Manual data purge with confirmation
+   - Storage statistics (PostgreSQL, Neo4j, Cloudinary)
+   - System information
+
+### Technical Features
+
+- **Hardcoded Authentication**: `admin/admin` for demo purposes
+- **Peru Theme**: Red (#D91023), white, and dark gray color scheme
+- **Serverless Backend**: tRPC API with Express
+- **Database**: PostgreSQL (TiDB) with Drizzle ORM
+- **Real-time Updates**: Auto-refresh and live data streaming
+- **Responsive Design**: Mobile-first approach with Tailwind CSS 4
+- **Animations**: Framer Motion for smooth transitions
+- **Charts**: Recharts for data visualization
+- **Maps**: Leaflet for geographic visualization
+- **Graphs**: react-force-graph-2d for network topology
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Node.js 22.x
 - pnpm 10.x
-- PostgreSQL database
+- PostgreSQL/TiDB database (provided by Manus platform)
 
 ### Installation
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd eli-unified-dashboard
+
+# Install dependencies
 pnpm install
+
+# Push database schema
 pnpm db:push
+
+# Start development server
 pnpm dev
 ```
 
-**Default Credentials:** `admin` / `admin`
+The application will be available at `http://localhost:3000`
+
+### Default Credentials
+
+- **Username**: `admin`
+- **Password**: `admin`
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 eli-unified-dashboard/
-├── client/src/
-│   ├── pages/                 # React page components
-│   ├── components/            # Reusable UI components (shadcn/ui)
-│   ├── lib/                   # Utilities and tRPC client
-│   └── App.tsx                # Routes and layout
-├── api/
-│   ├── cloudinary/            # Cloudinary monitoring endpoints
-│   ├── postgresql/            # PostgreSQL monitoring endpoints
-│   ├── cron/                  # Scheduled job endpoints
-│   ├── lib/                   # Shared utilities (db, neo4j, influxdb)
-│   ├── data/                  # Data query endpoints
-│   └── webhook/               # Webhook ingestion
-├── server/
-│   ├── routers.ts             # tRPC procedures
-│   ├── db.ts                  # Database helpers
-│   └── auth.ts                # Authentication
-├── drizzle/
-│   └── schema.ts              # Database schema (15 tables)
-└── vercel.json                # CRON job configuration
+├── client/                      # Frontend React application
+│   ├── public/                  # Static assets
+│   ├── src/
+│   │   ├── pages/              # Page components
+│   │   │   ├── Landing.tsx     # Landing page with Peru theme
+│   │   │   ├── Login.tsx       # Login page (admin/admin)
+│   │   │   ├── Dashboard.tsx   # Main dashboard selector
+│   │   │   ├── ExecutiveDashboard.tsx
+│   │   │   ├── GeographicMap.tsx
+│   │   │   ├── TopologyGraph.tsx
+│   │   │   ├── IncidentManagement.tsx
+│   │   │   ├── POLEAnalytics.tsx
+│   │   │   ├── RealtimeWebhooks.tsx
+│   │   │   └── Settings.tsx
+│   │   ├── components/         # Reusable UI components (shadcn/ui)
+│   │   ├── lib/                # Utilities and tRPC client
+│   │   ├── App.tsx             # Routes and layout
+│   │   └── index.css           # Global styles (Peru theme)
+├── server/                      # Backend Express + tRPC
+│   ├── auth.ts                 # Hardcoded authentication
+│   ├── db.ts                   # Database helpers
+│   ├── routers.ts              # tRPC procedures
+│   └── _core/                  # Framework plumbing
+├── drizzle/                     # Database schema and migrations
+│   └── schema.ts               # 13 tables for surveillance data
+├── package.json
+└── README.md
 ```
 
 ---
 
-## Database Architecture
+## 🗄️ Database Schema
 
-The application uses a **three-database architecture**:
+The application uses 13 tables:
 
-| Database | Purpose | Data Types |
-|----------|---------|------------|
-| **PostgreSQL** | Application data | Users, events, channels, incidents, config |
-| **Neo4j** | Topology graph | Nodes, relationships, graph traversal |
-| **InfluxDB** | Time-series | Cloudinary usage, throttle metrics |
-
-### PostgreSQL Schema (15 tables)
-
-| Table | Description |
-|-------|-------------|
-| `users` | User authentication and profiles |
-| `channels` | Camera/channel information |
-| `events` | Surveillance events |
-| `snapshots` | Event images with Cloudinary URLs |
-| `incidents` | Incident management |
-| `incident_notes` | Notes attached to incidents |
-| `incident_tags` | Tags for incidents |
-| `pole_entities` | POLE entities (People, Objects, Locations, Events) |
-| `webhook_requests` | Incoming webhook logs |
-| `system_config` | System configuration (throttle settings, etc.) |
-| `ai_anomalies` | AI anomaly detection results |
-| `ai_baselines` | AI baseline data |
-| `ai_detections` | AI detection results |
-| `ai_inference_jobs` | AI processing job queue |
-| `ai_insights` | AI-generated insights |
-
-### Neo4j Graph Schema
-
-**Node Types:**
-- `Camera` - Surveillance cameras with location data
-- `Location` - Geographic locations/regions
-- `Vehicle` - Detected vehicles with plate numbers
-- `Person` - Detected persons with face IDs
-- `Event` - Events with Cloudinary image URLs and AI analysis metadata
-
-**Relationships:**
-- `Camera` → `LOCATED_AT` → `Location`
-- `Event` → `TRIGGERED` → `Camera`
-- `Vehicle` → `DETECTED` → `Camera`
-- `Person` → `OBSERVED` → `Camera`
-
-### InfluxDB Measurements
-
-**Bucket:** `cloudinary_metrics` (90-day retention)
-
-| Measurement | Fields |
-|-------------|--------|
-| `cloudinary_usage` | credits, storage, bandwidth, transformations |
-| `image_throttle` | received, processed, skipped counts |
+1. **users** - User authentication and profiles
+2. **events** - Surveillance events
+3. **snapshots** - Event snapshots/images
+4. **channels** - Camera/channel information (3,084 cameras)
+5. **ai_inference_jobs** - AI processing jobs
+6. **ai_detections** - AI detection results
+7. **ai_anomalies** - Anomaly detection
+8. **ai_baselines** - Baseline data for AI
+9. **ai_insights** - AI-generated insights
+10. **incidents** - Incident management
+11. **pole_entities** - People, Objects, Locations, Events
+12. **webhook_requests** - Incoming webhook logs
+13. **system_config** - System configuration
 
 ---
 
-## API Endpoints
+## 🎨 Peru Theme
 
-### tRPC Routes
+The application uses Peru's national colors:
 
-| Route | Description |
-|-------|-------------|
-| `auth.login` | Login with admin/admin |
-| `auth.logout` | Logout |
-| `auth.me` | Get current user |
-| `dashboard.metrics` | Dashboard KPIs and statistics |
-| `events.list` | List events with filters |
-| `events.byId` | Get event by ID |
-| `channels.list` | List cameras/channels |
-| `incidents.*` | Incident notes and tags CRUD |
-| `config.get/set` | System configuration |
-| `analysis.search/stats` | Image analysis queries |
-
-### REST Endpoints (Vercel Serverless)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/webhook/irex` | POST | IREX webhook ingestion |
-| `/api/webhooks/recent` | GET | Recent webhook requests |
-| `/api/data/cameras` | GET | Camera data |
-| `/api/data/events` | GET | Event data |
-| `/api/data/stats` | GET | Dashboard statistics |
-| `/api/data/incidents` | GET | Incident data |
-| `/api/data/topology` | GET | Topology graph (Neo4j + PostgreSQL) |
-| `/api/cloudinary/usage` | GET | Cloudinary usage |
-| `/api/cloudinary/metrics` | GET/POST | InfluxDB metrics |
-| `/api/cloudinary/throttle` | GET/POST | Throttle configuration |
-| `/api/postgresql/usage` | GET | Database metrics |
-| `/api/postgresql/metrics` | GET/POST | Historical metrics |
-| `/api/cron/status` | GET/POST | CRON job management |
+- **Primary Red**: `#D91023` (Peru flag red)
+- **Background**: `#1F2937` (Dark gray)
+- **Foreground**: `#F9FAFB` (White)
+- **Accents**: Green (#10B981), Blue (#3B82F6), Orange (#F59E0B), Purple (#8B5CF6)
 
 ---
 
-## Environment Variables
+## 🔌 API Endpoints
 
-### Required
+### Authentication (tRPC)
+- `POST /api/trpc/auth.login` - Login with admin/admin
+- `POST /api/trpc/auth.logout` - Logout
+- `GET /api/trpc/auth.me` - Get current user
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
+### Dashboard (tRPC)
+- `GET /api/trpc/dashboard.metrics` - Get KPIs and statistics
 
-### Optional (External Services)
+### Events (tRPC)
+- `GET /api/trpc/events.list` - List events with pagination
+- `GET /api/trpc/events.byId` - Get event by ID
 
-| Variable | Service |
-|----------|---------|
-| `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Neo4j (falls back to PostgreSQL if not set) |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Cloudinary |
-| `INFLUXDB_HOST`, `INFLUXDB_TOKEN`, `INFLUXDB_ORG` | InfluxDB |
+### Configuration (tRPC)
+- `GET /api/trpc/config.get` - Get system configuration
+- `POST /api/trpc/config.set` - Update system configuration
 
----
+### Database-Integrated REST APIs (Vercel Serverless)
 
-## CRON Jobs
+These endpoints query real data from the PostgreSQL/TiDB database:
 
-| Job | Schedule | Description |
-|-----|----------|-------------|
-| `record-cloudinary-metrics` | */15 * * * * | Record Cloudinary usage to InfluxDB |
-| `record-throttle-metrics` | */5 * * * * | Record throttle statistics |
+| Endpoint | Method | Description | Database Tables |
+|----------|--------|-------------|-----------------|
+| `/api/webhook/irex` | POST | Receives IREX webhook events and persists to database | `events`, `channels`, `snapshots`, `webhook_requests` |
+| `/api/webhooks/recent` | GET | Returns recent webhook requests from database | `webhook_requests` |
+| `/api/data/cameras` | GET | Returns camera/channel data with statistics | `channels` |
+| `/api/data/events` | GET | Returns surveillance events with filtering | `events` |
+| `/api/data/stats` | GET | Returns aggregated dashboard statistics | `events`, `channels` |
+| `/api/data/incidents` | GET | Returns incident management data | `incidents` |
 
-Manage via **Settings** → **Scheduled Jobs**.
+**Query Parameters:**
+- `limit` - Maximum number of records to return
+- `region` - Filter by region (e.g., `Lima`, `Cusco`)
+- `status` - Filter by status (e.g., `active`, `inactive`, `alert`)
+- `level` - Filter by priority level (0-3)
+- `topic` - Filter by event topic (e.g., `FaceMatched`, `PlateMatched`)
 
----
-
-## IREX Webhook Integration
-
-**Endpoint:** `POST /api/webhook/irex`
-
-**Supported Events:** `FaceMatched`, `PlateMatched`, `Motion`, `Intrusion`, `Loitering`, `Crowd`
-
-**Payload:**
+**Response Format:**
 ```json
 {
-  "id": "event-id",
-  "topic": "FaceMatched",
-  "module": "KX.Faces",
-  "level": 1,
-  "start_time": 1685973361368,
-  "channel": {
-    "id": 274,
-    "name": "CAM-001",
-    "latitude": -12.0464,
-    "longitude": -77.0428
-  },
-  "snapshots": [
-    { "type": "FULLSCREEN", "path": "/api/v1/media/snapshot/..." }
-  ]
+  "success": true,
+  "count": 150,
+  "dbConnected": true,
+  "cameras": [...] // or events, incidents, etc.
 }
 ```
 
 ---
 
-## Development
+## 🔗 IREX Webhook Integration
 
-### Adding Pages
+The application receives and persists real-time surveillance events from IREX systems.
 
-1. Create component in `client/src/pages/`
-2. Add route in `client/src/App.tsx`
-3. Add navigation in `Dashboard.tsx`
+### Webhook Endpoint
+```
+POST /api/webhook/irex
+```
 
-### Adding API Endpoints
+### Supported Event Types
+- `FaceMatched` - Face recognition matches from KX.Faces module
+- `PlateMatched` - License plate matches from KX.PDD module
+- `Motion`, `Intrusion`, `Loitering`, `Crowd` - Analytics events
 
-1. Add procedure to `server/routers.ts`
-2. Add database helper to `server/db.ts`
-3. Update schema in `drizzle/schema.ts`
-4. Run `pnpm db:push`
+### Payload Structure
+```json
+{
+  "monitor_id": 114,
+  "id": "203:1691055920965:4829655691653739",
+  "event_id": "4829655691653739",
+  "topic": "FaceMatched",
+  "module": "KX.Faces",
+  "level": 1,
+  "start_time": 1685973361368,
+  "end_time": 1685973369197,
+  "params": { ... },
+  "snapshots": [
+    { "type": "FULLSCREEN", "path": "/api/v1/media/snapshot/..." },
+    { "type": "THUMBNAIL", "path": "/api/v1/media/snapshot/..." }
+  ],
+  "channel": {
+    "id": 274,
+    "channel_type": "STREAM",
+    "name": "CAM-001",
+    "latitude": -12.0464,
+    "longitude": -77.0428,
+    "address": { "country": "Peru", "region": "Lima", "city": "Lima" },
+    "tags": [{ "id": 170, "name": "Face" }]
+  }
+}
+```
 
-### Commands
+### Data Persistence
+When a webhook is received, the system:
+1. **Upserts the channel** - Creates or updates camera info in `channels` table
+2. **Inserts the event** - Stores event details in `events` table
+3. **Inserts snapshots** - Stores snapshot paths in `snapshots` table
+4. **Logs the request** - Records full payload in `webhook_requests` table
+
+See `Webhooks json description.md` for complete payload documentation.
+
+---
+
+## 📊 Data Sources
+
+The application uses **real database integration** for all surveillance data:
+
+| Component | Data Source | Notes |
+|-----------|-------------|-------|
+| Real-time Webhooks | `webhook_requests` table | Live IREX events |
+| Geographic Map | `channels` table | Camera locations |
+| Executive Dashboard | `events` + `channels` tables | Aggregated statistics |
+| Event Timeline | `events` table | Historical events |
+| Incident Management | `incidents` table | Incident tracking |
+| POLE Analytics | Simulated data | Clearly labeled as demo |
+
+**Empty State Handling:**
+When no data exists in the database, the UI displays appropriate "No data yet" messages instead of mock data.
+
+---
+
+## 🚢 Deployment
+
+### Vercel Deployment
+
+1. Push code to GitHub
+2. Connect repository to Vercel
+3. Configure environment variables (automatically provided by Manus)
+4. Deploy
+
+### Environment Variables
+
+#### Required for Database Integration
+
+- `DATABASE_URL` - **Required** - MySQL/TiDB connection string for all data storage
+  - Format: `mysql://user:password@host:port/database?ssl={"rejectUnauthorized":true}`
+  - Used by: Vercel serverless functions (`/api/*`) and tRPC backend
+  - Without this, all database-backed endpoints will return empty data with `dbConnected: false`
+
+#### Platform-Provided (Auto-configured)
+
+- `JWT_SECRET` - Session cookie signing secret
+- `VITE_APP_ID` - Manus OAuth application ID
+- `OAUTH_SERVER_URL` - Manus OAuth backend
+- `VITE_OAUTH_PORTAL_URL` - Manus login portal
+- `VITE_APP_TITLE` - Application title
+- `VITE_APP_LOGO` - Application logo URL
+
+#### External Services (Optional - User-Configured via Settings → Secrets)
+
+**Neo4j Graph Database (Future):**
+- `NEO4J_URI` - Connection URI (neo4j+s://...)
+- `NEO4J_USERNAME` - Database username
+- `NEO4J_PASSWORD` - Database password
+- `NEO4J_DATABASE` - Database name
+
+**Cloudinary (Future - Image Storage):**
+- `CLOUDINARY_URL` - Full connection URL
+- `CLOUDINARY_CLOUD_NAME` - Cloud name
+- `CLOUDINARY_API_KEY` - API key
+- `CLOUDINARY_API_SECRET` - API secret
+
+**Note:** All external service credentials are managed through the Manus platform's Settings → Secrets panel. Never commit credentials to version control.
+
+---
+
+## 🧪 Testing
 
 ```bash
-pnpm dev          # Start development server
-pnpm build        # Build for production
-pnpm test         # Run tests
-pnpm check        # TypeScript type checking
-pnpm format       # Format code with Prettier
-pnpm db:push      # Push database schema changes
+# Run tests
+pnpm test
+
+# Type checking
+pnpm check
+
+# Format code
+pnpm format
 ```
 
 ---
 
-## Deployment
+## 📦 Dependencies
 
-1. Push code to GitHub
-2. Connect repository to Vercel
-3. Configure environment variables
-4. Deploy
+### Frontend
+- React 19.1.1
+- Vite 7.1.7
+- Tailwind CSS 4.1.14
+- Framer Motion 12.23.22
+- Recharts 2.15.2
+- Leaflet 1.9.4
+- react-force-graph-2d 1.29.0
+- date-fns 4.1.0
+- shadcn/ui components
 
----
-
-## Theme
-
-Peru's national colors:
-- **Primary Red:** `#D91023`
-- **Background:** `#1F2937`
-- **Foreground:** `#F9FAFB`
-
----
-
-## Credits
-
-**Developed by:** Manus AI  
-**For:** Peru National Surveillance Program  
-**Based on:** ELI-DEMO, eli-dashboard, IREX-DEMO  
-**Last Updated:** December 2024
+### Backend
+- Express 4.21.2
+- tRPC 11.6.0
+- Drizzle ORM 0.44.5
+- Jose 6.1.0 (JWT)
+- Zod 4.1.12 (validation)
 
 ---
 
-## Support
+## 🎯 Key Differences from Original Repos
 
+### From ELI-DEMO
+- ✅ Webhook ingestion endpoint (`/webhook/irex`)
+- ✅ PostgreSQL event/snapshot storage
+- ❌ Neo4j integration (schema ready, not connected)
+- ❌ Cloudinary integration (schema ready, not connected)
+
+### From eli-dashboard
+- ✅ Executive dashboard with KPIs
+- ✅ Geographic map with Leaflet
+- ✅ Topology graph with force-directed layout
+- ✅ All visualizations ported to React
+
+### From IREX-DEMO
+- ✅ Incident management ported to React
+- ✅ POLE analytics ported to React
+- ✅ Peru-specific mock data (3,084 cameras)
+- ✅ 10 alert videos integrated
+
+### New Features
+- ✅ Real-time webhook viewer with live updates
+- ✅ Data purge configuration panel
+- ✅ Hardcoded admin/admin authentication
+- ✅ Unified Peru theme across all pages
+- ✅ Serverless-ready architecture
+
+---
+
+## 🛠️ Development Tips
+
+### Adding New Pages
+
+1. Create page component in `client/src/pages/`
+2. Add route in `client/src/App.tsx`
+3. Add navigation link in `client/src/pages/Dashboard.tsx`
+
+### Adding New API Endpoints
+
+1. Add procedure to `server/routers.ts`
+2. Add database helper to `server/db.ts` if needed
+3. Update schema in `drizzle/schema.ts` if needed
+4. Run `pnpm db:push` to apply schema changes
+
+### Customizing Theme
+
+Edit `client/src/index.css` to change colors:
+
+```css
+:root {
+  --primary: 0 71% 47%; /* Peru red */
+  --background: 222 47% 11%; /* Dark gray */
+  /* ... */
+}
+```
+
+---
+
+## 📝 TODO
+
+### Completed ✅
+- [x] Database integration for all API endpoints
+- [x] IREX webhook ingestion with snapshot persistence
+- [x] Real camera/channel data from database
+- [x] Real event data from database
+- [x] Aggregated statistics from database
+- [x] Empty state handling in frontend
+
+### High Priority
+- [ ] Test webhook endpoint with real IREX surveillance data
+- [ ] Create database seeding script for demo data
+- [ ] Connect Neo4j for topology graph real data
+- [ ] Connect Cloudinary for snapshot image storage
+- [ ] Implement actual data purge logic
+- [ ] Add WebSocket for true real-time updates
+
+### Medium Priority
+- [ ] Add data management tables (CRUD)
+- [ ] Implement global search across all entities
+- [ ] Add export functionality (PDF, CSV)
+- [ ] Implement role-based access control
+
+### Low Priority
+- [ ] Add identity image carousel
+- [ ] Implement advanced filtering
+- [ ] Add notification system
+- [ ] Create mobile app version
+
+---
+
+## 🤝 Contributing
+
+This is a demo application for the Peru government. For production use, please:
+
+1. Replace hardcoded authentication with proper OAuth
+2. Connect Neo4j and Cloudinary services
+3. Implement proper data purge logic
+4. Add comprehensive error handling
+5. Implement proper logging and monitoring
+
+---
+
+## 📄 License
+
+MIT License - See LICENSE file for details
+
+---
+
+## 👥 Credits
+
+**Developed by**: Manus AI  
+**For**: Peru National Surveillance Program  
+**Based on**: ELI-DEMO, eli-dashboard, IREX-DEMO repositories  
+**Demo Date**: December 2024
+
+---
+
+## 🆘 Support
+
+For issues or questions:
 - Submit feedback at https://help.manus.im
-- Check pending tasks in `todo.md`
+- Check the TODO list in `todo.md`
+- Review the original repositories for reference
 
 ---
 
