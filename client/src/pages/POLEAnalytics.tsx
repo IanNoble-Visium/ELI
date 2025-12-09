@@ -7,264 +7,68 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Users, Car, MapPin, Activity, Camera, Clock, AlertTriangle, Network, ZoomIn, ZoomOut, Maximize2, Map, ExternalLink, Search, X, Package, Calendar } from "lucide-react";
+import { ArrowLeft, Users, Car, MapPin, Activity, Camera, Clock, AlertTriangle, Network, ZoomIn, ZoomOut, Maximize2, Map, ExternalLink, Search, X, Package, Calendar, Database, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { format, subDays, subHours } from "date-fns";
+import { format, subDays } from "date-fns";
 import ForceGraph2D from "react-force-graph-2d";
 
-// Peru regions with real camera locations
-const PERU_REGIONS = [
-  { name: "Lima", cameras: 850, lat: -12.0464, lng: -77.0428 },
-  { name: "Cusco", cameras: 320, lat: -13.5320, lng: -71.9675 },
-  { name: "Arequipa", cameras: 280, lat: -16.4090, lng: -71.5375 },
-  { name: "Trujillo", cameras: 240, lat: -8.1116, lng: -79.0288 },
-  { name: "Piura", cameras: 200, lat: -5.1945, lng: -80.6328 },
-  { name: "Chiclayo", cameras: 180, lat: -6.7714, lng: -79.8409 },
-  { name: "Huancayo", cameras: 140, lat: -12.0651, lng: -75.2049 },
-];
+// Import structured POLE data
+import {
+  graphData as poleGraphData,
+  poleIncidents,
+  polePeople,
+  poleObjects,
+  poleLocations,
+  NODE_COLORS,
+  RELATIONSHIP_TYPES,
+  PERU_REGIONS,
+  type POLEGraphNode,
+  type POLEGraphLink,
+  type RiskLevel,
+  type POLEEntityType,
+} from "@/data/poleData";
 
-// POLE Entity Types for Graph
-type POLEEntityType = "person" | "object" | "location" | "event";
-
-interface POLENode {
-  id: string;
-  name: string;
-  type: POLEEntityType;
-  color: string;
-  val: number;
-  // Additional metadata
-  role?: string;
-  riskLevel?: "high" | "medium" | "low";
-  region?: string;
+// Local interface for graph node (extends imported type)
+interface POLENode extends POLEGraphNode {
   camera?: string;
-  description?: string;
-  timestamp?: string;
-  status?: string;
-  priority?: string;
-  coordinates?: { lat: number; lng: number };
-  x?: number;
-  y?: number;
-  fx?: number | null;
-  fy?: number | null;
 }
 
-interface POLELink {
-  source: string;
-  target: string;
-  type: string;
-  label?: string;
-  value: number;
+// Interface for real event data from database
+interface RealEventData {
+  id: string;
+  eventId: string;
+  topic: string;
+  channelId: string;
+  channelName?: string;
+  startTime?: string;
+  params?: any;
+  imageUrl?: string;
+  linkedPoleEntities?: string[];
 }
 
-interface POLEGraphData {
-  nodes: POLENode[];
-  links: POLELink[];
-}
-
-// Relationship types for the crime hierarchy
-const RELATIONSHIP_TYPES = {
-  KNOWS: { label: "Knows", color: "#3B82F6" },
-  WITNESSED: { label: "Witnessed", color: "#10B981" },
-  OWNS: { label: "Owns", color: "#F59E0B" },
-  VISITED: { label: "Visited", color: "#8B5CF6" },
-  INVOLVED_IN: { label: "Involved In", color: "#EF4444" },
-  ASSOCIATED: { label: "Associated", color: "#6B7280" },
-  SUSPECT_OF: { label: "Suspect Of", color: "#DC2626" },
-  VICTIM_OF: { label: "Victim Of", color: "#EA580C" },
-  LOCATED_AT: { label: "Located At", color: "#0891B2" },
-  EVIDENCE_IN: { label: "Evidence In", color: "#7C3AED" },
-};
-
-// Node colors by type
-const NODE_COLORS = {
-  person: "#3B82F6",    // Blue
-  object: "#F59E0B",    // Orange
-  location: "#8B5CF6",  // Purple
-  event: "#EF4444",     // Red
-};
-
-// Generate comprehensive crime hierarchy mock data
-const generateCrimeHierarchyData = (): POLEGraphData => {
-  const now = new Date();
-  const nodes: POLENode[] = [];
-  const links: POLELink[] = [];
-  
-  // ============ PEOPLE ============
-  const peopleData = [
-    // Suspects
-    { id: "P-001", name: "Carlos Mendoza", role: "suspect", riskLevel: "high" as const, region: "Lima" },
-    { id: "P-002", name: "Miguel Torres", role: "suspect", riskLevel: "high" as const, region: "Lima" },
-    { id: "P-003", name: "Roberto Silva", role: "suspect", riskLevel: "medium" as const, region: "Cusco" },
-    { id: "P-004", name: "Eduardo Vargas", role: "accomplice", riskLevel: "medium" as const, region: "Lima" },
-    // Victims
-    { id: "P-005", name: "Ana Garcia", role: "victim", riskLevel: "low" as const, region: "Lima" },
-    { id: "P-006", name: "Maria Rodriguez", role: "victim", riskLevel: "low" as const, region: "Arequipa" },
-    // Witnesses
-    { id: "P-007", name: "Juan Perez", role: "witness", riskLevel: "low" as const, region: "Lima" },
-    { id: "P-008", name: "Sofia Hernandez", role: "witness", riskLevel: "low" as const, region: "Cusco" },
-    { id: "P-009", name: "Pedro Martinez", role: "witness", riskLevel: "low" as const, region: "Trujillo" },
-    // Known Associates
-    { id: "P-010", name: "Luis Ramirez", role: "associate", riskLevel: "medium" as const, region: "Lima" },
-    { id: "P-011", name: "Diego Flores", role: "associate", riskLevel: "low" as const, region: "Piura" },
-    { id: "P-012", name: "Fernando Castillo", role: "informant", riskLevel: "low" as const, region: "Lima" },
-  ];
-  
-  peopleData.forEach((person) => {
-    const region = PERU_REGIONS.find((r) => r.name === person.region) || PERU_REGIONS[0];
-    nodes.push({
-      id: person.id,
-      name: person.name,
-      type: "person",
-      color: NODE_COLORS.person,
-      val: person.riskLevel === "high" ? 12 : person.riskLevel === "medium" ? 9 : 6,
-      role: person.role,
-      riskLevel: person.riskLevel,
-      region: person.region,
-      camera: `CAM-${region.name.substring(0, 3).toUpperCase()}-${String(Math.floor(Math.random() * region.cameras) + 1).padStart(4, "0")}`,
-    });
-  });
-  
-  // ============ OBJECTS (Evidence, Vehicles, Weapons) ============
-  const objectsData = [
-    { id: "O-001", name: "White Honda Civic", type: "Vehicle", description: "License: ABC-123, suspected getaway car", status: "tracked" },
-    { id: "O-002", name: "Black Toyota Hilux", type: "Vehicle", description: "License: XYZ-789, seen at multiple locations", status: "flagged" },
-    { id: "O-003", name: "9mm Handgun", type: "Weapon", description: "Serial: GN-45892, recovered at scene", status: "evidence" },
-    { id: "O-004", name: "Laptop Dell XPS", type: "Electronics", description: "Contains financial records", status: "evidence" },
-    { id: "O-005", name: "Burner Phone", type: "Electronics", description: "Prepaid phone with SMS history", status: "evidence" },
-    { id: "O-006", name: "Cash Bundle", type: "Currency", description: "~$15,000 in mixed bills", status: "recovered" },
-    { id: "O-007", name: "Black Backpack", type: "Container", description: "Found near crime scene", status: "evidence" },
-    { id: "O-008", name: "Motorcycle Yamaha", type: "Vehicle", description: "License: MNO-456, associated with P-003", status: "tracked" },
-  ];
-  
-  objectsData.forEach((obj) => {
-    nodes.push({
-      id: obj.id,
-      name: obj.name,
-      type: "object",
-      color: NODE_COLORS.object,
-      val: obj.status === "evidence" ? 10 : obj.status === "flagged" ? 8 : 6,
-      description: obj.description,
-      status: obj.status,
-      role: obj.type,
-    });
-  });
-  
-  // ============ LOCATIONS ============
-  const locationsData = [
-    { id: "L-001", name: "Miraflores Bank Branch", type: "crime_scene", region: "Lima", lat: -12.1191, lng: -77.0365 },
-    { id: "L-002", name: "San Isidro Warehouse", type: "safehouse", region: "Lima", lat: -12.0977, lng: -77.0369 },
-    { id: "L-003", name: "Barranco Apartment", type: "residence", region: "Lima", lat: -12.1413, lng: -77.0219 },
-    { id: "L-004", name: "Cusco Central Market", type: "meeting_point", region: "Cusco", lat: -13.5183, lng: -71.9781 },
-    { id: "L-005", name: "Arequipa Bus Terminal", type: "transit", region: "Arequipa", lat: -16.4090, lng: -71.5375 },
-    { id: "L-006", name: "Lima Port District", type: "drop_point", region: "Lima", lat: -12.0556, lng: -77.1429 },
-  ];
-  
-  locationsData.forEach((loc) => {
-    nodes.push({
-      id: loc.id,
-      name: loc.name,
-      type: "location",
-      color: NODE_COLORS.location,
-      val: loc.type === "crime_scene" ? 12 : loc.type === "safehouse" ? 10 : 7,
-      region: loc.region,
-      role: loc.type.replace("_", " "),
-      coordinates: { lat: loc.lat, lng: loc.lng },
-    });
-  });
-  
-  // ============ EVENTS (Incidents, Crimes) ============
-  const eventsData = [
-    { id: "E-001", name: "Armed Robbery", type: "crime", priority: "Critical", status: "Open", timestamp: subHours(now, 6) },
-    { id: "E-002", name: "Suspect Sighting", type: "surveillance", priority: "High", status: "Investigating", timestamp: subHours(now, 12) },
-    { id: "E-003", name: "Vehicle Pursuit", type: "incident", priority: "High", status: "Resolved", timestamp: subHours(now, 24) },
-    { id: "E-004", name: "Evidence Recovery", type: "operation", priority: "Medium", status: "Resolved", timestamp: subHours(now, 36) },
-    { id: "E-005", name: "Witness Interview", type: "investigation", priority: "Medium", status: "Open", timestamp: subHours(now, 8) },
-    { id: "E-006", name: "Safe House Raid", type: "operation", priority: "Critical", status: "Investigating", timestamp: subHours(now, 4) },
-    { id: "E-007", name: "Money Transfer", type: "financial", priority: "High", status: "Investigating", timestamp: subHours(now, 48) },
-  ];
-  
-  eventsData.forEach((evt) => {
-    nodes.push({
-      id: evt.id,
-      name: evt.name,
-      type: "event",
-      color: NODE_COLORS.event,
-      val: evt.priority === "Critical" ? 14 : evt.priority === "High" ? 11 : 8,
-      role: evt.type,
-      priority: evt.priority,
-      status: evt.status,
-      timestamp: format(evt.timestamp, "yyyy-MM-dd HH:mm"),
-    });
-  });
-  
-  // ============ RELATIONSHIPS / LINKS ============
-  
-  // People relationships
-  links.push({ source: "P-001", target: "P-002", type: "KNOWS", label: "Associates", value: 3 });
-  links.push({ source: "P-001", target: "P-004", type: "KNOWS", label: "Accomplice", value: 3 });
-  links.push({ source: "P-002", target: "P-003", type: "KNOWS", label: "Contact", value: 2 });
-  links.push({ source: "P-010", target: "P-001", type: "ASSOCIATED", label: "Known associate", value: 2 });
-  links.push({ source: "P-010", target: "P-011", type: "KNOWS", label: "Friends", value: 1 });
-  links.push({ source: "P-012", target: "P-002", type: "ASSOCIATED", label: "Informant on", value: 2 });
-  
-  // People -> Events (involvement)
-  links.push({ source: "P-001", target: "E-001", type: "SUSPECT_OF", label: "Primary suspect", value: 4 });
-  links.push({ source: "P-002", target: "E-001", type: "SUSPECT_OF", label: "Accomplice", value: 3 });
-  links.push({ source: "P-005", target: "E-001", type: "VICTIM_OF", label: "Victim", value: 3 });
-  links.push({ source: "P-007", target: "E-001", type: "WITNESSED", label: "Eyewitness", value: 2 });
-  links.push({ source: "P-003", target: "E-003", type: "INVOLVED_IN", label: "Suspect", value: 3 });
-  links.push({ source: "P-008", target: "E-002", type: "WITNESSED", label: "Reported sighting", value: 2 });
-  links.push({ source: "P-006", target: "E-007", type: "VICTIM_OF", label: "Fraud victim", value: 2 });
-  
-  // People -> Objects (ownership/possession)
-  links.push({ source: "P-001", target: "O-001", type: "OWNS", label: "Registered owner", value: 3 });
-  links.push({ source: "P-002", target: "O-002", type: "OWNS", label: "Associated vehicle", value: 2 });
-  links.push({ source: "P-003", target: "O-008", type: "OWNS", label: "Owner", value: 2 });
-  links.push({ source: "P-004", target: "O-005", type: "OWNS", label: "Possession", value: 2 });
-  links.push({ source: "P-001", target: "O-003", type: "ASSOCIATED", label: "Linked to", value: 3 });
-  
-  // People -> Locations (visits/residence)
-  links.push({ source: "P-001", target: "L-002", type: "VISITED", label: "Frequents", value: 3 });
-  links.push({ source: "P-001", target: "L-003", type: "VISITED", label: "Residence", value: 2 });
-  links.push({ source: "P-002", target: "L-002", type: "VISITED", label: "Seen at", value: 2 });
-  links.push({ source: "P-003", target: "L-004", type: "VISITED", label: "Meeting", value: 2 });
-  links.push({ source: "P-004", target: "L-006", type: "VISITED", label: "Drop-off", value: 2 });
-  links.push({ source: "P-010", target: "L-003", type: "VISITED", label: "Visitor", value: 1 });
-  
-  // Objects -> Events (evidence)
-  links.push({ source: "O-001", target: "E-001", type: "EVIDENCE_IN", label: "Getaway car", value: 4 });
-  links.push({ source: "O-003", target: "E-001", type: "EVIDENCE_IN", label: "Weapon used", value: 4 });
-  links.push({ source: "O-007", target: "E-001", type: "EVIDENCE_IN", label: "Found at scene", value: 3 });
-  links.push({ source: "O-002", target: "E-003", type: "INVOLVED_IN", label: "Pursuit vehicle", value: 3 });
-  links.push({ source: "O-004", target: "E-004", type: "EVIDENCE_IN", label: "Recovered", value: 3 });
-  links.push({ source: "O-006", target: "E-007", type: "EVIDENCE_IN", label: "Seized funds", value: 3 });
-  
-  // Objects -> Locations
-  links.push({ source: "O-001", target: "L-001", type: "LOCATED_AT", label: "Seen at", value: 2 });
-  links.push({ source: "O-007", target: "L-001", type: "LOCATED_AT", label: "Found at", value: 2 });
-  links.push({ source: "O-004", target: "L-002", type: "LOCATED_AT", label: "Recovered from", value: 2 });
-  
-  // Events -> Locations
-  links.push({ source: "E-001", target: "L-001", type: "LOCATED_AT", label: "Crime scene", value: 4 });
-  links.push({ source: "E-006", target: "L-002", type: "LOCATED_AT", label: "Raid location", value: 3 });
-  links.push({ source: "E-003", target: "L-005", type: "LOCATED_AT", label: "Pursuit ended", value: 2 });
-  links.push({ source: "E-002", target: "L-004", type: "LOCATED_AT", label: "Sighting location", value: 2 });
-  
-  return { nodes, links };
-};
-
-// Generate timeline data for charts
+// Generate timeline data based on actual incidents
 const generateTimelineData = () => {
   const data = [];
   const now = new Date();
+  
+  // Group incidents by day
+  const incidentsByDay = new Map<string, number>();
+  poleIncidents.forEach(inc => {
+    const day = format(new Date(inc.createdAt), "MMM dd");
+    incidentsByDay.set(day, (incidentsByDay.get(day) || 0) + 1);
+  });
+  
   for (let i = 6; i >= 0; i--) {
     const date = subDays(now, i);
+    const dayKey = format(date, "MMM dd");
+    const incidentCount = incidentsByDay.get(dayKey) || 0;
+    
     data.push({
-      date: format(date, "MMM dd"),
-      people: Math.floor(Math.random() * 40) + 30,
-      objects: Math.floor(Math.random() * 25) + 15,
-      events: Math.floor(Math.random() * 60) + 40,
+      date: dayKey,
+      people: polePeople.filter(p => p.role === "suspect" || p.role === "witness").length,
+      objects: poleObjects.filter(o => o.status === "evidence" || o.status === "flagged").length,
+      events: incidentCount > 0 ? incidentCount : Math.floor(Math.random() * 3), // Show real or minimal activity
     });
   }
   return data;
@@ -285,8 +89,11 @@ export default function POLEAnalytics() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   
-  // Generate POLE data (memoized)
-  const graphData = useMemo(() => generateCrimeHierarchyData(), []);
+  // Use structured POLE data from poleData.ts (memoized to prevent re-renders)
+  const graphData = useMemo(() => ({
+    nodes: poleGraphData.nodes as POLENode[],
+    links: poleGraphData.links,
+  }), []);
   const timelineData = useMemo(() => generateTimelineData(), []);
   
   // Parse URL parameters for deep linking

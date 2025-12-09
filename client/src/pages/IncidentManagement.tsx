@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,12 +7,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User, Search, Database, Map, Network, Users, ExternalLink } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Play, Filter, Plus, X, MessageSquare, Tag, MapPin, User, Search, Database, Map, Network, Users, ExternalLink, Car, Package } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
+
+// Import structured POLE data
+import {
+  getIncidentPOLEData,
+  polePeople,
+  poleObjects,
+  poleLocations,
+  poleIncidents as poleIncidentsData,
+  type POLEPerson as POLEPersonType,
+  type POLEObject as POLEObjectType,
+  type POLELocation as POLELocationType,
+} from "@/data/poleData";
 
 interface IncidentData {
   id: string;
@@ -30,129 +42,99 @@ interface IncidentData {
   hasVideo: boolean;
 }
 
-// POLE Entity types for incident-related data
-interface POLEPerson {
-  id: string;
-  name: string;
-  role: "suspect" | "victim" | "witness" | "officer";
-  riskLevel?: "high" | "medium" | "low";
+// Interface for POLE data display in incidents
+interface IncidentPOLEDisplayData {
+  people: Array<{
+    id: string;
+    name: string;
+    role: string;
+    riskLevel?: string;
+  }>;
+  objects: Array<{
+    id: string;
+    name: string;
+    type: string;
+    description: string;
+    status: string;
+    plateNumber?: string;
+  }>;
+  locations: Array<{
+    id: string;
+    name: string;
+    type: string;
+    coordinates?: { lat: number; lng: number };
+  }>;
 }
 
-interface POLEObject {
-  id: string;
-  type: string;
-  description: string;
-  status: "evidence" | "recovered" | "missing";
-}
-
-interface POLELocation {
-  id: string;
-  name: string;
-  type: "crime_scene" | "residence" | "business" | "public";
-  coordinates?: { lat: number; lng: number };
-}
-
-interface IncidentPOLEData {
-  people: POLEPerson[];
-  objects: POLEObject[];
-  locations: POLELocation[];
-}
-
-// Generate mock POLE data for an incident based on its type
-const generateIncidentPOLEData = (incident: IncidentData): IncidentPOLEData => {
-  const firstNames = ["Juan", "Maria", "Carlos", "Ana", "Pedro", "Sofia", "Luis", "Elena"];
-  const lastNames = ["Garcia", "Rodriguez", "Martinez", "Lopez", "Gonzalez", "Hernandez"];
-  const randomName = () => `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
+/**
+ * Get POLE data for an incident - first tries structured data, then falls back to database incident matching
+ */
+const getIncidentPOLEDisplayData = (incident: IncidentData): IncidentPOLEDisplayData => {
+  // First, try to find matching POLE incident by ID
+  const poleIncident = poleIncidentsData.find(p => p.id === incident.id);
   
-  // Generate people based on incident type
-  const people: POLEPerson[] = [];
-  
-  // Always add a witness
-  people.push({
-    id: `POI-${incident.id}-W1`,
-    name: randomName(),
-    role: "witness",
-  });
-  
-  // Add role-specific people based on incident type
-  if (incident.type.includes("Robbery") || incident.type.includes("Theft") || incident.type.includes("Assault")) {
-    people.push({
-      id: `POI-${incident.id}-S1`,
-      name: randomName(),
-      role: "suspect",
-      riskLevel: incident.priority === "critical" ? "high" : incident.priority === "high" ? "medium" : "low",
-    });
-    people.push({
-      id: `POI-${incident.id}-V1`,
-      name: randomName(),
-      role: "victim",
-    });
+  if (poleIncident) {
+    // Use structured POLE data
+    const poleData = getIncidentPOLEData(poleIncident.id);
+    return {
+      people: poleData.people.map(p => ({
+        id: p.id,
+        name: p.name,
+        role: p.role,
+        riskLevel: p.riskLevel,
+      })),
+      objects: poleData.objects.map(o => ({
+        id: o.id,
+        name: o.name,
+        type: o.type,
+        description: o.description,
+        status: o.status,
+        plateNumber: o.plateNumber,
+      })),
+      locations: poleData.locations.map(l => ({
+        id: l.id,
+        name: l.name,
+        type: l.type,
+        coordinates: { lat: l.latitude, lng: l.longitude },
+      })),
+    };
   }
   
-  if (incident.priority === "critical" || incident.priority === "high") {
-    people.push({
-      id: `POI-${incident.id}-S2`,
-      name: randomName(),
-      role: "suspect",
-      riskLevel: "medium",
-    });
+  // Try to match by region and type for database incidents
+  const matchingPoleIncident = poleIncidentsData.find(
+    p => p.region === incident.region && 
+         (p.type.toLowerCase().includes(incident.type.toLowerCase().split(' ')[0]) ||
+          incident.type.toLowerCase().includes(p.type.toLowerCase().split(' ')[0]))
+  );
+  
+  if (matchingPoleIncident) {
+    const poleData = getIncidentPOLEData(matchingPoleIncident.id);
+    return {
+      people: poleData.people.map(p => ({
+        id: p.id,
+        name: p.name,
+        role: p.role,
+        riskLevel: p.riskLevel,
+      })),
+      objects: poleData.objects.map(o => ({
+        id: o.id,
+        name: o.name,
+        type: o.type,
+        description: o.description,
+        status: o.status,
+        plateNumber: o.plateNumber,
+      })),
+      locations: poleData.locations.map(l => ({
+        id: l.id,
+        name: l.name,
+        type: l.type,
+        coordinates: { lat: l.latitude, lng: l.longitude },
+      })),
+    };
   }
   
-  // Generate objects
-  const objectTypes: Record<string, { type: string; desc: string; status: "evidence" | "recovered" | "missing" }[]> = {
-    default: [
-      { type: "Document", desc: "ID Card found at scene", status: "evidence" },
-    ],
-    robbery: [
-      { type: "Weapon", desc: "Knife - 6 inch blade", status: "evidence" },
-      { type: "Vehicle", desc: "White Honda Civic ABC-123", status: "missing" },
-      { type: "Cash", desc: "Stolen cash - approx $500", status: "missing" },
-    ],
-    theft: [
-      { type: "Electronics", desc: "Laptop - Dell XPS 15", status: "missing" },
-      { type: "Bag", desc: "Black backpack", status: "recovered" },
-    ],
-    assault: [
-      { type: "Weapon", desc: "Metal pipe", status: "evidence" },
-      { type: "Phone", desc: "iPhone 14 - damaged", status: "evidence" },
-    ],
-    vandalism: [
-      { type: "Spray Paint", desc: "Red spray paint can", status: "evidence" },
-      { type: "Tool", desc: "Glass breaker tool", status: "evidence" },
-    ],
-  };
-  
-  const incidentCategory = incident.type.toLowerCase().includes("robbery") ? "robbery" :
-    incident.type.toLowerCase().includes("theft") ? "theft" :
-    incident.type.toLowerCase().includes("assault") ? "assault" :
-    incident.type.toLowerCase().includes("vandalism") ? "vandalism" : "default";
-  
-  const objectList = objectTypes[incidentCategory] || objectTypes.default;
-  const objects: POLEObject[] = objectList.map((obj, idx) => ({
-    id: `OBJ-${incident.id}-${idx + 1}`,
-    type: obj.type,
-    description: obj.desc,
-    status: obj.status,
-  }));
-  
-  // Generate locations
-  const locations: POLELocation[] = [
-    {
-      id: `LOC-${incident.id}-1`,
-      name: incident.location,
-      type: "crime_scene",
-    },
-  ];
-  
-  if (incident.priority === "critical" || incident.priority === "high") {
-    locations.push({
-      id: `LOC-${incident.id}-2`,
-      name: `${incident.region} - Safe House`,
-      type: "residence",
-    });
-  }
-  
-  return { people, objects, locations };
+  // No matching POLE data - return empty (no mock data fallback)
+  return { people: [], objects: [], locations: [] };
 };
 
 export default function IncidentManagement() {
@@ -572,7 +554,9 @@ export default function IncidentManagement() {
 
               {/* POLE Entity Display */}
               {(() => {
-                const poleData = generateIncidentPOLEData(selectedIncident);
+                const poleData = getIncidentPOLEDisplayData(selectedIncident);
+                const hasPoleData = poleData.people.length > 0 || poleData.objects.length > 0 || poleData.locations.length > 0;
+                
                 return (
                   <Card>
                     <CardHeader>
@@ -580,132 +564,176 @@ export default function IncidentManagement() {
                         <Users className="w-5 h-5 text-green-500" />
                         Related POLE Entities
                       </CardTitle>
-                      <CardDescription>People, Objects, and Locations associated with this incident</CardDescription>
+                      <CardDescription>
+                        {hasPoleData 
+                          ? "People, Objects, and Locations associated with this incident"
+                          : "No POLE entities linked to this incident yet"
+                        }
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid md:grid-cols-3 gap-4">
-                        {/* People */}
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold flex items-center gap-2 text-blue-500">
-                            <User className="w-4 h-4" />
-                            People ({poleData.people.length})
-                          </h4>
-                          <div className="space-y-2">
-                            {poleData.people.map((person) => (
-                              <div
-                                key={person.id}
-                                className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                                onClick={() => setLocation(`/dashboard/pole?personId=${encodeURIComponent(person.id)}`)}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium">{person.name}</span>
-                                  <Badge
-                                    variant="outline"
-                                    className={
-                                      person.role === "suspect" ? "border-red-500 text-red-500" :
-                                      person.role === "victim" ? "border-orange-500 text-orange-500" :
-                                      person.role === "witness" ? "border-blue-500 text-blue-500" :
-                                      "border-green-500 text-green-500"
-                                    }
+                      {hasPoleData ? (
+                        <>
+                          <div className="grid md:grid-cols-3 gap-4">
+                            {/* People */}
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-semibold flex items-center gap-2 text-blue-500">
+                                <User className="w-4 h-4" />
+                                People ({poleData.people.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {poleData.people.length > 0 ? poleData.people.map((person) => (
+                                  <div
+                                    key={person.id}
+                                    className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                                    onClick={() => setLocation(`/dashboard/pole?personId=${encodeURIComponent(person.id)}`)}
                                   >
-                                    {person.role}
-                                  </Badge>
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-1">{person.id}</div>
-                                {person.riskLevel && (
-                                  <Badge
-                                    className={`mt-1 text-xs ${
-                                      person.riskLevel === "high" ? "bg-red-500" :
-                                      person.riskLevel === "medium" ? "bg-yellow-500" :
-                                      "bg-green-500"
-                                    } text-white`}
-                                  >
-                                    {person.riskLevel} risk
-                                  </Badge>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-medium">{person.name}</span>
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          person.role === "suspect" ? "border-red-500 text-red-500" :
+                                          person.role === "victim" ? "border-orange-500 text-orange-500" :
+                                          person.role === "witness" ? "border-blue-500 text-blue-500" :
+                                          person.role === "informant" ? "border-cyan-500 text-cyan-500" :
+                                          person.role === "officer" ? "border-green-500 text-green-500" :
+                                          "border-gray-500 text-gray-500"
+                                        }
+                                      >
+                                        {person.role}
+                                      </Badge>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-1">{person.id}</div>
+                                    {person.riskLevel && (
+                                      <Badge
+                                        className={`mt-1 text-xs ${
+                                          person.riskLevel === "high" ? "bg-red-500" :
+                                          person.riskLevel === "medium" ? "bg-yellow-500" :
+                                          "bg-green-500"
+                                        } text-white`}
+                                      >
+                                        {person.riskLevel} risk
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )) : (
+                                  <p className="text-xs text-muted-foreground">No people linked</p>
                                 )}
                               </div>
-                            ))}
-                          </div>
-                        </div>
+                            </div>
 
-                        {/* Objects */}
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold flex items-center gap-2 text-orange-500">
-                            <Database className="w-4 h-4" />
-                            Objects ({poleData.objects.length})
-                          </h4>
-                          <div className="space-y-2">
-                            {poleData.objects.map((obj) => (
-                              <div
-                                key={obj.id}
-                                className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                                onClick={() => setLocation(`/dashboard/pole?objectId=${encodeURIComponent(obj.id)}`)}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium">{obj.type}</span>
-                                  <Badge
-                                    variant="outline"
-                                    className={
-                                      obj.status === "evidence" ? "border-purple-500 text-purple-500" :
-                                      obj.status === "recovered" ? "border-green-500 text-green-500" :
-                                      "border-red-500 text-red-500"
-                                    }
+                            {/* Objects */}
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-semibold flex items-center gap-2 text-orange-500">
+                                <Package className="w-4 h-4" />
+                                Objects ({poleData.objects.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {poleData.objects.length > 0 ? poleData.objects.map((obj) => (
+                                  <div
+                                    key={obj.id}
+                                    className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                                    onClick={() => setLocation(`/dashboard/pole?objectId=${encodeURIComponent(obj.id)}`)}
                                   >
-                                    {obj.status}
-                                  </Badge>
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-1">{obj.description}</div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-medium">{obj.name || obj.type}</span>
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          obj.status === "evidence" ? "border-purple-500 text-purple-500" :
+                                          obj.status === "recovered" ? "border-green-500 text-green-500" :
+                                          obj.status === "flagged" ? "border-red-500 text-red-500" :
+                                          obj.status === "tracked" ? "border-blue-500 text-blue-500" :
+                                          "border-gray-500 text-gray-500"
+                                        }
+                                      >
+                                        {obj.status}
+                                      </Badge>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-1">{obj.description}</div>
+                                    {obj.plateNumber && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        <Car className="w-3 h-3 text-muted-foreground" />
+                                        <span className="text-xs font-mono">{obj.plateNumber}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )) : (
+                                  <p className="text-xs text-muted-foreground">No objects linked</p>
+                                )}
                               </div>
-                            ))}
-                          </div>
-                        </div>
+                            </div>
 
-                        {/* Locations */}
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold flex items-center gap-2 text-purple-500">
-                            <MapPin className="w-4 h-4" />
-                            Locations ({poleData.locations.length})
-                          </h4>
-                          <div className="space-y-2">
-                            {poleData.locations.map((loc) => (
-                              <div
-                                key={loc.id}
-                                className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                                onClick={() => setLocation(`/dashboard/map?location=${encodeURIComponent(loc.name)}`)}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium truncate max-w-[120px]">{loc.name}</span>
-                                  <Badge
-                                    variant="outline"
-                                    className={
-                                      loc.type === "crime_scene" ? "border-red-500 text-red-500" :
-                                      loc.type === "residence" ? "border-blue-500 text-blue-500" :
-                                      loc.type === "business" ? "border-orange-500 text-orange-500" :
-                                      "border-gray-500 text-gray-500"
-                                    }
+                            {/* Locations */}
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-semibold flex items-center gap-2 text-purple-500">
+                                <MapPin className="w-4 h-4" />
+                                Locations ({poleData.locations.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {poleData.locations.length > 0 ? poleData.locations.map((loc) => (
+                                  <div
+                                    key={loc.id}
+                                    className="p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                                    onClick={() => {
+                                      if (loc.coordinates) {
+                                        setLocation(`/dashboard/map?lat=${loc.coordinates.lat}&lng=${loc.coordinates.lng}`);
+                                      } else {
+                                        setLocation(`/dashboard/map?location=${encodeURIComponent(loc.name)}`);
+                                      }
+                                    }}
                                   >
-                                    {loc.type.replace("_", " ")}
-                                  </Badge>
-                                </div>
-                                <div className="text-xs text-muted-foreground mt-1">{loc.id}</div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-medium truncate max-w-[120px]">{loc.name}</span>
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          loc.type === "crime_scene" ? "border-red-500 text-red-500" :
+                                          loc.type === "safehouse" ? "border-orange-500 text-orange-500" :
+                                          loc.type === "residence" ? "border-blue-500 text-blue-500" :
+                                          loc.type === "business" ? "border-green-500 text-green-500" :
+                                          loc.type === "transit" ? "border-cyan-500 text-cyan-500" :
+                                          "border-gray-500 text-gray-500"
+                                        }
+                                      >
+                                        {loc.type.replace("_", " ")}
+                                      </Badge>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-1">{loc.id}</div>
+                                    {loc.coordinates && (
+                                      <div className="text-xs text-muted-foreground">
+                                        {loc.coordinates.lat.toFixed(4)}, {loc.coordinates.lng.toFixed(4)}
+                                      </div>
+                                    )}
+                                  </div>
+                                )) : (
+                                  <p className="text-xs text-muted-foreground">No locations linked</p>
+                                )}
                               </div>
-                            ))}
+                            </div>
                           </div>
-                        </div>
-                      </div>
 
-                      {/* View All in POLE Analytics button */}
-                      <div className="mt-4 pt-4 border-t border-border">
-                        <Button
-                          variant="outline"
-                          className="w-full hover:border-green-500 hover:bg-green-500/10"
-                          onClick={() => setLocation(`/dashboard/pole?incident=${encodeURIComponent(selectedIncident.id)}`)}
-                        >
-                          <Users className="w-4 h-4 mr-2 text-green-500" />
-                          View Full POLE Analysis
-                          <ExternalLink className="w-4 h-4 ml-2" />
-                        </Button>
-                      </div>
+                          {/* View All in POLE Analytics button */}
+                          <div className="mt-4 pt-4 border-t border-border">
+                            <Button
+                              variant="outline"
+                              className="w-full hover:border-green-500 hover:bg-green-500/10"
+                              onClick={() => setLocation(`/dashboard/pole?incident=${encodeURIComponent(selectedIncident.id)}`)}
+                            >
+                              <Users className="w-4 h-4 mr-2 text-green-500" />
+                              View Full POLE Analysis
+                              <ExternalLink className="w-4 h-4 ml-2" />
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Network className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                          <p className="text-sm">No POLE intelligence data linked to this incident.</p>
+                          <p className="text-xs mt-1">POLE entities will appear when camera events (FaceMatched, PlateMatched) are associated.</p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
