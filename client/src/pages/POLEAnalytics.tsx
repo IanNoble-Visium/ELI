@@ -69,12 +69,12 @@ const generateTimelineData = () => {
   try {
     const data = [];
     const now = new Date();
-    
+
     // Safely access POLE data with fallbacks
     const incidents = poleIncidents || [];
     const people = polePeople || [];
     const objects = poleObjects || [];
-    
+
     // Group incidents by day
     const incidentsByDay = new Map<string, number>();
     incidents.forEach(inc => {
@@ -83,12 +83,12 @@ const generateTimelineData = () => {
         incidentsByDay.set(day, (incidentsByDay.get(day) || 0) + 1);
       }
     });
-    
+
     for (let i = 6; i >= 0; i--) {
       const date = subDays(now, i);
       const dayKey = format(date, "MMM dd");
       const incidentCount = incidentsByDay.get(dayKey) || 0;
-      
+
       data.push({
         date: dayKey,
         people: people.filter(p => p?.role === "suspect" || p?.role === "witness").length,
@@ -116,12 +116,12 @@ export default function POLEAnalytics() {
   const [layout, setLayout] = useState<LayoutType>("force");
   const [searchQuery, setSearchQuery] = useState("");
   const [language, setLanguage] = useState<Language>("en");
-  
+
   // Load language preference from localStorage on mount
   useEffect(() => {
     setLanguage(getStoredLanguage());
   }, []);
-  
+
   // Toggle language and persist to localStorage
   const toggleLanguage = () => {
     const newLang = language === "en" ? "es" : "en";
@@ -131,7 +131,7 @@ export default function POLEAnalytics() {
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  
+
   // Use structured POLE data from poleData.ts (memoized to prevent re-renders)
   const graphData = useMemo(() => {
     try {
@@ -150,14 +150,14 @@ export default function POLEAnalytics() {
     }
   }, []);
   const timelineData = useMemo(() => generateTimelineData(), []);
-  
+
   // Parse URL parameters for deep linking
   useEffect(() => {
     const params = new URLSearchParams(searchString);
     const incidentId = params.get("incident");
     const personId = params.get("personId");
     const objectId = params.get("objectId");
-    
+
     // If we have a specific entity to highlight, find and select it
     const entityId = personId || objectId || incidentId;
     if (entityId && graphData.nodes.length > 0) {
@@ -169,7 +169,7 @@ export default function POLEAnalytics() {
       }
     }
   }, [searchString, graphData.nodes]);
-  
+
   // Simulate loading
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -177,11 +177,11 @@ export default function POLEAnalytics() {
     }, 800);
     return () => clearTimeout(timer);
   }, []);
-  
+
   // Track container dimensions
   useEffect(() => {
     if (!containerRef.current) return;
-    
+
     const updateDimensions = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -191,18 +191,18 @@ export default function POLEAnalytics() {
         });
       }
     };
-    
+
     updateDimensions();
     const resizeObserver = new ResizeObserver(updateDimensions);
     resizeObserver.observe(containerRef.current);
     window.addEventListener("resize", updateDimensions);
-    
+
     return () => {
       resizeObserver.disconnect();
       window.removeEventListener("resize", updateDimensions);
     };
   }, [activeTab]);
-  
+
   // Get connected nodes for hover highlighting
   const getConnectedNodes = useCallback((nodeId: string) => {
     const connected = new Set<string>();
@@ -215,7 +215,7 @@ export default function POLEAnalytics() {
     });
     return connected;
   }, [graphData.links]);
-  
+
   // Handle node click
   const handleNodeClick = useCallback((node: any) => {
     setSelectedNode(node);
@@ -226,12 +226,12 @@ export default function POLEAnalytics() {
       }
     }
   }, []);
-  
+
   // Handle node hover
   const handleNodeHover = useCallback((node: any) => {
     setHoveredNode(node || null);
   }, []);
-  
+
   // Zoom controls
   const handleZoomIn = () => {
     if (graphRef.current?.zoom) {
@@ -239,26 +239,26 @@ export default function POLEAnalytics() {
       graphRef.current.zoom(currentZoom * 1.5, 500);
     }
   };
-  
+
   const handleZoomOut = () => {
     if (graphRef.current?.zoom) {
       const currentZoom = graphRef.current.zoom();
       graphRef.current.zoom(currentZoom / 1.5, 500);
     }
   };
-  
+
   const handleZoomToFit = () => {
     graphRef.current?.zoomToFit(500, 50);
   };
-  
+
   // Apply layout
   useEffect(() => {
     if (!graphRef.current || graphData.nodes.length === 0 || layout === "force") return;
-    
+
     const centerX = dimensions.width / 2;
     const centerY = dimensions.height / 2;
     const radius = Math.min(dimensions.width, dimensions.height) * 0.35;
-    
+
     graphData.nodes.forEach((node, index) => {
       if (layout === "hierarchical") {
         // Arrange by type in layers
@@ -273,7 +273,7 @@ export default function POLEAnalytics() {
         const indexInLayer = nodesInLayer.indexOf(node);
         const layerWidth = dimensions.width * 0.85;
         const spacing = layerWidth / Math.max(nodesInLayer.length, 1);
-        
+
         node.fx = (dimensions.width * 0.075) + (indexInLayer + 0.5) * spacing;
         node.fy = 80 + layer * (dimensions.height - 160) / 3;
       } else if (layout === "radial") {
@@ -289,15 +289,15 @@ export default function POLEAnalytics() {
         const indexOfType = nodesOfType.indexOf(node);
         const angleStep = (2 * Math.PI) / Math.max(nodesOfType.length, 1);
         const angle = indexOfType * angleStep - Math.PI / 2;
-        
+
         node.fx = centerX + Math.cos(angle) * nodeRadius;
         node.fy = centerY + Math.sin(angle) * nodeRadius;
       }
     });
-    
+
     graphRef.current?.refresh?.();
   }, [layout, graphData.nodes, dimensions]);
-  
+
   // Clear fixed positions when switching to force layout
   useEffect(() => {
     if (layout === "force") {
@@ -308,34 +308,34 @@ export default function POLEAnalytics() {
       graphRef.current?.d3ReheatSimulation?.();
     }
   }, [layout, graphData.nodes]);
-  
+
   // Custom node rendering
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const x = node.x;
     const y = node.y;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    
+
     const label = node.name || "";
     const fontSize = 11 / globalScale;
     const nodeRadius = Math.max(3, node.val || 8);
     const nodeColor = node.color || "#888888";
-    
+
     // Check if this node is connected to hovered node
     const connectedNodes = hoveredNode ? getConnectedNodes(hoveredNode.id) : new Set<string>();
     const isConnected = hoveredNode ? connectedNodes.has(node.id) : true;
     const isSelected = selectedNode?.id === node.id;
     const isHovered = hoveredNode?.id === node.id;
-    
+
     // Dim non-connected nodes when hovering
     const alpha = hoveredNode && !isConnected ? 0.2 : 1;
-    
+
     // Draw outer glow for selected or hovered nodes
     if (isSelected || isHovered) {
       ctx.beginPath();
       ctx.arc(x, y, nodeRadius + 6, 0, 2 * Math.PI, false);
       ctx.fillStyle = `${nodeColor}40`;
       ctx.fill();
-      
+
       // Pulsing ring
       const pulseRadius = nodeRadius + 10 + Math.sin(Date.now() / 200) * 3;
       ctx.beginPath();
@@ -344,7 +344,7 @@ export default function POLEAnalytics() {
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-    
+
     // Draw node shadow
     ctx.globalAlpha = alpha * 0.3;
     ctx.beginPath();
@@ -352,10 +352,10 @@ export default function POLEAnalytics() {
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fill();
     ctx.globalAlpha = alpha;
-    
+
     // Draw node based on type
     ctx.beginPath();
-    
+
     // Different shapes for different types
     if (node.type === "person") {
       // Circle for people
@@ -377,7 +377,7 @@ export default function POLEAnalytics() {
       ctx.lineTo(x - nodeRadius, y + nodeRadius * 0.7);
       ctx.closePath();
     }
-    
+
     // Fill with gradient
     try {
       const gradient = ctx.createRadialGradient(
@@ -395,22 +395,22 @@ export default function POLEAnalytics() {
       ctx.fillStyle = nodeColor;
     }
     ctx.fill();
-    
+
     // Border
     ctx.strokeStyle = isSelected ? "#ffffff" : "#ffffff60";
     ctx.lineWidth = isSelected ? 2 : 1;
     ctx.stroke();
-    
+
     // Draw label
     if (globalScale > 0.6 && label) {
       ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      
+
       const textWidth = ctx.measureText(label).width;
       const padding = 4;
       const textY = y + nodeRadius + fontSize + 4;
-      
+
       // Label background
       ctx.fillStyle = `rgba(31, 41, 55, ${alpha * 0.9})`;
       ctx.fillRect(
@@ -419,30 +419,30 @@ export default function POLEAnalytics() {
         textWidth + padding * 2,
         fontSize + padding
       );
-      
+
       // Label text
       ctx.fillStyle = `rgba(249, 250, 251, ${alpha})`;
       ctx.fillText(label, x, textY);
     }
-    
+
     ctx.globalAlpha = 1;
   }, [hoveredNode, selectedNode, getConnectedNodes]);
-  
+
   // Link rendering with hover effects
   const linkColor = useCallback((link: any) => {
     if (!hoveredNode) return "#4B556360";
-    
+
     const sourceId = typeof link.source === "string" ? link.source : link.source?.id;
     const targetId = typeof link.target === "string" ? link.target : link.target?.id;
-    
+
     if (sourceId === hoveredNode.id || targetId === hoveredNode.id) {
       const relType = link.type as keyof typeof RELATIONSHIP_TYPES;
       return RELATIONSHIP_TYPES[relType]?.color || "#4B5563";
     }
-    
+
     return "#4B556320";
   }, [hoveredNode]);
-  
+
   // Stats
   const stats = {
     people: graphData.nodes.filter((n) => n.type === "person").length,
@@ -452,15 +452,15 @@ export default function POLEAnalytics() {
     highRisk: graphData.nodes.filter((n) => n.riskLevel === "high").length,
     links: graphData.links.length,
   };
-  
+
   // Filtered nodes for search
   const filteredNodes = searchQuery
     ? graphData.nodes.filter((n) =>
-        n.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.id.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      n.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.id.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : graphData.nodes;
-  
+
   const getRiskColor = (level: string) => {
     const colors: Record<string, string> = {
       high: "bg-red-500",
@@ -473,7 +473,7 @@ export default function POLEAnalytics() {
     };
     return colors[level] || "bg-gray-500";
   };
-  
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       Open: "bg-red-500",
@@ -486,7 +486,7 @@ export default function POLEAnalytics() {
     };
     return colors[status] || "bg-gray-500";
   };
-  
+
   const getTypeIcon = (type: POLEEntityType) => {
     switch (type) {
       case "person": return <Users className="w-4 h-4" />;
@@ -547,7 +547,7 @@ export default function POLEAnalytics() {
           {/* Stats Bar */}
           <div className="border-b border-border bg-card/30 p-4">
             <div className="grid grid-cols-6 gap-4">
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
@@ -556,7 +556,7 @@ export default function POLEAnalytics() {
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_COLORS.person }} />
                 <span className="text-sm">{t("people", language)}: {stats.people}</span>
               </motion.div>
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
@@ -565,7 +565,7 @@ export default function POLEAnalytics() {
                 <div className="w-3 h-3 rotate-45" style={{ backgroundColor: NODE_COLORS.object }} />
                 <span className="text-sm">{t("objects", language)}: {stats.objects}</span>
               </motion.div>
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
@@ -574,7 +574,7 @@ export default function POLEAnalytics() {
                 <div className="w-3 h-3" style={{ backgroundColor: NODE_COLORS.location }} />
                 <span className="text-sm">{t("locations", language)}: {stats.locations}</span>
               </motion.div>
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
@@ -583,7 +583,7 @@ export default function POLEAnalytics() {
                 <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-b-[10px] border-l-transparent border-r-transparent" style={{ borderBottomColor: NODE_COLORS.event }} />
                 <span className="text-sm">{t("events", language)}: {stats.events}</span>
               </motion.div>
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
@@ -605,7 +605,7 @@ export default function POLEAnalytics() {
               </div>
             </div>
           </div>
-          
+
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
             <div className="border-b border-border px-4">
@@ -624,10 +624,10 @@ export default function POLEAnalytics() {
                 </TabsTrigger>
               </TabsList>
             </div>
-            
+
             <TabsContent value="graph" className="flex-1 m-0 relative">
               {isLoading ? (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur z-10"
@@ -707,7 +707,7 @@ export default function POLEAnalytics() {
                       ctx.fill();
                     }}
                   />
-                  
+
                   {/* Zoom Controls */}
                   <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                     <Button variant="outline" size="icon" onClick={handleZoomIn} className="bg-card/80 backdrop-blur">
@@ -720,9 +720,9 @@ export default function POLEAnalytics() {
                       <Maximize2 className="w-4 h-4" />
                     </Button>
                   </div>
-                  
+
                   {/* Legend */}
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.5 }}
@@ -751,7 +751,7 @@ export default function POLEAnalytics() {
                 </div>
               )}
             </TabsContent>
-            
+
             <TabsContent value="timeline" className="flex-1 m-0 p-6 overflow-auto">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -780,9 +780,9 @@ export default function POLEAnalytics() {
                 </Card>
               </motion.div>
             </TabsContent>
-            
+
             <TabsContent value="list" className="flex-1 m-0 p-6 overflow-auto">
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3 }}
@@ -798,7 +798,7 @@ export default function POLEAnalytics() {
                     className="pl-10"
                   />
                 </div>
-                
+
                 {/* Entity Grid */}
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredNodes.map((node) => (
@@ -850,11 +850,11 @@ export default function POLEAnalytics() {
                     </Card>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             </TabsContent>
           </Tabs>
         </div>
-        
+
         {/* Detail Sidebar */}
         <AnimatePresence>
           {selectedNode && (
@@ -883,7 +883,7 @@ export default function POLEAnalytics() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                
+
                 {/* Badges */}
                 <div className="flex flex-wrap gap-2">
                   {selectedNode.riskLevel && (
@@ -908,7 +908,7 @@ export default function POLEAnalytics() {
                     <Badge variant="outline">{getRole(selectedNode.role, language)}</Badge>
                   )}
                 </div>
-                
+
                 {/* Details */}
                 <Card>
                   <CardContent className="p-3 space-y-2">
@@ -938,7 +938,7 @@ export default function POLEAnalytics() {
                     )}
                   </CardContent>
                 </Card>
-                
+
                 {/* Connections */}
                 <Card>
                   <CardHeader className="pb-2">
@@ -962,10 +962,10 @@ export default function POLEAnalytics() {
                         const fullRelationship = poleRelationships.find(
                           r => (r.source === sourceId && r.target === targetId) || (r.source === targetId && r.target === sourceId)
                         );
-                        const displayLabel = language === "en" 
+                        const displayLabel = language === "en"
                           ? (fullRelationship?.labelEn || RELATIONSHIP_TYPES[relType]?.en || link.label)
                           : (link.label || RELATIONSHIP_TYPES[relType]?.label || link.type);
-                        
+
                         return (
                           <motion.div
                             key={idx}
@@ -994,7 +994,7 @@ export default function POLEAnalytics() {
                       })}
                   </CardContent>
                 </Card>
-                
+
                 {/* Navigation Actions */}
                 <Card>
                   <CardHeader className="pb-2">
