@@ -1,11 +1,67 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { SignJWT, jwtVerify } from "jose";
 
-// Use require for cookie module to avoid ESM/CJS compatibility issues with Vercel build
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const cookieLib = require("cookie") as {
-  parse: (str: string) => Record<string, string | undefined>;
-  serialize: (name: string, val: string, options?: Record<string, unknown>) => string;
+// Simple cookie utilities to avoid ESM/CJS compatibility issues with the cookie package
+const cookieLib = {
+  parse(str: string): Record<string, string | undefined> {
+    const result: Record<string, string | undefined> = {};
+    if (!str) return result;
+
+    const pairs = str.split(";");
+    for (const pair of pairs) {
+      const idx = pair.indexOf("=");
+      if (idx < 0) continue;
+      const key = pair.substring(0, idx).trim();
+      let val = pair.substring(idx + 1).trim();
+      // Remove quotes if present
+      if (val.startsWith('"') && val.endsWith('"')) {
+        val = val.slice(1, -1);
+      }
+      // Decode URI component
+      try {
+        result[key] = decodeURIComponent(val);
+      } catch {
+        result[key] = val;
+      }
+    }
+    return result;
+  },
+
+  serialize(
+    name: string,
+    val: string,
+    options?: {
+      httpOnly?: boolean;
+      secure?: boolean;
+      sameSite?: "strict" | "lax" | "none";
+      path?: string;
+      maxAge?: number;
+      domain?: string;
+    }
+  ): string {
+    const parts = [`${encodeURIComponent(name)}=${encodeURIComponent(val)}`];
+
+    if (options?.maxAge !== undefined) {
+      parts.push(`Max-Age=${options.maxAge}`);
+    }
+    if (options?.domain) {
+      parts.push(`Domain=${options.domain}`);
+    }
+    if (options?.path) {
+      parts.push(`Path=${options.path}`);
+    }
+    if (options?.httpOnly) {
+      parts.push("HttpOnly");
+    }
+    if (options?.secure) {
+      parts.push("Secure");
+    }
+    if (options?.sameSite) {
+      parts.push(`SameSite=${options.sameSite.charAt(0).toUpperCase() + options.sameSite.slice(1)}`);
+    }
+
+    return parts.join("; ");
+  }
 };
 
 // Constants
