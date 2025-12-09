@@ -146,6 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               recordProcessingDecision(shouldUpload);
 
               if (shouldUpload) {
+                console.log(`[Webhook IREX] Starting Cloudinary upload for snapshot ${i}...`);
                 // Upload to Cloudinary
                 try {
                   const uploadResult = await uploadImage(
@@ -160,6 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     snapshotData.analysis = uploadResult.data.info;
                     imagesProcessed++;
                     console.log(`[Webhook IREX] Uploaded snapshot to Cloudinary: ${uploadResult.data.publicId}`);
+                    console.log(`[Webhook IREX] Analysis data keys: ${Object.keys(uploadResult.data.info || {}).join(", ")}`);
                   } else {
                     console.warn(`[Webhook IREX] Cloudinary upload failed: ${uploadResult.error}`);
                     snapshotData.imageUrl = snapshot.path || null;
@@ -193,6 +195,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             )?.imageUrl;
 
             if (cloudinaryImageUrl && isNeo4jConfigured()) {
+              console.log(`[Webhook IREX] Syncing to Neo4j. ImageURL: ${cloudinaryImageUrl}, Analysis found: ${!!processedSnapshots.find(s => s.imageUrl === cloudinaryImageUrl)?.analysis}`);
               // Sync camera and event to Neo4j for events with images only
               // This matches the Cloudinary throttle ratio to prevent Neo4j overload
 
