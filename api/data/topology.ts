@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getDb, getChannelsList, getRecentEvents, count, sql } from "../lib/db.js";
 import { events, channels } from "../../drizzle/schema.js";
+import { isNeo4jConfigured } from "../lib/neo4j.js";
 
 /**
  * API endpoint to retrieve topology graph data from the database
@@ -42,6 +43,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const db = await getDb();
+    const neo4jConnected = isNeo4jConfigured();
+
     if (!db) {
       return res.status(200).json({
         success: true,
@@ -50,6 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         stats: { cameras: 0, locations: 0, vehicles: 0, persons: 0, events: 0, edges: 0 },
         message: "Database not configured. No topology data available.",
         dbConnected: false,
+        neo4jConnected,
       });
     }
 
@@ -178,6 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       links,
       stats,
       dbConnected: true,
+      neo4jConnected,
       lastUpdated: new Date().toISOString(),
     });
   } catch (error) {

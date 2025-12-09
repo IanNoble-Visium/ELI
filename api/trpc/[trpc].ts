@@ -1,6 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import * as cookie from "cookie";
 import { SignJWT, jwtVerify } from "jose";
+
+// Use require for cookie module to avoid ESM/CJS compatibility issues with Vercel build
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const cookieLib = require("cookie") as {
+  parse: (str: string) => Record<string, string | undefined>;
+  serialize: (name: string, val: string, options?: Record<string, unknown>) => string;
+};
 
 // Constants
 const COOKIE_NAME = "eli_session";
@@ -63,7 +69,7 @@ async function generateToken(user: typeof DEMO_USER) {
 // Get current user from cookie
 async function getCurrentUser(req: VercelRequest) {
   const cookieHeader = req.headers.cookie || "";
-  const cookies = cookie.parse(cookieHeader);
+  const cookies = cookieLib.parse(cookieHeader);
   const token = cookies[COOKIE_NAME];
 
   if (!token) return null;
@@ -128,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const token = await generateToken(DEMO_USER);
-      const cookieValue = cookie.serialize(COOKIE_NAME, token, {
+      const cookieValue = cookieLib.serialize(COOKIE_NAME, token, {
         ...cookieOptions,
         maxAge: 24 * 60 * 60, // 24 hours in seconds
       });
@@ -164,7 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Route: auth.logout
     if (path === "auth.logout") {
-      const cookieValue = cookie.serialize(COOKIE_NAME, "", {
+      const cookieValue = cookieLib.serialize(COOKIE_NAME, "", {
         ...cookieOptions,
         maxAge: -1,
       });
