@@ -456,6 +456,32 @@ Before the demo, verify:
 
 ---
 
+## ✅ CLOUDINARY THROTTLE DATABASE PERSISTENCE - COMPLETED (December 9, 2024)
+
+### Root Cause
+Throttle configuration was stored in **in-memory state** (`let currentConfig`), which doesn't persist across Vercel serverless function invocations. Each instance had its own copy of the default config (`enabled: true`), causing images to be skipped even when throttle was disabled in the UI.
+
+### Fix Implemented ✅
+- [x] **Database Config Storage** - Added `getSystemConfig()` and `setSystemConfig()` to `api/lib/db.ts`
+- [x] **Config Key** - Uses `cloudinary_throttle_config` key in `system_config` table
+- [x] **Load on Webhook** - `loadThrottleConfigFromDb()` called at start of webhook processing
+- [x] **Save on Update** - `saveThrottleConfigToDb()` called when config changes via API
+- [x] **GET Loads from DB** - Throttle API returns persisted config, not stale in-memory
+- [x] **Debug Logging** - Warning logged if config wasn't loaded from DB
+
+### Files Modified
+- `api/lib/db.ts` - Added `systemConfig` import and helper functions
+- `api/cloudinary/throttle.ts` - Added DB load/save functions, updated handlers
+- `api/webhook/irex.ts` - Added `loadThrottleConfigFromDb()` import and call
+
+### Post-Deployment Testing Required
+- [ ] Toggle throttle OFF in Cloudinary Monitoring page
+- [ ] Verify config is saved to database (check `system_config` table)
+- [ ] Send test webhooks and confirm images are uploaded to Cloudinary
+- [ ] Verify `processed` count increases (not just `skipped`)
+
+---
+
 ## ✅ POLE ANALYTICS & INCIDENT MANAGEMENT - COMPLETED (December 8, 2024)
 
 ### POLE Analytics Graph Visualization ✅
@@ -498,8 +524,7 @@ Before the demo, verify:
 ## 🔧 KNOWN LIMITATIONS & FUTURE IMPROVEMENTS
 
 ### Current Limitations
-1. **Throttle Config In-Memory** - Configuration resets on serverless cold start
-   - **Suggestion**: Persist to database or use Vercel KV
+1. ~~**Throttle Config In-Memory**~~ - ✅ **FIXED (Dec 9, 2024)** - Now persisted to PostgreSQL `system_config` table
 2. **Processing Stats In-Memory** - Statistics reset on cold start
    - **Suggestion**: Store in InfluxDB or PostgreSQL
 3. **CRON Execution History In-Memory** - History resets on cold start
@@ -508,7 +533,7 @@ Before the demo, verify:
    - **Workaround**: Use InfluxDB Cloud UI to create `cloudinary_metrics` bucket
 
 ### Suggested Improvements
-1. **Persist Throttle Config to Database** - Add `throttle_config` table to PostgreSQL
+1. ~~**Persist Throttle Config to Database**~~ - ✅ **COMPLETED** - Uses `system_config` table with key `cloudinary_throttle_config`
 2. **Add Throttle Config History** - Track config changes over time
 3. **Email Alerts on Threshold** - Send notifications when usage exceeds 80%
 4. **Custom Date Range Picker** - Allow arbitrary date ranges for historical data
@@ -713,9 +738,7 @@ const params = {
 
 ### Elevate to P1 (High Impact, Quick Wins)
 
-1. **Persist Throttle Configuration** - Store in database instead of memory
-   - Prevents config loss on cold starts
-   - ~1-2 hours effort
+1. ~~**Persist Throttle Configuration**~~ - ✅ **COMPLETED (Dec 9, 2024)** - Stored in `system_config` table
 
 2. **Real-time Event Ticker** - Add scrolling event ticker at bottom of Executive Dashboard
    - Creates "command center" feel
@@ -946,6 +969,7 @@ The following changes require a **Vercel redeploy** to take effect:
 *Visual Polish Status: P1 COMPLETED (Commit 04c14cb)*
 *Cloudinary Monitoring Status: COMPLETED*
 *Image Throttle Status: COMPLETED*
+*Throttle DB Persistence: COMPLETED (Dec 9, 2024)*
 *CRON Management Status: COMPLETED*
 *PostgreSQL Monitoring Status: COMPLETED*
 *Cloudinary Bulk Delete Fix: COMPLETED*

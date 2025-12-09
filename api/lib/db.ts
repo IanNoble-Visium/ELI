@@ -56,6 +56,7 @@ export interface SnapshotData {
   image?: string; // base64 image data
   imageUrl?: string; // Cloudinary URL (if uploaded)
   cloudinaryPublicId?: string; // Cloudinary public ID (if uploaded)
+  analysis?: any; // Cloudinary analysis data
 }
 
 export async function insertSnapshots(eventId: string, snapshotsData: SnapshotData[]) {
@@ -221,7 +222,7 @@ export async function getRecentEvents(options: {
   // If snapshots are requested, fetch them for each event
   if (includeSnapshots && eventsList.length > 0) {
     const eventIds = eventsList.map(event => event.id);
-    
+
     const snapshotsData = await db
       .select()
       .from(snapshots)

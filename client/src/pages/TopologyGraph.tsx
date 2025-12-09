@@ -54,6 +54,12 @@ interface GraphNode {
   region?: string;
   eventCount?: number;
   imageUrl?: string; // Cloudinary image URL for events
+  tags?: string[];
+  objects?: string[];
+  dominantColors?: string[];
+  qualityScore?: number;
+  moderationStatus?: string;
+  caption?: string;
   x?: number;
   y?: number;
   fx?: number | null; // Fixed x position for custom layouts
@@ -94,7 +100,7 @@ function preloadImage(url: string): Promise<HTMLImageElement> {
       resolve(imageCache.get(url)!);
       return;
     }
-    
+
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -155,7 +161,7 @@ export default function TopologyGraph() {
   // Preload images for event nodes
   useEffect(() => {
     const imageNodes = graphData.nodes.filter((n) => n.imageUrl);
-    
+
     imageNodes.forEach((node) => {
       if (node.imageUrl && !loadedImages.has(node.imageUrl)) {
         preloadImage(node.imageUrl)
@@ -209,7 +215,7 @@ export default function TopologyGraph() {
     if (!graphRef.current || graphData.nodes.length === 0) return;
 
     applyLayout(layout, graphData.nodes, dimensions);
-    
+
     // Force re-render of graph
     if (graphRef.current) {
       // Restart simulation for force layout, otherwise just refresh
@@ -250,7 +256,7 @@ export default function TopologyGraph() {
           const indexInLayer = nodesInLayer.indexOf(node);
           const layerWidth = dims.width * 0.8;
           const spacing = layerWidth / Math.max(nodesInLayer.length, 1);
-          
+
           node.fx = (dims.width * 0.1) + (indexInLayer + 0.5) * spacing;
           node.fy = 80 + layer * (dims.height - 160) / 3;
           break;
@@ -270,7 +276,7 @@ export default function TopologyGraph() {
           const indexOfType = nodesOfType.indexOf(node);
           const angleStep = (2 * Math.PI) / Math.max(nodesOfType.length, 1);
           const angle = indexOfType * angleStep - Math.PI / 2;
-          
+
           node.fx = centerX + Math.cos(angle) * nodeRadius;
           node.fy = centerY + Math.sin(angle) * nodeRadius;
           break;
@@ -284,7 +290,7 @@ export default function TopologyGraph() {
           const cellHeight = (dims.height * 0.8) / rows;
           const col = index % cols;
           const row = Math.floor(index / cols);
-          
+
           node.fx = (dims.width * 0.1) + (col + 0.5) * cellWidth;
           node.fy = (dims.height * 0.1) + (row + 0.5) * cellHeight;
           break;
@@ -294,7 +300,7 @@ export default function TopologyGraph() {
           // Arrange all nodes in a single circle
           const angleStep = (2 * Math.PI) / Math.max(nodes.length, 1);
           const angle = index * angleStep - Math.PI / 2;
-          
+
           node.fx = centerX + Math.cos(angle) * radius;
           node.fy = centerY + Math.sin(angle) * radius;
           break;
@@ -415,7 +421,7 @@ export default function TopologyGraph() {
         const aspectRatio = img.width / img.height;
         let drawWidth = size;
         let drawHeight = size;
-        
+
         if (aspectRatio > 1) {
           drawHeight = size / aspectRatio;
         } else {
@@ -536,11 +542,10 @@ export default function TopologyGraph() {
               {/* Neo4j connection indicator - topology graph requires Neo4j */}
               <div className="flex items-center gap-2">
                 <div
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
-                    neo4jConnected
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${neo4jConnected
                       ? "bg-purple-500/10 text-purple-500"
                       : "bg-red-500/10 text-red-500"
-                  }`}
+                    }`}
                 >
                   <Network className="w-3 h-3" />
                   {neo4jConnected ? "Neo4j" : "Neo4j Required"}
@@ -752,6 +757,83 @@ export default function TopologyGraph() {
                       </Badge>
                     </motion.div>
                   )}
+                  {/* Analysis Properties Viewer */}
+                  {(selectedNode.tags?.length > 0 || selectedNode.objects?.length > 0 || selectedNode.dominantColors?.length > 0) && (
+                    <div className="pt-2 border-t border-border mt-2 space-y-3">
+                      <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wider mb-2">Analysis Data</h4>
+
+                      {/* Dominant Colors */}
+                      {selectedNode.dominantColors && selectedNode.dominantColors.length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-xs text-muted-foreground">Dominant Colors</span>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedNode.dominantColors.map((color, i) => (
+                              <div
+                                key={i}
+                                className="w-5 h-5 rounded-full border border-border shadow-sm"
+                                style={{ backgroundColor: color }}
+                                title={color}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Objects */}
+                      {selectedNode.objects && selectedNode.objects.length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-xs text-muted-foreground">Detected Objects</span>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedNode.objects.slice(0, 10).map((obj, i) => (
+                              <Badge key={i} variant="secondary" className="text-[10px] h-5 px-1.5 bg-blue-500/10 text-blue-400 border-blue-500/20">
+                                {obj}
+                              </Badge>
+                            ))}
+                            {selectedNode.objects.length > 10 && (
+                              <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                                +{selectedNode.objects.length - 10}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tags */}
+                      {selectedNode.tags && selectedNode.tags.length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-xs text-muted-foreground">Tags</span>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedNode.tags.slice(0, 10).map((tag, i) => (
+                              <Badge key={i} variant="outline" className="text-[10px] h-5 px-1.5">
+                                {tag}
+                              </Badge>
+                            ))}
+                            {selectedNode.tags.length > 10 && (
+                              <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                                +{selectedNode.tags.length - 10}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Quality Score */}
+                      {selectedNode.qualityScore !== undefined && selectedNode.qualityScore !== null && (
+                        <div className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors">
+                          <span className="text-xs text-muted-foreground">Quality Score</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
+                              <div
+                                className={`h-full ${selectedNode.qualityScore > 0.7 ? 'bg-green-500' : selectedNode.qualityScore > 0.4 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                style={{ width: `${selectedNode.qualityScore * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-mono">{(selectedNode.qualityScore * 100).toFixed(0)}%</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -788,7 +870,7 @@ export default function TopologyGraph() {
         </motion.div>
 
         {/* Graph Canvas Container */}
-        <div 
+        <div
           ref={containerRef}
           className="flex-1 relative bg-card/30 overflow-hidden"
           style={{ isolation: "isolate" }}
@@ -837,7 +919,7 @@ export default function TopologyGraph() {
               </p>
             </div>
           ) : null}
-          
+
           <ForceGraph2D
             ref={graphRef}
             graphData={graphData}
@@ -872,7 +954,7 @@ export default function TopologyGraph() {
               const x = node.x;
               const y = node.y;
               if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-              
+
               ctx.fillStyle = color;
               ctx.beginPath();
               ctx.arc(x, y, node.val || 5, 0, 2 * Math.PI, false);

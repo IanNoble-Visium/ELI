@@ -92,6 +92,7 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
 
 10. **Image Processing Throttle Control**
    - Configurable throttle to prevent exceeding Cloudinary limits during demo
+   - **Database-persisted configuration** - survives serverless cold starts
    - Processing ratio slider (10 to 10,000 images per 100K incoming)
    - Maximum per hour hard limit (10 to 1,000 images)
    - Multiple sampling methods: Random, Interval, First N
@@ -699,7 +700,8 @@ The application uses **real database integration** for all surveillance data:
 | POLE Analytics | Simulated data | Clearly labeled as demo |
 | Cloudinary Monitoring | Cloudinary API + InfluxDB | Real-time usage + historical |
 | Historical Trends | InfluxDB `cloudinary_metrics` bucket | Time-series data |
-| Throttle Statistics | In-memory + InfluxDB | Processed vs skipped counts |
+| Throttle Configuration | PostgreSQL `system_config` table | Persisted throttle settings |
+| Throttle Statistics | InfluxDB + PostgreSQL | Processed vs skipped counts |
 
 **Empty State Handling:**
 When no data exists in the database, the UI displays appropriate "No data yet" messages instead of mock data.

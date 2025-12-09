@@ -138,9 +138,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               };
 
               // Check if this image should be processed (throttle check)
-              const shouldUpload = cloudinaryEnabled && 
-                                   snapshot.image && 
-                                   shouldProcessImage(i, body.snapshots.length);
+              const shouldUpload = cloudinaryEnabled &&
+                snapshot.image &&
+                shouldProcessImage(i, body.snapshots.length);
 
               // Record the decision for metrics
               recordProcessingDecision(shouldUpload);
@@ -157,6 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   if (uploadResult.success) {
                     snapshotData.imageUrl = uploadResult.data.secureUrl;
                     snapshotData.cloudinaryPublicId = uploadResult.data.publicId;
+                    snapshotData.analysis = uploadResult.data.info;
                     imagesProcessed++;
                     console.log(`[Webhook IREX] Uploaded snapshot to Cloudinary: ${uploadResult.data.publicId}`);
                   } else {
@@ -214,6 +215,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 startTime: body.start_time,
                 params: body.params,
                 imageUrl: cloudinaryImageUrl,
+                analysis: processedSnapshots.find(s => s.imageUrl === cloudinaryImageUrl)?.analysis
               }).catch(err => console.warn("[Webhook IREX] Neo4j event sync failed:", err));
 
               console.log(`[Webhook IREX] Neo4j sync: camera ${channelData.id}, event ${eventDbId}`);
@@ -241,7 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const processingTime = Date.now() - startTime;
 
     // Record throttle metrics to InfluxDB (async, don't wait)
-    recordThrottleMetrics().catch(err => 
+    recordThrottleMetrics().catch(err =>
       console.warn("[Webhook IREX] Failed to record throttle metrics:", err)
     );
 

@@ -31,6 +31,12 @@ export interface TopologyNode {
   region?: string;
   eventCount?: number;
   imageUrl?: string; // Cloudinary image URL for events
+  tags?: string[];
+  objects?: string[];
+  dominantColors?: string[];
+  qualityScore?: number;
+  moderationStatus?: string;
+  caption?: string;
 }
 
 export interface TopologyLink {
@@ -133,6 +139,7 @@ export async function syncEvent(event: {
   startTime?: number;
   params?: any;
   imageUrl?: string;
+  analysis?: any;
 }): Promise<void> {
   if (!isNeo4jConfigured()) return;
 
@@ -161,13 +168,19 @@ export async function syncEvent(event: {
         timestamp: event.startTime || Date.now(),
         imageUrl: event.imageUrl || null,
         channelId: event.channelId || null,
-        tags: event.params?.tags || [],
-        objects: event.params?.objects || [],
-        dominantColors: event.params?.colors || [],
-        qualityScore: event.params?.qualityScore || null,
+        tags: event.analysis?.tags ?
+          Object.values(event.analysis.tags).flat().map((t: any) => t.tag) :
+          (event.params?.tags || []),
+        objects: event.analysis?.detection?.object_detection?.data?.coco ?
+          event.analysis.detection.object_detection.data.coco.map((o: any) => o.tag) :
+          (event.params?.objects || []),
+        dominantColors: event.analysis?.colors?.predominant?.google ?
+          event.analysis.colors.predominant.google.map((c: any) => c[0]) :
+          (event.params?.colors || []),
+        qualityScore: event.analysis?.quality_analysis?.focus || event.params?.qualityScore || null,
         caption: event.params?.caption || null,
-        moderationStatus: event.params?.moderation || null,
-        phash: event.params?.phash || null
+        moderationStatus: event.analysis?.moderation?.status || event.params?.moderation || null,
+        phash: event.analysis?.phash || event.params?.phash || null
       }
     );
 
@@ -401,6 +414,12 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
           color: NODE_COLORS.event,
           val: 10,
           imageUrl: event.imageUrl,
+          tags: event.tags,
+          objects: event.objects,
+          dominantColors: event.dominantColors,
+          qualityScore: event.qualityScore,
+          moderationStatus: event.moderationStatus,
+          caption: event.caption,
         });
       }
     }
