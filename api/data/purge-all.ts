@@ -298,6 +298,13 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Log immediately to confirm endpoint is hit
+  console.log("[Purge] ==========================================");
+  console.log("[Purge] PURGE-ALL ENDPOINT CALLED");
+  console.log("[Purge] Method:", req.method);
+  console.log("[Purge] Timestamp:", new Date().toISOString());
+  console.log("[Purge] ==========================================");
+
   // Set CORS headers
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -305,11 +312,13 @@ export default async function handler(
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
+    console.log("[Purge] OPTIONS request - returning 200");
     res.status(200).end();
     return;
   }
 
   if (req.method !== "POST") {
+    console.log("[Purge] Wrong method - returning 405");
     res.status(405).json({ success: false, error: "Method not allowed" });
     return;
   }
@@ -318,10 +327,12 @@ export default async function handler(
   const result: PurgeResult = { success: false };
 
   try {
+    console.log("[Purge] Request body:", JSON.stringify(req.body));
     const { confirmPhrase, includeCloudinary = true, includeNeo4j = true } = req.body || {};
 
     // Require confirmation phrase for safety
     if (confirmPhrase !== "DELETE ALL DATA") {
+      console.log("[Purge] Invalid confirmation phrase - returning 400");
       res.status(400).json({
         success: false,
         error: "Confirmation phrase required. Send { confirmPhrase: 'DELETE ALL DATA' }",
@@ -329,9 +340,12 @@ export default async function handler(
       return;
     }
 
+    console.log("[Purge] Confirmation phrase valid, starting purge...");
+    console.log("[Purge] Options: includeCloudinary=", includeCloudinary, ", includeNeo4j=", includeNeo4j);
+
     // Phase 1: Purge Database
     result.phase = "database";
-    console.log("[Purge] ========== STARTING DATABASE PURGE ==========");
+    console.log("[Purge] ========== PHASE 1: DATABASE PURGE ==========");
 
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
