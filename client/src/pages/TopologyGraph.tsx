@@ -543,8 +543,8 @@ export default function TopologyGraph() {
               <div className="flex items-center gap-2">
                 <div
                   className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${neo4jConnected
-                      ? "bg-purple-500/10 text-purple-500"
-                      : "bg-red-500/10 text-red-500"
+                    ? "bg-purple-500/10 text-purple-500"
+                    : "bg-red-500/10 text-red-500"
                     }`}
                 >
                   <Network className="w-3 h-3" />
@@ -951,9 +951,9 @@ export default function TopologyGraph() {
             }}
             nodeCanvasObject={nodeCanvasObject}
             nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-              const x = node.x;
-              const y = node.y;
-              if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+              // Use fallback coordinates if node position is invalid
+              const x = Number.isFinite(node.x) ? node.x : 0;
+              const y = Number.isFinite(node.y) ? node.y : 0;
 
               ctx.fillStyle = color;
               ctx.beginPath();
