@@ -4,6 +4,8 @@
 
 A comprehensive, full-stack surveillance dashboard that unifies three separate systems (ELI-DEMO, eli-dashboard, and IREX-DEMO) into a single, cohesive application with real-time webhook processing, advanced analytics, and Peru-themed design.
 
+![ELI Unified Dashboard High-Level Architecture showing system components and integrations](docs/images/ELI-DIAGRAM-HighLevelArchttecture.jpeg)
+
 ---
 
 ## 🎯 Features
@@ -150,6 +152,8 @@ eli-unified-dashboard/
 
 The application uses a **three-database architecture** with clear separation of concerns:
 
+![Three-database architecture diagram showing PostgreSQL, Neo4j, and InfluxDB data separation](docs/images/ELI-DIAGRAM-DatabaseArchitecture.jpeg)
+
 ```mermaid
 flowchart TB
     subgraph "Data Flow"
@@ -200,6 +204,8 @@ flowchart TB
 ## 📊 Database Schemas
 
 ### Neo4j Graph Schema
+
+![Neo4j graph schema showing node types (Camera, Location, Vehicle, Person, Event) and relationships](docs/images/ELI-DIAGRAM-Neo4JGraphSchema.jpeg)
 
 ```mermaid
 graph LR
@@ -380,6 +386,8 @@ erDiagram
 ---
 
 ## 🔄 Data Flow Architecture
+
+![Data flow sequence diagram showing event ingestion from IREX through webhook handler to databases](docs/images/ELI-DIAGRAM-DataFlowArchitecture.jpeg)
 
 ```mermaid
 sequenceDiagram

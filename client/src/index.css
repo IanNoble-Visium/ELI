@@ -244,4 +244,78 @@
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(217, 16, 35, 0.5);
   }
+
+  /* Event Ticker Scrolling Animation */
+  @keyframes scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-scroll {
+    animation: scroll 30s linear infinite;
+  }
+
+  /* Marker Cluster Styles */
+  .marker-cluster {
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .marker-cluster-small,
+  .marker-cluster-medium,
+  .marker-cluster-large {
+    background: rgba(217, 16, 35, 0.3) !important;
+    border-radius: 50%;
+  }
+
+  .marker-cluster-small div,
+  .marker-cluster-medium div,
+  .marker-cluster-large div {
+    background: rgba(217, 16, 35, 0.9);
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .marker-cluster-small {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .marker-cluster-small div {
+    width: 28px;
+    height: 28px;
+  }
+
+  .marker-cluster-medium {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .marker-cluster-medium div {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .marker-cluster-large {
+    width: 52px !important;
+    height: 52px !important;
+  }
+
+  .marker-cluster-large div {
+    width: 42px;
+    height: 42px;
+    font-size: 14px;
+  }
 }

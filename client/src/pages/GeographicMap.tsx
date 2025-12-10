@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, MapPin, Camera, AlertTriangle, RefreshCw, Activity, Clock, Eye, X, ChevronLeft, ChevronRight, Image, List } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import "leaflet/dist/leaflet.css";
@@ -211,20 +212,20 @@ export default function GeographicMap() {
       const params = new URLSearchParams();
       if (selectedRegion !== "all") params.append("region", selectedRegion);
       params.append("limit", "500"); // Limit for performance
-      
+
       const response = await fetch(`/api/data/cameras?${params}`, {
         credentials: "include",
       });
-      
+
       if (!response.ok) throw new Error("Failed to fetch cameras");
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setCameras(data.cameras);
         setStats(data.stats);
       }
-      
+
       setLastRefresh(new Date());
     } catch (error) {
       console.error("[Map] Fetch error:", error);
@@ -245,7 +246,7 @@ export default function GeographicMap() {
   // Handle region selection
   const handleRegionChange = (region: string) => {
     setSelectedRegion(region);
-    
+
     // Center map on selected region
     const regionCenters: Record<string, [number, number]> = {
       "Lima": [-12.0464, -77.0428],
@@ -259,7 +260,7 @@ export default function GeographicMap() {
       "Tacna": [-18.0146, -70.2536],
       "Puno": [-15.8402, -70.0219],
     };
-    
+
     if (region !== "all" && regionCenters[region]) {
       setMapCenter(regionCenters[region]);
       setMapZoom(10);
@@ -269,10 +270,15 @@ export default function GeographicMap() {
     }
   };
 
-  // Helper function to check if an event has valid images
+  // Helper function to check if an event has valid Cloudinary images
   const hasValidImages = (event: CameraEvent): boolean => {
     if (!event.snapshots || event.snapshots.length === 0) return false;
-    return event.snapshots.some(snap => snap.imageUrl && snap.imageUrl.trim() !== '');
+    // Require actual Cloudinary URLs, not local file paths
+    return event.snapshots.some(snap =>
+      snap.imageUrl &&
+      snap.imageUrl.trim() !== '' &&
+      snap.imageUrl.includes('cloudinary.com')
+    );
   };
 
   // Fetch events for a specific camera
@@ -282,11 +288,11 @@ export default function GeographicMap() {
       const response = await fetch(`/api/data/events?channelId=${cameraId}&limit=50`, {
         credentials: "include",
       });
-      
+
       if (!response.ok) throw new Error("Failed to fetch events");
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         // Filter events: show only events with valid images, except critical events (level 3)
         const filteredEvents = (data.events || []).filter((event: CameraEvent) => {
@@ -332,7 +338,7 @@ export default function GeographicMap() {
   // Navigate images
   const nextImage = () => {
     if (selectedEventForViewer?.snapshots) {
-      setCurrentImageIndex((prev) => 
+      setCurrentImageIndex((prev) =>
         prev < selectedEventForViewer.snapshots!.length - 1 ? prev + 1 : 0
       );
     }
@@ -340,7 +346,7 @@ export default function GeographicMap() {
 
   const prevImage = () => {
     if (selectedEventForViewer?.snapshots) {
-      setCurrentImageIndex((prev) => 
+      setCurrentImageIndex((prev) =>
         prev > 0 ? prev - 1 : selectedEventForViewer.snapshots!.length - 1
       );
     }
@@ -377,7 +383,7 @@ export default function GeographicMap() {
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Select value={selectedRegion} onValueChange={handleRegionChange}>
               <SelectTrigger className="w-40">
@@ -392,7 +398,7 @@ export default function GeographicMap() {
                 ))}
               </SelectContent>
             </Select>
-            
+
             <Button
               variant="outline"
               size="sm"
@@ -592,7 +598,7 @@ export default function GeographicMap() {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Drill-down button */}
                   {selectedCamera.eventCount > 0 && (
                     <Button
@@ -666,34 +672,42 @@ export default function GeographicMap() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {cameras.map((camera) => (
-              <Marker
-                key={camera.id}
-                position={[camera.latitude, camera.longitude]}
-                icon={camera.status === "alert" ? alertIcon : camera.status === "active" ? activeIcon : inactiveIcon}
-                eventHandlers={{
-                  click: () => setSelectedCamera(camera),
-                }}
-              >
-                <Popup>
-                  <div className="text-sm min-w-[150px]">
-                    <div className="font-semibold">{camera.name}</div>
-                    <div className="text-xs text-gray-600">{camera.address.region || camera.address.city}</div>
-                    <div className="text-xs mt-1">
-                      Status: <span className={
-                        camera.status === "active" ? "text-green-600" : 
-                        camera.status === "alert" ? "text-red-600" : "text-gray-600"
-                      }>
-                        {camera.status}
-                      </span>
+            <MarkerClusterGroup
+              chunkedLoading
+              maxClusterRadius={60}
+              spiderfyOnMaxZoom={true}
+              showCoverageOnHover={false}
+              disableClusteringAtZoom={12}
+            >
+              {cameras.map((camera) => (
+                <Marker
+                  key={camera.id}
+                  position={[camera.latitude, camera.longitude]}
+                  icon={camera.status === "alert" ? alertIcon : camera.status === "active" ? activeIcon : inactiveIcon}
+                  eventHandlers={{
+                    click: () => setSelectedCamera(camera),
+                  }}
+                >
+                  <Popup>
+                    <div className="text-sm min-w-[150px]">
+                      <div className="font-semibold">{camera.name}</div>
+                      <div className="text-xs text-gray-600">{camera.address.region || camera.address.city}</div>
+                      <div className="text-xs mt-1">
+                        Status: <span className={
+                          camera.status === "active" ? "text-green-600" :
+                            camera.status === "alert" ? "text-red-600" : "text-gray-600"
+                        }>
+                          {camera.status}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Events: {camera.eventCount}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Events: {camera.eventCount}
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                  </Popup>
+                </Marker>
+              ))}
+            </MarkerClusterGroup>
           </MapContainer>
         </div>
 
@@ -951,11 +965,10 @@ export default function GeographicMap() {
                         {selectedEventForViewer.snapshots.map((snapshot, index) => (
                           <div
                             key={snapshot.id}
-                            className={`flex-shrink-0 w-16 h-12 rounded cursor-pointer border-2 transition-all overflow-hidden ${
-                              index === currentImageIndex
-                                ? 'border-primary'
-                                : 'border-transparent hover:border-border'
-                            }`}
+                            className={`flex-shrink-0 w-16 h-12 rounded cursor-pointer border-2 transition-all overflow-hidden ${index === currentImageIndex
+                              ? 'border-primary'
+                              : 'border-transparent hover:border-border'
+                              }`}
                             onClick={() => setCurrentImageIndex(index)}
                           >
                             {snapshot.imageUrl ? (

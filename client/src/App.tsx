@@ -19,6 +19,7 @@ import PostgreSQLMonitoring from "./pages/PostgreSQLMonitoring";
 import ImageAnalysisDashboard from "./pages/ImageAnalysisDashboard";
 import { useAuth } from "./_core/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 
 // Page transition variants for smooth navigation
 const pageVariants = {
@@ -141,12 +142,55 @@ function Router() {
 }
 
 function App() {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // F11 fullscreen toggle for presentations
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().then(() => {
+            setIsFullscreen(true);
+          }).catch((err) => {
+            console.error('Failed to enter fullscreen:', err);
+          });
+        } else {
+          document.exitFullscreen().then(() => {
+            setIsFullscreen(false);
+          }).catch((err) => {
+            console.error('Failed to exit fullscreen:', err);
+          });
+        }
+      }
+    };
+
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
           <Router />
+          {/* Fullscreen indicator */}
+          {isFullscreen && (
+            <div className="fixed bottom-4 right-4 z-50 bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 animate-pulse">
+              <span className="w-2 h-2 bg-white rounded-full" />
+              PRESENTATION MODE - Press F11 to exit
+            </div>
+          )}
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
