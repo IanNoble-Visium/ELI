@@ -121,27 +121,27 @@ export default function EventTicker() {
                     return (
                         <div
                             key={`${event.id}-${index}`}
-                            className="flex items-center gap-3 px-4 border-r border-border/50 whitespace-nowrap"
+                            className="flex items-center gap-4 px-6 border-r border-border/50 whitespace-nowrap min-w-fit"
                         >
                             {/* Level indicator */}
-                            <Badge className={`${levelInfo.color} text-white text-[10px] px-1.5 py-0`}>
+                            <Badge className={`${levelInfo.color} text-white text-xs font-bold px-2 py-0.5 uppercase tracking-wide shadow-sm`}>
                                 {levelInfo.label}
                             </Badge>
 
                             {/* Event info */}
-                            <div className="flex items-center gap-2">
-                                <span className={`font-medium text-sm ${levelInfo.textColor}`}>
+                            <div className="flex items-center gap-3">
+                                <span className={`font-semibold text-sm ${levelInfo.textColor}`}>
                                     {event.topic}
                                 </span>
-                                <span className="text-muted-foreground text-xs">•</span>
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                    <Camera className="w-3 h-3" />
-                                    {event.channelName.length > 25
-                                        ? `${event.channelName.substring(0, 25)}...`
+                                <span className="text-muted-foreground/50">|</span>
+                                <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                                    <Camera className="w-3.5 h-3.5" />
+                                    {event.channelName.length > 20
+                                        ? `${event.channelName.substring(0, 20)}...`
                                         : event.channelName}
                                 </span>
-                                <span className="text-muted-foreground text-xs">•</span>
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-muted-foreground/50">|</span>
+                                <span className="text-sm text-muted-foreground font-mono">
                                     {(() => {
                                         try {
                                             const date = new Date(event.startTime);
