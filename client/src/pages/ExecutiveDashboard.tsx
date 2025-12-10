@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AnalyticsTab } from "@/components/analytics";
 import {
   ArrowLeft,
   Camera,
@@ -12,7 +14,9 @@ import {
   Activity,
   TrendingUp,
   TrendingDown,
-  RefreshCw
+  RefreshCw,
+  BarChart3,
+  LayoutDashboard
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { motion } from "framer-motion";
@@ -156,6 +160,7 @@ export default function ExecutiveDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [activeTab, setActiveTab] = useState("overview");
 
   // Fetch real statistics
   const fetchStats = useCallback(async () => {
