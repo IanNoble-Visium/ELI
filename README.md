@@ -31,6 +31,7 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
 
 1. **Executive Dashboard**
    - Real-time KPIs and metrics
+   - **Live event ticker** - Scrolling real-time events below header with pause-on-hover
    - Interactive timeline with zoom functionality
    - Event distribution charts (Recharts)
    - Regional activity visualization
@@ -39,34 +40,48 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
 2. **Geographic Map**
    - Leaflet integration with OpenStreetMap
    - 3,084 camera markers across 25 Peru regions
+   - **Camera marker clustering** - Groups nearby cameras at low zoom (react-leaflet-cluster)
    - Real-time event location plotting
    - Interactive camera status (active/inactive/alert)
    - Click-to-view camera details
+   - **Fullscreen presentation mode** - Toggle button for clean presentations
+   - **Cloudinary image filtering** - Only displays events with valid Cloudinary images
    - Professional legend and controls
 
 3. **Topology Graph**
    - React-force-graph-2d network visualization
    - 5 layout modes: Force-Directed, Hierarchical, Radial, Grid, Circular
    - Node/edge filtering and search
+   - **Image nodes** - Events display Cloudinary images as node thumbnails
+   - **Fullscreen presentation mode** - Toggle button for clean presentations
    - Mini-map navigator
    - Zoom controls and fit-to-screen
    - Color-coded entity types
 
-4. **Incident Management**
-   - Real-time alert tracking
+4. **Incident Management** *(Redesigned Dec 2024)*
+   - **"Command Center" aesthetic** with dark theme and glassmorphism
+   - Real-time incident tracking with **live database fetching**
+   - **Dispatch Status Card** showing response units with ETA
+   - **Threat Analysis Card** with progress indicators
    - Filtering by status, priority, and region
    - Video evidence integration
-   - Detailed incident reports
-   - Officer and unit assignment
-   - Peru-specific locations and context
+   - Notes and tags management (tRPC)
+   - Quick navigation to Map, Topology, and POLE Analysis
+   - **Framer Motion animations** throughout
+   - **Empty state handling** when no incidents exist
 
-5. **POLE Analytics**
-   - People, Objects, Locations, Events analysis
+5. **POLE Analytics** *(Redesigned Dec 2024)*
+   - **"Digital Detective Board" aesthetic** with scanline overlay
+   - **Real database integration** - fetches from `pole_entities` table via API
+   - **Empty state handling** - shows informative message when database is empty (fixes stale data bug)
+   - Interactive force-directed graph with **custom node rendering**
+   - Node shapes by entity type (circle=person, diamond=object, square=location, triangle=event)
+   - **Pulsing indicators** for high-risk entities
+   - **Dossier-style detail panel** with entity information
    - Timeline visualization
-   - Pattern recognition dashboard
-   - Entity relationship tracking
-   - Intelligence assessment panel
-   - Risk level classification
+   - Entity list with search
+   - **Framer Motion animations** throughout
+   - **Language toggle** (English/Spanish)
 
 6. **Real-Time Webhook Viewer**
    - Live event stream with auto-refresh (3s)
@@ -488,6 +503,7 @@ These endpoints query real data from the PostgreSQL/TiDB database:
 | `/api/data/events` | GET | Returns surveillance events with filtering | `events` |
 | `/api/data/stats` | GET | Returns aggregated dashboard statistics | `events`, `channels` |
 | `/api/data/incidents` | GET | Returns incident management data | `incidents` |
+| `/api/data/pole-entities` | GET | Returns POLE entities with graph data | `pole_entities` |
 
 **Query Parameters:**
 - `limit` - Maximum number of records to return
@@ -572,7 +588,7 @@ The application uses **real database integration** for all surveillance data:
 | Executive Dashboard | `events` + `channels` tables | Aggregated statistics |
 | Event Timeline | `events` table | Historical events |
 | Incident Management | `incidents` table | Incident tracking |
-| POLE Analytics | Simulated data | Clearly labeled as demo |
+| POLE Analytics | `pole_entities` table | Real database integration (Dec 2024) |
 
 **Empty State Handling:**
 When no data exists in the database, the UI displays appropriate "No data yet" messages instead of mock data.
@@ -648,6 +664,7 @@ pnpm format
 - Framer Motion 12.23.22
 - Recharts 2.15.2
 - Leaflet 1.9.4
+- react-leaflet-cluster 2.1.0 (marker clustering)
 - react-force-graph-2d 1.29.0
 - date-fns 4.1.0
 - shadcn/ui components
@@ -728,6 +745,11 @@ Edit `client/src/index.css` to change colors:
 - [x] Real event data from database
 - [x] Aggregated statistics from database
 - [x] Empty state handling in frontend
+- [x] **POLE Analytics redesign** - "Digital Detective Board" aesthetic (Dec 2024)
+- [x] **Incident Management redesign** - "Command Center" aesthetic (Dec 2024)
+- [x] **POLE stale data bug fix** - Now fetches from database, shows empty state when purged (Dec 2024)
+- [x] **POLE entities API** - New `/api/data/pole-entities` endpoint (Dec 2024)
+- [x] **Framer Motion animations** - Smooth transitions on both pages (Dec 2024)
 
 ### High Priority
 - [ ] Test webhook endpoint with real IREX surveillance data
