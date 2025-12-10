@@ -289,324 +289,349 @@ export default function ExecutiveDashboard() {
       {/* Real-time Event Ticker */}
       <EventTicker />
 
-      {/* Show skeleton while loading */}
-      {isLoading && !stats ? (
-        <main className="container py-8 space-y-8">
-          {/* KPI Cards Skeleton */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <Card key={i}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-4 w-4 rounded" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-8 w-20 mb-2" />
-                  <Skeleton className="h-3 w-28" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+      {/* Tab Navigation */}
+      <div className="container pt-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <LayoutDashboard className="w-4 h-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Trends & Predictions
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Charts Skeleton */}
-          <div className="grid lg:grid-cols-2 gap-6">
-            {[1, 2].map((i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-48 mt-1" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-[300px] w-full rounded-lg" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {/* Analytics Tab Content */}
+          <TabsContent value="analytics" className="mt-6">
+            <AnalyticsTab />
+          </TabsContent>
 
-          <Card>
-            <CardHeader>
-              <Skeleton className="h-5 w-36" />
-              <Skeleton className="h-4 w-56 mt-1" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-[300px] w-full rounded-lg" />
-            </CardContent>
-          </Card>
-        </main>
-      ) : (
-        /* Main Content */
-        <main className="container py-8 space-y-8">
-          {/* KPI Cards with staggered animation */}
-          <motion.div
-            className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            {kpis.map((kpi) => (
-              <motion.div
-                key={kpi.title}
-                variants={itemVariants}
-                whileHover={{
-                  y: -4,
-                  transition: { duration: 0.2 }
-                }}
-              >
-                <Card className="hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 h-full">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
-                    <motion.div
-                      whileHover={{ rotate: 10, scale: 1.1 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
-                    </motion.div>
+          {/* Overview Tab Content */}
+          <TabsContent value="overview" className="mt-0">
+
+            {/* Show skeleton while loading */}
+            {isLoading && !stats ? (
+              <main className="container py-8 space-y-8">
+                {/* KPI Cards Skeleton */}
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Card key={i}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-4 rounded" />
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-8 w-20 mb-2" />
+                        <Skeleton className="h-3 w-28" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Charts Skeleton */}
+                <div className="grid lg:grid-cols-2 gap-6">
+                  {[1, 2].map((i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-4 w-48 mt-1" />
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-[300px] w-full rounded-lg" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-36" />
+                    <Skeleton className="h-4 w-56 mt-1" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{kpi.value}</div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                      {kpi.trend === "up" && <TrendingUp className="w-3 h-3 text-green-500" />}
-                      {kpi.trend === "down" && <TrendingDown className="w-3 h-3 text-red-500" />}
-                      <span className={kpi.trend === "up" ? "text-green-500" : kpi.trend === "down" ? "text-red-500" : ""}>
-                        {kpi.change}
-                      </span>
-                      {kpi.trend !== "neutral" && <span>vs last period</span>}
-                    </div>
+                    <Skeleton className="h-[300px] w-full rounded-lg" />
                   </CardContent>
                 </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          {/* Charts Row 1 with staggered reveal */}
-          <motion.div
-            className="grid lg:grid-cols-2 gap-6"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
-          >
-            {/* Events Timeline with gradient */}
-            <motion.div variants={chartVariants}>
-              <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle>Events Timeline</CardTitle>
-                  <CardDescription>Daily event and alert distribution</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={eventsByDay}>
-                      <defs>
-                        <linearGradient id="eventGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#D91023" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#D91023" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="alertGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#F77F00" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#F77F00" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="day" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#1f2937",
-                          border: "1px solid #D91023",
-                          borderRadius: "8px",
-                          boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
-                        }}
-                        labelStyle={{ color: "#F9FAFB", fontWeight: "bold" }}
-                      />
-                      <Legend />
-                      <Area
-                        type="monotone"
-                        dataKey="events"
-                        stroke="#D91023"
-                        strokeWidth={2}
-                        fill="url(#eventGradient)"
-                        name="Events"
-                        isAnimationActive={true}
-                        animationDuration={1500}
-                        animationEasing="ease-out"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="alerts"
-                        stroke="#F77F00"
-                        strokeWidth={2}
-                        fill="url(#alertGradient)"
-                        name="Alerts"
-                        isAnimationActive={true}
-                        animationDuration={1500}
-                        animationEasing="ease-out"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Events by Type */}
-            <motion.div variants={chartVariants}>
-              <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle>Events by Type</CardTitle>
-                  <CardDescription>Distribution of event categories</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={eventsByType}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={100}
-                        fill="#8884d8"
-                        dataKey="value"
-                        isAnimationActive={true}
-                        animationDuration={1200}
-                        animationEasing="ease-out"
-                      >
-                        {eventsByType.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#1f2937",
-                          border: "1px solid #D91023",
-                          borderRadius: "8px",
-                          boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </motion.div>
-
-          {/* Regional Activity */}
-          <motion.div
-            variants={chartVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
-          >
-            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
-              <CardHeader>
-                <CardTitle>Regional Activity</CardTitle>
-                <CardDescription>Events and camera distribution by region</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={regionActivity}>
-                    <defs>
-                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#D91023" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#D91023" stopOpacity={0.7} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="region" stroke="#9CA3AF" />
-                    <YAxis stroke="#9CA3AF" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#1f2937",
-                        border: "1px solid #D91023",
-                        borderRadius: "8px",
-                        boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
+              </main>
+            ) : (
+              /* Main Content */
+              <main className="container py-8 space-y-8">
+                {/* KPI Cards with staggered animation */}
+                <motion.div
+                  className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {kpis.map((kpi) => (
+                    <motion.div
+                      key={kpi.title}
+                      variants={itemVariants}
+                      whileHover={{
+                        y: -4,
+                        transition: { duration: 0.2 }
                       }}
-                      labelStyle={{ color: "#F9FAFB", fontWeight: "bold" }}
-                    />
-                    <Legend />
-                    <Bar
-                      dataKey="events"
-                      fill="url(#barGradient)"
-                      name="Events"
-                      radius={[4, 4, 0, 0]}
-                      isAnimationActive={true}
-                      animationDuration={1200}
-                    />
-                    <Bar
-                      dataKey="cameras"
-                      fill="#4B5563"
-                      name="Cameras"
-                      radius={[4, 4, 0, 0]}
-                      isAnimationActive={true}
-                      animationDuration={1200}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Recent Alerts with staggered list items */}
-          {stats?.recentAlerts && stats.recentAlerts.length > 0 && (
-            <motion.div
-              variants={chartVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-50px" }}
-            >
-              <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle>Recent Alerts</CardTitle>
-                  <CardDescription>Latest security events from the surveillance network</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <motion.div
-                    className="space-y-3"
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                  >
-                    {stats.recentAlerts.slice(0, 5).map((alert, i) => (
-                      <motion.div
-                        key={alert.id || i}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer"
-                        variants={itemVariants}
-                        whileHover={{ x: 4, transition: { duration: 0.2 } }}
-                      >
-                        <div className="flex items-center gap-3">
+                    >
+                      <Card className="hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 h-full">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
                           <motion.div
-                            className={`w-2 h-2 rounded-full ${alert.level === 3 ? "bg-red-500" :
-                              alert.level === 2 ? "bg-orange-500" :
-                                alert.level === 1 ? "bg-yellow-500" : "bg-blue-500"
-                              }`}
-                            animate={alert.level === 3 ? {
-                              scale: [1, 1.3, 1],
-                              opacity: [1, 0.7, 1]
-                            } : {}}
-                            transition={{
-                              duration: 1.5,
-                              repeat: Infinity,
-                              ease: "easeInOut"
-                            }}
-                          />
-                          <div>
-                            <div className="font-medium text-sm">{alert.type}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {alert.camera} • {alert.region}
-                            </div>
+                            whileHover={{ rotate: 10, scale: 1.1 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
+                          </motion.div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-3xl font-bold">{kpi.value}</div>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                            {kpi.trend === "up" && <TrendingUp className="w-3 h-3 text-green-500" />}
+                            {kpi.trend === "down" && <TrendingDown className="w-3 h-3 text-red-500" />}
+                            <span className={kpi.trend === "up" ? "text-green-500" : kpi.trend === "down" ? "text-red-500" : ""}>
+                              {kpi.change}
+                            </span>
+                            {kpi.trend !== "neutral" && <span>vs last period</span>}
                           </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {format(new Date(alert.timestamp), "HH:mm:ss")}
-                        </div>
-                      </motion.div>
-                    ))}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </motion.div>
+
+                {/* Charts Row 1 with staggered reveal */}
+                <motion.div
+                  className="grid lg:grid-cols-2 gap-6"
+                  variants={containerVariants}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, margin: "-50px" }}
+                >
+                  {/* Events Timeline with gradient */}
+                  <motion.div variants={chartVariants}>
+                    <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+                      <CardHeader>
+                        <CardTitle>Events Timeline</CardTitle>
+                        <CardDescription>Daily event and alert distribution</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <AreaChart data={eventsByDay}>
+                            <defs>
+                              <linearGradient id="eventGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#D91023" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#D91023" stopOpacity={0} />
+                              </linearGradient>
+                              <linearGradient id="alertGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#F77F00" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#F77F00" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis dataKey="day" stroke="#9CA3AF" />
+                            <YAxis stroke="#9CA3AF" />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "#1f2937",
+                                border: "1px solid #D91023",
+                                borderRadius: "8px",
+                                boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
+                              }}
+                              labelStyle={{ color: "#F9FAFB", fontWeight: "bold" }}
+                            />
+                            <Legend />
+                            <Area
+                              type="monotone"
+                              dataKey="events"
+                              stroke="#D91023"
+                              strokeWidth={2}
+                              fill="url(#eventGradient)"
+                              name="Events"
+                              isAnimationActive={true}
+                              animationDuration={1500}
+                              animationEasing="ease-out"
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="alerts"
+                              stroke="#F77F00"
+                              strokeWidth={2}
+                              fill="url(#alertGradient)"
+                              name="Alerts"
+                              isAnimationActive={true}
+                              animationDuration={1500}
+                              animationEasing="ease-out"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
                   </motion.div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </main>
-      )}
+
+                  {/* Events by Type */}
+                  <motion.div variants={chartVariants}>
+                    <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+                      <CardHeader>
+                        <CardTitle>Events by Type</CardTitle>
+                        <CardDescription>Distribution of event categories</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={eventsByType}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              outerRadius={100}
+                              fill="#8884d8"
+                              dataKey="value"
+                              isAnimationActive={true}
+                              animationDuration={1200}
+                              animationEasing="ease-out"
+                            >
+                              {eventsByType.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "#1f2937",
+                                border: "1px solid #D91023",
+                                borderRadius: "8px",
+                                boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
+                              }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </motion.div>
+
+                {/* Regional Activity */}
+                <motion.div
+                  variants={chartVariants}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, margin: "-50px" }}
+                >
+                  <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+                    <CardHeader>
+                      <CardTitle>Regional Activity</CardTitle>
+                      <CardDescription>Events and camera distribution by region</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={regionActivity}>
+                          <defs>
+                            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#D91023" stopOpacity={1} />
+                              <stop offset="100%" stopColor="#D91023" stopOpacity={0.7} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                          <XAxis dataKey="region" stroke="#9CA3AF" />
+                          <YAxis stroke="#9CA3AF" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "#1f2937",
+                              border: "1px solid #D91023",
+                              borderRadius: "8px",
+                              boxShadow: "0 4px 12px rgba(217, 16, 35, 0.15)"
+                            }}
+                            labelStyle={{ color: "#F9FAFB", fontWeight: "bold" }}
+                          />
+                          <Legend />
+                          <Bar
+                            dataKey="events"
+                            fill="url(#barGradient)"
+                            name="Events"
+                            radius={[4, 4, 0, 0]}
+                            isAnimationActive={true}
+                            animationDuration={1200}
+                          />
+                          <Bar
+                            dataKey="cameras"
+                            fill="#4B5563"
+                            name="Cameras"
+                            radius={[4, 4, 0, 0]}
+                            isAnimationActive={true}
+                            animationDuration={1200}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Recent Alerts with staggered list items */}
+                {stats?.recentAlerts && stats.recentAlerts.length > 0 && (
+                  <motion.div
+                    variants={chartVariants}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-50px" }}
+                  >
+                    <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+                      <CardHeader>
+                        <CardTitle>Recent Alerts</CardTitle>
+                        <CardDescription>Latest security events from the surveillance network</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <motion.div
+                          className="space-y-3"
+                          variants={containerVariants}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          {stats.recentAlerts.slice(0, 5).map((alert, i) => (
+                            <motion.div
+                              key={alert.id || i}
+                              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors cursor-pointer"
+                              variants={itemVariants}
+                              whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <motion.div
+                                  className={`w-2 h-2 rounded-full ${alert.level === 3 ? "bg-red-500" :
+                                    alert.level === 2 ? "bg-orange-500" :
+                                      alert.level === 1 ? "bg-yellow-500" : "bg-blue-500"
+                                    }`}
+                                  animate={alert.level === 3 ? {
+                                    scale: [1, 1.3, 1],
+                                    opacity: [1, 0.7, 1]
+                                  } : {}}
+                                  transition={{
+                                    duration: 1.5,
+                                    repeat: Infinity,
+                                    ease: "easeInOut"
+                                  }}
+                                />
+                                <div>
+                                  <div className="font-medium text-sm">{alert.type}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {alert.camera} • {alert.region}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {format(new Date(alert.timestamp), "HH:mm:ss")}
+                              </div>
+                            </motion.div>
+                          ))}
+                        </motion.div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
+              </main>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

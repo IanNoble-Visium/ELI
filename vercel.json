@@ -43,6 +43,10 @@
       "destination": "/api/cloudinary/test-influxdb"
     },
     {
+      "source": "/api/analytics/:path*",
+      "destination": "/api/analytics/:path*"
+    },
+    {
       "source": "/api/cron/:path*",
       "destination": "/api/cron/:path*"
     },
