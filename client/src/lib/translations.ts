@@ -218,6 +218,11 @@ export const uiLabels: Record<string, { es: string; en: string }> = {
   exportReport: { es: "Exportar Informe", en: "Export Report" },
   activityTimeline: { es: "Línea de Actividad", en: "Activity Timeline" },
   activityTimelineDesc: { es: "Actividad de entidades POLE en los últimos 7 días", en: "POLE entity activity over the last 7 days" },
+  
+  // Additional labels for redesigned pages
+  type: { es: "Tipo", en: "Type" },
+  status: { es: "Estado", en: "Status" },
+  role: { es: "Rol", en: "Role" },
 };
 
 // =============================================================================

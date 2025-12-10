@@ -1,5 +1,22 @@
 # ELI Unified Dashboard
 
+## Executive Summary – ELI for Peru
+
+**What ELI Does**
+ELI is Peru’s national “single pane of glass” for security and intelligence, unifying camera networks, analytics systems, and incident reports across the country into one live dashboard. It allows national and regional leaders to see what is happening now, where it is happening, and how risks are evolving over time.
+
+**Why It Is Useful for Peru**
+- Strengthens situational awareness for the National Police, Armed Forces, and civil protection by giving them a shared, real-time picture of incidents and risks across all regions.
+- Reduces response time by linking alerts, maps, video evidence, and incident reports in a single, coordinated workflow.
+- Supports strategic decision-making by turning millions of individual events into clear trends, hotspots, and risk indicators that can be discussed at the ministerial and national security level.
+
+**Where We Are Going Next**
+Over the next phases, ELI will evolve from a unified viewer into a full intelligence platform for Peru by:
+- Adding graph-based intelligence to understand how people, vehicles, locations, and events are connected.
+- Building a secure evidence pipeline for storing and reviewing video and images at national scale.
+- Expanding AI and predictive analytics to highlight anomalies early and anticipate emerging threats.
+- Integrating more deeply with existing national programs and command centers, so ELI becomes the common operating picture for Peru’s security institutions.
+
 **Peru's National Surveillance & Intelligence Platform**
 
 A comprehensive, full-stack surveillance dashboard that unifies three separate systems (ELI-DEMO, eli-dashboard, and IREX-DEMO) into a single, cohesive application with real-time webhook processing, advanced analytics, and Peru-themed design.

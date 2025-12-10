@@ -63,8 +63,29 @@ export default function EventTicker() {
         return () => clearInterval(interval);
     }, [fetchEvents]);
 
-    if (isLoading || events.length === 0) {
-        return null; // Don't render if no events
+    if (isLoading) {
+        return (
+            <div className="relative overflow-hidden bg-gradient-to-r from-background via-card to-background border-y border-border">
+                <div className="flex items-center py-2 px-3 gap-2">
+                    <div className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-pulse" />
+                    <span className="text-xs text-muted-foreground">Loading events...</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (events.length === 0) {
+        return (
+            <div className="relative overflow-hidden bg-gradient-to-r from-background via-card to-background border-y border-border">
+                <div className="flex items-center py-2 px-3 gap-3">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-muted-foreground/30 rounded-full" />
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">LIVE</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">Waiting for events...</span>
+                </div>
+            </div>
+        );
     }
 
     // Duplicate events for seamless scrolling
