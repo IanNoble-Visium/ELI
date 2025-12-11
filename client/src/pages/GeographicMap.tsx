@@ -469,33 +469,83 @@ export default function GeographicMap() {
     }
   }, [cameras]);
 
-  const handleContextCreateIncident = useCallback((node: ContextMenuNode) => {
-    const params = new URLSearchParams({
-      from: "map",
-      nodeId: node.id,
-      nodeType: node.type,
-      nodeName: node.name,
-      ...(node.region && { region: node.region }),
-      ...(node.latitude && node.longitude && { location: `${node.latitude},${node.longitude}` }),
-    });
-    setLocation(`/dashboard/incidents?${params.toString()}`);
-    toast.success("Creating incident...", {
-      description: `Source: ${node.name} (${node.type})`,
-    });
+  const handleContextCreateIncident = useCallback(async (node: ContextMenuNode) => {
+    toast.loading("Creating incident...", { id: "create-incident" });
+
+    try {
+      const response = await fetch("/api/data/create-incident", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodeId: node.id,
+          nodeType: node.type,
+          nodeName: node.name,
+          region: node.region,
+          location: node.latitude && node.longitude ? `${node.latitude},${node.longitude}` : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Incident created!", {
+          id: "create-incident",
+          description: `${data.incident.incidentType} - ${data.incident.id}`,
+        });
+        // Navigate to incidents page to see the new incident
+        setLocation("/dashboard/incidents");
+      } else {
+        toast.error("Failed to create incident", {
+          id: "create-incident",
+          description: data.error,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to create incident:", error);
+      toast.error("Failed to create incident", {
+        id: "create-incident",
+        description: "Network error - please try again",
+      });
+    }
   }, [setLocation]);
 
-  const handleContextAddToPole = useCallback((node: ContextMenuNode) => {
-    const params = new URLSearchParams({
-      from: "map",
-      entityId: node.id,
-      entityType: "location",
-      entityName: node.name,
-      ...(node.latitude && node.longitude && { coords: `${node.latitude},${node.longitude}` }),
-    });
-    setLocation(`/dashboard/pole?${params.toString()}`);
-    toast.success("Adding to POLE...", {
-      description: `Entity: ${node.name} as location`,
-    });
+  const handleContextAddToPole = useCallback(async (node: ContextMenuNode) => {
+    toast.loading("Adding to POLE...", { id: "add-pole" });
+
+    try {
+      const response = await fetch("/api/data/create-pole-entity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityId: node.id,
+          entityType: node.type,
+          entityName: node.name,
+          coords: node.latitude && node.longitude ? `${node.latitude},${node.longitude}` : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("POLE entity created!", {
+          id: "add-pole",
+          description: `${data.entity.entityType.toUpperCase()}: ${data.entity.name}`,
+        });
+        // Navigate to POLE page to see the new entity
+        setLocation("/dashboard/pole");
+      } else {
+        toast.error("Failed to add to POLE", {
+          id: "add-pole",
+          description: data.error,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to add to POLE:", error);
+      toast.error("Failed to add to POLE", {
+        id: "add-pole",
+        description: "Network error - please try again",
+      });
+    }
   }, [setLocation]);
 
   const handleContextViewEvents = useCallback((node: ContextMenuNode) => {

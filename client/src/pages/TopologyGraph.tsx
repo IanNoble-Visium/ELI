@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2, Upload, X, Target, Clock, MapPin } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -173,6 +173,14 @@ export default function TopologyGraph() {
   const [contextMenuNode, setContextMenuNode] = useState<ContextMenuNode | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null);
   const [highRiskNodes, setHighRiskNodes] = useState<Set<string>>(new Set());
+
+  // Reverse image search state
+  const [reverseSearchImage, setReverseSearchImage] = useState<string | null>(null);
+  const [reverseSearchMimeType, setReverseSearchMimeType] = useState<string>("");
+  const [reverseSearchLoading, setReverseSearchLoading] = useState(false);
+  const [reverseSearchResults, setReverseSearchResults] = useState<any>(null);
+  const [reverseSearchError, setReverseSearchError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fullscreen toggle handler
   const toggleFullscreen = useCallback(() => {
@@ -461,6 +469,155 @@ export default function TopologyGraph() {
     clearGeminiFilters();
   }, [originalGraphData, clearGeminiFilters]);
 
+  // Reverse Image Search handlers
+  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload a valid image file');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image must be smaller than 10MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const base64Data = base64.split(',')[1]; // Remove data:image/...;base64, prefix
+      
+      setReverseSearchImage(base64);
+      setReverseSearchMimeType(file.type);
+      setReverseSearchError(null);
+      
+      // Automatically start the search
+      await performReverseSearch(base64Data, file.type);
+    };
+    reader.onerror = () => {
+      toast.error('Failed to read image file');
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const performReverseSearch = useCallback(async (base64Image: string, mimeType: string) => {
+    try {
+      setReverseSearchLoading(true);
+      setReverseSearchError(null);
+
+      toast.loading('Analyzing image with Gemini AI...', { id: 'reverse-search' });
+
+      const response = await fetch('/api/data/reverse-image-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ image: base64Image, mimeType, limit: 50 }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Search failed');
+      }
+
+      setReverseSearchResults(data);
+      toast.success(`Found ${data.matches.length} matches!`, { 
+        id: 'reverse-search',
+        description: `Processed in ${data.stats.processingTimeMs}ms`
+      });
+
+    } catch (error) {
+      console.error('[Reverse Image Search] Error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      setReverseSearchError(errorMsg);
+      toast.error('Search failed', { id: 'reverse-search', description: errorMsg });
+    } finally {
+      setReverseSearchLoading(false);
+    }
+  }, []);
+
+  const clearReverseSearch = useCallback(() => {
+    setReverseSearchImage(null);
+    setReverseSearchMimeType('');
+    setReverseSearchResults(null);
+    setReverseSearchError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    // Reset graph if filtered
+    if (originalGraphData) {
+      setGraphData(originalGraphData);
+      setOriginalGraphData(null);
+    }
+  }, [originalGraphData]);
+
+  const applyMatchesToGraph = useCallback(() => {
+    if (!reverseSearchResults?.matches || reverseSearchResults.matches.length === 0) return;
+
+    // Save original data if not already saved
+    if (!originalGraphData) {
+      setOriginalGraphData({ ...graphData });
+    }
+
+    const sourceData = originalGraphData || graphData;
+    const matchingIds = new Set(reverseSearchResults.matches.map((m: any) => m.id));
+
+    // Filter to show matching event nodes and their connected cameras/locations
+    const matchingNodes = sourceData.nodes.filter(node => {
+      if (matchingIds.has(node.id)) return true;
+      if (node.type === 'camera' || node.type === 'location') {
+        return sourceData.links.some(link => {
+          const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
+          const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+          return (sourceId === node.id && matchingIds.has(targetId)) ||
+            (targetId === node.id && matchingIds.has(sourceId));
+        });
+      }
+      return false;
+    });
+
+    const matchingNodeIds = new Set(matchingNodes.map(n => n.id));
+    const matchingLinks = sourceData.links.filter(link => {
+      const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
+      const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+      return matchingNodeIds.has(sourceId) && matchingNodeIds.has(targetId);
+    });
+
+    // Update graph with highlighted matches
+    setGraphData({
+      nodes: matchingNodes.map(node => ({
+        ...node,
+        color: matchingIds.has(node.id) ? "#00D9FF" : node.color, // Cyan highlight for matches
+        val: matchingIds.has(node.id) ? (node.val || 5) * 1.5 : node.val,
+      })),
+      links: matchingLinks,
+    });
+
+    toast.success(`Filtered to ${reverseSearchResults.matches.length} matches`);
+    
+    // Zoom to fit
+    if (graphRef.current) {
+      setTimeout(() => graphRef.current?.zoomToFit(500, 50), 100);
+    }
+  }, [reverseSearchResults, graphData, originalGraphData]);
+
+  const handleMatchClick = useCallback((match: any) => {
+    // Find the node in the graph and select it
+    const node = graphData.nodes.find(n => n.id === match.id);
+    if (node && graphRef.current) {
+      setSelectedNode(node);
+      if (node.x && node.y) {
+        graphRef.current.centerAt(node.x, node.y, 1000);
+        graphRef.current.zoom?.(2, 1000);
+      }
+      toast.info(`Selected: ${node.name}`);
+    }
+  }, [graphData.nodes]);
+
   // Initial fetch
   useEffect(() => {
     fetchTopologyData();
@@ -619,42 +776,83 @@ export default function TopologyGraph() {
     }
   }, [graphData.nodes]);
 
-  const handleContextCreateIncident = useCallback((node: ContextMenuNode) => {
-    const params = new URLSearchParams({
-      from: "topology",
-      nodeId: node.id,
-      nodeType: node.type,
-      nodeName: node.name,
-      ...(node.region && { region: node.region }),
-      ...(node.latitude && node.longitude && { location: `${node.latitude},${node.longitude}` }),
-    });
-    setLocation(`/dashboard/incidents?${params.toString()}`);
-    toast.success("Creating incident...", {
-      description: `Source: ${node.name} (${node.type})`,
-    });
+  const handleContextCreateIncident = useCallback(async (node: ContextMenuNode) => {
+    toast.loading("Creating incident...", { id: "create-incident" });
+
+    try {
+      const response = await fetch("/api/data/create-incident", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodeId: node.id,
+          nodeType: node.type,
+          nodeName: node.name,
+          region: node.region,
+          location: node.latitude && node.longitude ? `${node.latitude},${node.longitude}` : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Incident created!", {
+          id: "create-incident",
+          description: `${data.incident.incidentType} - ${data.incident.id}`,
+        });
+        // Navigate to incidents page to see the new incident
+        setLocation("/dashboard/incidents");
+      } else {
+        toast.error("Failed to create incident", {
+          id: "create-incident",
+          description: data.error,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to create incident:", error);
+      toast.error("Failed to create incident", {
+        id: "create-incident",
+        description: "Network error - please try again",
+      });
+    }
   }, [setLocation]);
 
-  const handleContextAddToPole = useCallback((node: ContextMenuNode) => {
-    // Map node type to POLE entity type
-    const poleTypeMap: Record<string, string> = {
-      person: "person",
-      vehicle: "object",
-      camera: "location",
-      location: "location",
-      event: "event",
-    };
-    const entityType = poleTypeMap[node.type] || "event";
+  const handleContextAddToPole = useCallback(async (node: ContextMenuNode) => {
+    toast.loading("Adding to POLE...", { id: "add-pole" });
 
-    const params = new URLSearchParams({
-      from: "topology",
-      entityId: node.id,
-      entityType: entityType,
-      entityName: node.name,
-    });
-    setLocation(`/dashboard/pole?${params.toString()}`);
-    toast.success("Adding to POLE...", {
-      description: `Entity: ${node.name} as ${entityType}`,
-    });
+    try {
+      const response = await fetch("/api/data/create-pole-entity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityId: node.id,
+          entityType: node.type,
+          entityName: node.name,
+          coords: node.latitude && node.longitude ? `${node.latitude},${node.longitude}` : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("POLE entity created!", {
+          id: "add-pole",
+          description: `${data.entity.entityType.toUpperCase()}: ${data.entity.name}`,
+        });
+        // Navigate to POLE page to see the new entity
+        setLocation("/dashboard/pole");
+      } else {
+        toast.error("Failed to add to POLE", {
+          id: "add-pole",
+          description: data.error,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to add to POLE:", error);
+      toast.error("Failed to add to POLE", {
+        id: "add-pole",
+        description: "Network error - please try again",
+      });
+    }
   }, [setLocation]);
 
   const handleContextViewEvents = useCallback((node: ContextMenuNode) => {
@@ -1449,6 +1647,221 @@ export default function TopologyGraph() {
                     No Gemini analysis data yet.
                     <br />
                     Run the CRON job in Settings.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Reverse Image Search */}
+          <motion.div variants={cardVariants}>
+            <Card className="hover:shadow-lg hover:shadow-cyan-500/5 transition-shadow duration-300 border-cyan-500/20">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Search className="w-4 h-4 text-cyan-500" />
+                    Reverse Image Search
+                  </CardTitle>
+                  {reverseSearchImage && (
+                    <Button variant="ghost" size="sm" onClick={clearReverseSearch}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+                <CardDescription className="text-xs">
+                  Upload an image to find matching events
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Upload Area */}
+                {!reverseSearchImage && (
+                  <div
+                    className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 text-center cursor-pointer hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all"
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file && fileInputRef.current) {
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        fileInputRef.current.files = dt.files;
+                        fileInputRef.current.dispatchEvent(new Event('change', { bubbles: true }));
+                      }
+                    }}
+                  >
+                    <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      Drop an image here or click to upload
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-1">
+                      Max 10MB • JPEG, PNG, WebP
+                    </p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+
+                {/* Image Preview */}
+                {reverseSearchImage && (
+                  <div className="space-y-3">
+                    <div className="relative rounded-lg overflow-hidden border border-border">
+                      <img
+                        src={reverseSearchImage}
+                        alt="Uploaded"
+                        className="w-full h-24 object-cover"
+                      />
+                      {reverseSearchLoading && (
+                        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+                          <div className="text-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-cyan-500 mx-auto mb-1" />
+                            <p className="text-[10px] text-muted-foreground">Analyzing with Gemini AI...</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Error Display */}
+                    {reverseSearchError && (
+                      <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 flex items-center gap-2">
+                        <AlertCircle className="w-3 h-3" />
+                        {reverseSearchError}
+                      </div>
+                    )}
+
+                    {/* Extracted Features */}
+                    {reverseSearchResults?.analysis && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                          <Target className="w-3 h-3" />
+                          Extracted Features
+                        </h4>
+                        <div className="text-[10px] space-y-1 bg-muted/30 p-2 rounded-lg">
+                          {reverseSearchResults.analysis.caption && (
+                            <p className="text-muted-foreground line-clamp-2">{reverseSearchResults.analysis.caption}</p>
+                          )}
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {reverseSearchResults.analysis.vehicles?.slice(0, 2).map((v: string, i: number) => (
+                              <Badge key={i} variant="outline" className="text-[10px] bg-orange-500/10 text-orange-400 border-orange-500/30">
+                                <Car className="w-2 h-2 mr-1" />
+                                {v.slice(0, 20)}
+                              </Badge>
+                            ))}
+                            {reverseSearchResults.analysis.licensePlates?.slice(0, 2).map((p: string, i: number) => (
+                              <Badge key={`plate-${i}`} variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/30">
+                                {p}
+                              </Badge>
+                            ))}
+                            {reverseSearchResults.analysis.peopleCount > 0 && (
+                              <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-400 border-green-500/30">
+                                <Users className="w-2 h-2 mr-1" />
+                                {reverseSearchResults.analysis.peopleCount} people
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Match Results */}
+                    {reverseSearchResults?.matches && reverseSearchResults.matches.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-medium text-muted-foreground flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Target className="w-3 h-3 text-cyan-500" />
+                            Matches Found
+                          </span>
+                          <Badge variant="outline" className="text-cyan-400 bg-cyan-500/10">
+                            {reverseSearchResults.matches.length}
+                          </Badge>
+                        </h4>
+                        <div className="max-h-48 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+                          {reverseSearchResults.matches.slice(0, 10).map((match: any) => (
+                            <div
+                              key={match.id}
+                              className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                              onClick={() => handleMatchClick(match)}
+                            >
+                              {match.imageUrl && (
+                                <img
+                                  src={match.imageUrl}
+                                  alt=""
+                                  className="w-10 h-10 rounded object-cover flex-shrink-0"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-medium truncate">
+                                    Event #{match.eventId?.slice(-6) || match.id.slice(-6)}
+                                  </span>
+                                  <Badge
+                                    className={`text-[10px] ${
+                                      match.confidence >= 80 ? 'bg-green-500' :
+                                      match.confidence >= 50 ? 'bg-yellow-500' :
+                                      'bg-orange-500'
+                                    } text-black`}
+                                  >
+                                    {match.confidence}%
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-2 text-[9px] text-muted-foreground mt-0.5">
+                                  {match.channelId && (
+                                    <span className="flex items-center gap-0.5">
+                                      <MapPin className="w-2 h-2" />
+                                      {match.channelId.slice(0, 10)}
+                                    </span>
+                                  )}
+                                  {match.timestamp && (
+                                    <span className="flex items-center gap-0.5">
+                                      <Clock className="w-2 h-2" />
+                                      {new Date(match.timestamp).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                                {match.matchReasons?.length > 0 && (
+                                  <p className="text-[9px] text-cyan-400/80 truncate mt-0.5">
+                                    {match.matchReasons[0]}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Apply to Graph Button */}
+                        <Button
+                          size="sm"
+                          className="w-full bg-cyan-500 hover:bg-cyan-600 text-black"
+                          onClick={applyMatchesToGraph}
+                        >
+                          <Target className="w-3 h-3 mr-1" />
+                          Apply to Graph
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* No matches message */}
+                    {reverseSearchResults && reverseSearchResults.matches?.length === 0 && !reverseSearchLoading && (
+                      <div className="text-center py-3 text-xs text-muted-foreground">
+                        <Search className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                        No matching events found.
+                        <br />
+                        <span className="text-[10px]">Try uploading a different image.</span>
+                      </div>
+                    )}
+
+                    {/* Stats */}
+                    {reverseSearchResults?.stats && (
+                      <div className="text-[10px] text-muted-foreground text-center pt-1 border-t border-border">
+                        Processed in {reverseSearchResults.stats.processingTimeMs}ms • Model: {reverseSearchResults.stats.model}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
