@@ -319,30 +319,67 @@ export default function TopologyGraph() {
       const data = await response.json();
 
       if (data.events && data.events.length > 0) {
-        // Highlight matching events in the graph
+        // Save original data if not already saved
+        if (!originalGraphData) {
+          setOriginalGraphData({ ...graphData });
+        }
+
+        const sourceData = originalGraphData || graphData;
         const matchingIds = new Set(data.events.map((e: any) => e.id));
-        setGraphData(prev => ({
-          ...prev,
-          nodes: prev.nodes.map(node => ({
+        
+        // Filter to only show matching nodes (and their connected cameras/locations)
+        const matchingNodes = sourceData.nodes.filter(node => {
+          // Always show matching event nodes
+          if (matchingIds.has(node.id)) return true;
+          // Show cameras and locations that are connected to matching events
+          if (node.type === 'camera' || node.type === 'location') {
+            // Check if this node is connected to any matching event
+            return sourceData.links.some(link => {
+              const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
+              const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+              return (sourceId === node.id && matchingIds.has(targetId)) ||
+                     (targetId === node.id && matchingIds.has(sourceId));
+            });
+          }
+          return false;
+        });
+
+        const matchingNodeIds = new Set(matchingNodes.map(n => n.id));
+        
+        // Filter links to only include those between visible nodes
+        const matchingLinks = sourceData.links.filter(link => {
+          const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
+          const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+          return matchingNodeIds.has(sourceId) && matchingNodeIds.has(targetId);
+        });
+
+        // Update graph with filtered data and highlight matching events
+        setGraphData({
+          nodes: matchingNodes.map(node => ({
             ...node,
-            // Increase size of matching nodes
-            val: matchingIds.has(node.id) ? (node.val || 5) * 2 : node.val,
-            // Add glow effect by changing color slightly
+            // Highlight matching event nodes with gold color
             color: matchingIds.has(node.id) ? "#FFD700" : node.color,
+            val: matchingIds.has(node.id) ? (node.val || 5) * 1.5 : node.val,
           })),
-        }));
+          links: matchingLinks,
+        });
+
+        toast.success(`Found ${data.events.length} matching events`);
 
         // Zoom to fit the matching nodes
         if (graphRef.current) {
-          graphRef.current.zoomToFit(500, 50);
+          setTimeout(() => graphRef.current?.zoomToFit(500, 50), 100);
         }
+      } else {
+        toast.info("No matching events found");
       }
     } catch (err) {
       console.error("[TopologyGraph] Gemini search failed:", err);
+      toast.error("Search failed");
     } finally {
       setGeminiSearching(false);
     }
-  }, [geminiFilters]);
+  }, [geminiFilters, graphData, originalGraphData]);
 
   // Clear Gemini filters and reset graph
   const clearGeminiFilters = useCallback(() => {
