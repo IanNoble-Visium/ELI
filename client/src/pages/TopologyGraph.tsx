@@ -162,6 +162,10 @@ export default function TopologyGraph() {
     clothingColor: "",
   });
   const [geminiSearching, setGeminiSearching] = useState(false);
+  
+  // Node type filter state
+  const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
+  const [originalGraphData, setOriginalGraphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] } | null>(null);
 
   // Fullscreen toggle handler
   const toggleFullscreen = useCallback(() => {
@@ -336,6 +340,73 @@ export default function TopologyGraph() {
     // Refresh topology data to reset node colors/sizes
     fetchTopologyData();
   }, [fetchTopologyData]);
+
+  // Filter graph by node type
+  const filterByType = useCallback((type: string | null) => {
+    if (type === activeTypeFilter) {
+      // Clear filter - restore original data
+      setActiveTypeFilter(null);
+      if (originalGraphData) {
+        setGraphData(originalGraphData);
+      }
+      return;
+    }
+
+    // Save original data if not already saved
+    if (!originalGraphData) {
+      setOriginalGraphData({ ...graphData });
+    }
+
+    const sourceData = originalGraphData || graphData;
+    setActiveTypeFilter(type);
+
+    if (!type) {
+      setGraphData(sourceData);
+      return;
+    }
+
+    // Filter nodes by type
+    const typeMap: Record<string, string> = {
+      "Cameras": "camera",
+      "Persons": "person", 
+      "Vehicles": "vehicle",
+      "Locations": "location",
+      "Events": "event",
+    };
+    const nodeType = typeMap[type] || type.toLowerCase();
+    
+    const filteredNodes = sourceData.nodes.filter(n => n.type === nodeType);
+    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    
+    // Keep links where both source and target are in filtered nodes
+    const filteredLinks = sourceData.links.filter(l => {
+      const sourceId = typeof l.source === 'string' ? l.source : l.source?.id;
+      const targetId = typeof l.target === 'string' ? l.target : l.target?.id;
+      return filteredNodeIds.has(sourceId) || filteredNodeIds.has(targetId);
+    });
+
+    setGraphData({
+      nodes: filteredNodes,
+      links: filteredLinks,
+    });
+
+    // Zoom to fit filtered nodes
+    setTimeout(() => {
+      if (graphRef.current) {
+        graphRef.current.zoomToFit(500, 50);
+      }
+    }, 100);
+  }, [activeTypeFilter, graphData, originalGraphData]);
+
+  // Clear all filters
+  const clearAllFilters = useCallback(() => {
+    setActiveTypeFilter(null);
+    if (originalGraphData) {
+      setGraphData(originalGraphData);
+      setOriginalGraphData(null);
+    }
+    clearGeminiFilters();
+  }, [originalGraphData, clearGeminiFilters]);
 
   // Initial fetch
   useEffect(() => {
@@ -821,31 +892,45 @@ export default function TopologyGraph() {
                   </span>
                   <Badge variant="outline">{displayStats.withImages}</Badge>
                 </motion.div>
+                {/* Active Filter Indicator */}
+                {activeTypeFilter && (
+                  <div className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/30">
+                    <span className="text-xs text-primary font-medium">Filtering: {activeTypeFilter}</span>
+                    <Button variant="ghost" size="sm" className="h-5 px-2 text-xs" onClick={() => filterByType(null)}>
+                      Clear
+                    </Button>
+                  </div>
+                )}
                 <div className="h-px bg-border my-2" />
                 {[
-                  { color: "bg-green-500", label: "Cameras", value: displayStats.cameras },
-                  { color: "bg-blue-500", label: "Persons", value: displayStats.persons },
-                  { color: "bg-orange-500", label: "Vehicles", value: displayStats.vehicles },
-                  { color: "bg-purple-500", label: "Locations", value: displayStats.locations },
-                  { color: "bg-primary", label: "Events", value: displayStats.events },
+                  { color: "bg-green-500", label: "Cameras", value: displayStats.cameras, type: "camera" },
+                  { color: "bg-blue-500", label: "Persons", value: displayStats.persons, type: "person" },
+                  { color: "bg-orange-500", label: "Vehicles", value: displayStats.vehicles, type: "vehicle" },
+                  { color: "bg-purple-500", label: "Locations", value: displayStats.locations, type: "location" },
+                  { color: "bg-primary", label: "Events", value: displayStats.events, type: "event" },
                 ].map((stat, index) => (
                   <motion.div
                     key={stat.label}
-                    className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors cursor-pointer"
+                    className={`flex items-center justify-between p-1.5 rounded transition-colors cursor-pointer ${
+                      activeTypeFilter === stat.label 
+                        ? "bg-primary/20 border border-primary/40" 
+                        : "hover:bg-muted/30"
+                    }`}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3 + index * 0.05 }}
                     whileHover={{ x: 4 }}
+                    onClick={() => filterByType(stat.label)}
                   >
                     <div className="flex items-center gap-2">
                       <motion.div
                         className={`w-3 h-3 rounded-full ${stat.color}`}
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, delay: index * 0.2 }}
+                        animate={{ scale: activeTypeFilter === stat.label ? [1, 1.3, 1] : [1, 1.1, 1] }}
+                        transition={{ duration: activeTypeFilter === stat.label ? 1 : 2, repeat: Infinity, delay: index * 0.2 }}
                       />
-                      <span className="text-sm">{stat.label}</span>
+                      <span className={`text-sm ${activeTypeFilter === stat.label ? "font-medium" : ""}`}>{stat.label}</span>
                     </div>
-                    <Badge variant="outline">{stat.value}</Badge>
+                    <Badge variant={activeTypeFilter === stat.label ? "default" : "outline"}>{stat.value}</Badge>
                   </motion.div>
                 ))}
               </CardContent>
