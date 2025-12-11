@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +69,49 @@ export default function IncidentManagement() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Context from other screens (topology/map context menu navigation)
+  const [contextSource, setContextSource] = useState<{
+    from: string;
+    nodeId: string;
+    nodeType: string;
+    nodeName: string;
+    region?: string;
+    location?: string;
+  } | null>(null);
+
+  // Parse URL search params for context menu navigation
+  const searchParams = useSearch();
+
+  useEffect(() => {
+    if (searchParams) {
+      const params = new URLSearchParams(searchParams);
+      const from = params.get("from");
+      const nodeId = params.get("nodeId");
+      const nodeType = params.get("nodeType");
+      const nodeName = params.get("nodeName");
+
+      if (from && nodeId && nodeType && nodeName) {
+        setContextSource({
+          from,
+          nodeId,
+          nodeType,
+          nodeName,
+          region: params.get("region") || undefined,
+          location: params.get("location") || undefined,
+        });
+
+        // Show toast notification
+        toast.info(`Creating incident from ${from === "topology" ? "Topology Graph" : "Geographic Map"}`, {
+          description: `Source: ${nodeName} (${nodeType})`,
+          duration: 5000,
+        });
+
+        // Clear URL params without full navigation
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+  }, [searchParams]);
 
   // =============================================================================
   // DATA FETCHING
@@ -318,6 +361,54 @@ export default function IncidentManagement() {
         >
           {/* Stats Dashboard */}
           <div className="p-4 border-b border-white/10">
+            {/* Context Source Banner */}
+            {contextSource && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-3 p-3 bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-lg"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-blue-400" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-300">
+                        Create Incident from {contextSource.from === "topology" ? "Topology Graph" : "Geographic Map"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Source: {contextSource.nodeName} ({contextSource.nodeType})
+                        {contextSource.region && ` • Region: ${contextSource.region}`}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setContextSource(null)}
+                    className="h-6 w-6 p-0 hover:bg-white/10"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+                <div className="mt-2 pt-2 border-t border-white/10">
+                  <p className="text-xs text-muted-foreground mb-2">Suggested incident details:</p>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-300">
+                      Type: {contextSource.nodeType === "camera" ? "Surveillance Alert" : contextSource.nodeType === "person" ? "Person of Interest" : contextSource.nodeType === "vehicle" ? "Vehicle Alert" : "General Alert"}
+                    </Badge>
+                    {contextSource.region && (
+                      <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-300">
+                        Region: {contextSource.region}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-[10px] border-orange-500/30 text-orange-300">
+                      Priority: High
+                    </Badge>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             <div className="grid grid-cols-4 gap-2">
               {[
                 { label: "Total", value: stats.total, color: "text-white", bg: "bg-white/10" },
@@ -409,11 +500,10 @@ export default function IncidentManagement() {
                   transition={{ delay: index * 0.02, duration: 0.3 }}
                 >
                   <Card
-                    className={`cursor-pointer transition-all bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 ${
-                      selectedIncident?.id === incident.id 
-                        ? `border-l-4 border-l-${incident.priority === 'critical' ? 'red' : incident.priority === 'high' ? 'orange' : 'yellow'}-500 bg-white/10` 
+                    className={`cursor-pointer transition-all bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 ${selectedIncident?.id === incident.id
+                        ? `border-l-4 border-l-${incident.priority === 'critical' ? 'red' : incident.priority === 'high' ? 'orange' : 'yellow'}-500 bg-white/10`
                         : ""
-                    } ${incident.priority === 'critical' ? 'shadow-lg ' + getPriorityGlow(incident.priority) : ''}`}
+                      } ${incident.priority === 'critical' ? 'shadow-lg ' + getPriorityGlow(incident.priority) : ''}`}
                     onClick={() => setSelectedIncident(incident)}
                   >
                     <CardContent className="p-3">
@@ -775,22 +865,22 @@ export default function IncidentManagement() {
 function DispatchStatusCard({ incident }: { incident: IncidentData }) {
   // Mock officer data - in production, fetch via tRPC based on incident
   const officers: Officer[] = [
-    { 
-      id: "1", 
-      name: incident.assignedOfficer || "Unassigned", 
-      rank: "Lead Officer", 
-      unit: incident.assignedUnit || "N/A", 
-      status: "on_scene", 
-      distance: "0km" 
+    {
+      id: "1",
+      name: incident.assignedOfficer || "Unassigned",
+      rank: "Lead Officer",
+      unit: incident.assignedUnit || "N/A",
+      status: "on_scene",
+      distance: "0km"
     },
-    { 
-      id: "2", 
-      name: "Backup Unit", 
-      rank: "Patrol", 
-      unit: "PATROL-02", 
-      status: "en_route", 
-      eta: "3 min", 
-      distance: "1.5km" 
+    {
+      id: "2",
+      name: "Backup Unit",
+      rank: "Patrol",
+      unit: "PATROL-02",
+      status: "en_route",
+      eta: "3 min",
+      distance: "1.5km"
     },
   ];
 
@@ -824,10 +914,9 @@ function DispatchStatusCard({ incident }: { incident: IncidentData }) {
                     {officer.name.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-800 ${
-                  officer.status === 'on_scene' ? 'bg-green-500' : 
-                  officer.status === 'en_route' ? 'bg-yellow-500' : 'bg-gray-500'
-                }`} />
+                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-800 ${officer.status === 'on_scene' ? 'bg-green-500' :
+                    officer.status === 'en_route' ? 'bg-yellow-500' : 'bg-gray-500'
+                  }`} />
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">{officer.name}</p>
@@ -855,9 +944,9 @@ function DispatchStatusCard({ incident }: { incident: IncidentData }) {
 }
 
 function ThreatAnalysisCard({ incident }: { incident: IncidentData }) {
-  const threatLevel = incident.priority === 'critical' ? 95 : 
-                      incident.priority === 'high' ? 75 : 
-                      incident.priority === 'medium' ? 50 : 25;
+  const threatLevel = incident.priority === 'critical' ? 95 :
+    incident.priority === 'high' ? 75 :
+      incident.priority === 'medium' ? 50 : 25;
 
   return (
     <Card className="border-l-4 border-l-red-600 bg-white/5 border-white/10 backdrop-blur">
@@ -875,39 +964,35 @@ function ThreatAnalysisCard({ incident }: { incident: IncidentData }) {
               {threatLevel}%
             </span>
           </div>
-          <Progress 
-            value={threatLevel} 
+          <Progress
+            value={threatLevel}
             className="h-2 bg-white/10"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className={`p-2 rounded border text-center ${
-            incident.priority === 'critical' || incident.priority === 'high' 
-              ? 'bg-red-500/10 border-red-500/20' 
+          <div className={`p-2 rounded border text-center ${incident.priority === 'critical' || incident.priority === 'high'
+              ? 'bg-red-500/10 border-red-500/20'
               : 'bg-green-500/10 border-green-500/20'
-          }`}>
-            <div className="text-xs text-muted-foreground">Priority</div>
-            <div className={`text-lg font-bold capitalize ${
-              incident.priority === 'critical' ? 'text-red-400' :
-              incident.priority === 'high' ? 'text-orange-400' :
-              incident.priority === 'medium' ? 'text-yellow-400' : 'text-green-400'
             }`}>
+            <div className="text-xs text-muted-foreground">Priority</div>
+            <div className={`text-lg font-bold capitalize ${incident.priority === 'critical' ? 'text-red-400' :
+                incident.priority === 'high' ? 'text-orange-400' :
+                  incident.priority === 'medium' ? 'text-yellow-400' : 'text-green-400'
+              }`}>
               {incident.priority}
             </div>
           </div>
-          <div className={`p-2 rounded border text-center ${
-            incident.status === 'open' 
-              ? 'bg-red-500/10 border-red-500/20' 
+          <div className={`p-2 rounded border text-center ${incident.status === 'open'
+              ? 'bg-red-500/10 border-red-500/20'
               : incident.status === 'investigating'
                 ? 'bg-yellow-500/10 border-yellow-500/20'
                 : 'bg-green-500/10 border-green-500/20'
-          }`}>
-            <div className="text-xs text-muted-foreground">Status</div>
-            <div className={`text-lg font-bold capitalize ${
-              incident.status === 'open' ? 'text-red-400' :
-              incident.status === 'investigating' ? 'text-yellow-400' : 'text-green-400'
             }`}>
+            <div className="text-xs text-muted-foreground">Status</div>
+            <div className={`text-lg font-bold capitalize ${incident.status === 'open' ? 'text-red-400' :
+                incident.status === 'investigating' ? 'text-yellow-400' : 'text-green-400'
+              }`}>
               {incident.status}
             </div>
           </div>

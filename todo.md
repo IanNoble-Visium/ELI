@@ -276,6 +276,17 @@
 | **Relative Timestamps** | `ExecutiveDashboard.tsx` | "Updated X seconds ago" using date-fns |
 | **Region Tooltip Styling** | `index.css` | Glassmorphism tooltip for region boundaries |
 
+### Context Menu Feature (December 11, 2025 - Early Morning Session)
+| Feature | File(s) Modified | Notes |
+|---------|-----------------|-------|
+| **NodeContextMenu Component** | `NodeContextMenu.tsx` (new) | Reusable floating context menu with context-aware options |
+| **Topology Graph Right-Click** | `TopologyGraph.tsx` | `onNodeRightClick` handler with menu options |
+| **Geographic Map Right-Click** | `GeographicMap.tsx` | Context menu on camera markers AND region boundaries |
+| **Mark as High Risk** | `TopologyGraph.tsx`, `GeographicMap.tsx` | Pulsing red animation for flagged nodes/cameras |
+| **Incident Integration** | `IncidentManagement.tsx` | Reads URL params from context menu, shows prefilled banner |
+| **POLE Integration** | `POLEAnalytics.tsx` | Reads URL params from context menu, shows entity suggestion banner |
+| **Toast Notifications** | All pages | Sonner toasts for action feedback |
+
 ### New Components Added (Dec 11)
 | Component | Path | Purpose |
 |-----------|------|---------|
@@ -283,6 +294,7 @@
 | `StatChangeIndicator` | `components/StatChangeIndicator.tsx` | +/- change with color coding |
 | `Sparkline` | `components/Sparkline.tsx` | Minimal 7-day trend chart |
 | `peruRegions` | `data/peruRegions.ts` | GeoJSON for Peru 25 departments |
+| `NodeContextMenu` | `components/NodeContextMenu.tsx` | Right-click context menu for graph/map nodes |
 
 ---
 

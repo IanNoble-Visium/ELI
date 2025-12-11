@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { format, subDays } from "date-fns";
 import ForceGraph2D from "react-force-graph-2d";
+import { toast } from "sonner";
 
 // Import translation helpers
 import {
@@ -140,6 +141,15 @@ export default function POLEAnalytics() {
   const [dbConnected, setDbConnected] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Context from other screens (topology/map context menu navigation)
+  const [contextSource, setContextSource] = useState<{
+    from: string;
+    entityId: string;
+    entityType: string;
+    entityName: string;
+    coords?: string;
+  } | null>(null);
+
   // Data state - starts empty, populated from API
   const [graphData, setGraphData] = useState<{ nodes: POLEGraphNode[]; links: POLEGraphLink[] }>({
     nodes: [],
@@ -232,9 +242,34 @@ export default function POLEAnalytics() {
     const personId = params.get("personId");
     const objectId = params.get("objectId");
 
-    const entityId = personId || objectId || incidentId;
-    if (entityId && graphData.nodes.length > 0) {
-      const node = graphData.nodes.find((n) => n.id === entityId || n.id.includes(entityId));
+    // Handle context menu navigation from topology/map
+    const from = params.get("from");
+    const entityId = params.get("entityId");
+    const entityType = params.get("entityType");
+    const entityName = params.get("entityName");
+
+    if (from && entityId && entityType && entityName) {
+      setContextSource({
+        from,
+        entityId,
+        entityType,
+        entityName,
+        coords: params.get("coords") || undefined,
+      });
+
+      // Show toast notification
+      toast.info(`Adding entity from ${from === "topology" ? "Topology Graph" : "Geographic Map"}`, {
+        description: `Entity: ${entityName} (${entityType})`,
+        duration: 5000,
+      });
+
+      // Clear URL params without full navigation
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
+    const lookupId = personId || objectId || incidentId;
+    if (lookupId && graphData.nodes.length > 0) {
+      const node = graphData.nodes.find((n) => n.id === lookupId || n.id.includes(lookupId));
       if (node) {
         setSelectedNode(node);
         setActiveTab("graph");
@@ -666,6 +701,56 @@ export default function POLEAnalytics() {
         <div className="flex-1 flex flex-col">
           {/* Stats Bar - Digital Detective Board Style */}
           <div className="border-b border-border bg-gradient-to-r from-slate-900/50 via-slate-800/50 to-slate-900/50 p-4">
+            {/* Context Source Banner */}
+            {contextSource && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 p-3 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 rounded-lg"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Network className="w-4 h-4 text-purple-400" />
+                    <div>
+                      <p className="text-sm font-medium text-purple-300">
+                        Add Entity from {contextSource.from === "topology" ? "Topology Graph" : "Geographic Map"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Entity: {contextSource.entityName} ({contextSource.entityType})
+                        {contextSource.coords && ` • Coords: ${contextSource.coords}`}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setContextSource(null)}
+                    className="h-6 w-6 p-0 hover:bg-white/10"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+                <div className="mt-2 pt-2 border-t border-white/10">
+                  <p className="text-xs text-muted-foreground mb-2">Suggested POLE entity:</p>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-blue-500/30"
+                      style={{ color: NODE_COLORS[contextSource.entityType as POLEEntityType] || NODE_COLORS.event }}
+                    >
+                      Type: {contextSource.entityType.charAt(0).toUpperCase() + contextSource.entityType.slice(1)}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] border-yellow-500/30 text-yellow-300">
+                      Risk: Medium
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-300">
+                      Status: Active
+                    </Badge>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             <div className="grid grid-cols-6 gap-4">
               {[
                 { label: t("people", language), value: stats.people, color: NODE_COLORS.person, icon: Users },

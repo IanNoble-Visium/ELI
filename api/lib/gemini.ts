@@ -5,31 +5,28 @@
  * using Google's Gemini Vision models.
  */
 
-// Gemini model options - use full model names that work with the API
+// Gemini model options - use model names that work with the REST API
 export const GEMINI_MODELS = {
-  'gemini-1.5-flash-latest': {
+  'gemini-pro-vision': {
+    name: 'Gemini Pro Vision',
+    description: 'Stable vision model for image analysis (v1 API)',
+    rpm: 60,
+    rpd: 1500,
+    apiVersion: 'v1',
+  },
+  'gemini-1.5-flash': {
     name: 'Gemini 1.5 Flash',
-    description: 'Fast and efficient, good for high-volume processing',
+    description: 'Fast multimodal model (v1beta API)',
     rpm: 15,
     rpd: 1500,
+    apiVersion: 'v1beta',
   },
-  'gemini-1.5-flash-8b-latest': {
-    name: 'Gemini 1.5 Flash 8B',
-    description: 'Smaller model, faster responses',
-    rpm: 15,
-    rpd: 1500,
-  },
-  'gemini-1.5-pro-latest': {
+  'gemini-1.5-pro': {
     name: 'Gemini 1.5 Pro',
-    description: 'Most capable, best for complex analysis',
+    description: 'Most capable multimodal model (v1beta API)',
     rpm: 2,
     rpd: 50,
-  },
-  'gemini-2.0-flash-exp': {
-    name: 'Gemini 2.0 Flash',
-    description: 'Latest experimental model with improved capabilities',
-    rpm: 10,
-    rpd: 1500,
+    apiVersion: 'v1beta',
   },
 } as const;
 
@@ -37,7 +34,7 @@ export type GeminiModelId = keyof typeof GEMINI_MODELS;
 
 // Default configuration
 export const GEMINI_DEFAULTS = {
-  model: 'gemini-2.0-flash-exp' as GeminiModelId,
+  model: 'gemini-pro-vision' as GeminiModelId,
   batchSize: 100,
   enabled: false,
   scheduleMinutes: 30,
@@ -235,7 +232,7 @@ export function getGeminiApiKey(): string | null {
  */
 export async function analyzeImageWithGemini(
   imageUrl: string,
-  model: GeminiModelId = 'gemini-2.0-flash-exp'
+  model: GeminiModelId = 'gemini-pro-vision'
 ): Promise<GeminiAnalysisResult | null> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
@@ -260,8 +257,9 @@ export async function analyzeImageWithGemini(
     const base64Image = Buffer.from(imageBuffer).toString('base64');
     const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-    // Call Gemini API - use v1beta for 1.5 models, v1 for 2.0 models
-    const apiVersion = model.includes('1.5') ? 'v1beta' : 'v1';
+    // Call Gemini API - get API version from model config
+    const modelConfig = GEMINI_MODELS[model];
+    const apiVersion = modelConfig?.apiVersion || 'v1';
     const apiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
     
     const response = await fetch(apiUrl, {
