@@ -38,6 +38,28 @@ export interface TopologyNode {
   qualityScore?: number;
   moderationStatus?: string;
   caption?: string;
+  channelId?: string;
+  eventId?: string;
+  timestamp?: number;
+  // Gemini AI analysis properties
+  geminiCaption?: string;
+  geminiTags?: string[];
+  geminiObjects?: string[];
+  geminiPeopleCount?: number;
+  geminiVehicles?: string[];
+  geminiWeapons?: string[];
+  geminiClothingColors?: string[];
+  geminiLicensePlates?: string[];
+  geminiTextExtracted?: string[];
+  geminiQualityScore?: number;
+  geminiBlurScore?: number;
+  geminiTimeOfDay?: string;
+  geminiLightingCondition?: string;
+  geminiEnvironment?: string;
+  geminiWeatherCondition?: string;
+  geminiCameraPerspective?: string;
+  geminiDominantColors?: string[];
+  geminiProcessedAt?: number;
 }
 
 export interface TopologyLink {
@@ -421,6 +443,28 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
           qualityScore: event.qualityScore,
           moderationStatus: event.moderationStatus,
           caption: event.caption,
+          channelId: event.channelId,
+          eventId: event.eventId,
+          timestamp: event.timestamp,
+          // Gemini AI analysis properties
+          geminiCaption: event.geminiCaption,
+          geminiTags: event.geminiTags,
+          geminiObjects: event.geminiObjects,
+          geminiPeopleCount: event.geminiPeopleCount,
+          geminiVehicles: event.geminiVehicles,
+          geminiWeapons: event.geminiWeapons,
+          geminiClothingColors: event.geminiClothingColors,
+          geminiLicensePlates: event.geminiLicensePlates,
+          geminiTextExtracted: event.geminiTextExtracted,
+          geminiQualityScore: event.geminiQualityScore,
+          geminiBlurScore: event.geminiBlurScore,
+          geminiTimeOfDay: event.geminiTimeOfDay,
+          geminiLightingCondition: event.geminiLightingCondition,
+          geminiEnvironment: event.geminiEnvironment,
+          geminiWeatherCondition: event.geminiWeatherCondition,
+          geminiCameraPerspective: event.geminiCameraPerspective,
+          geminiDominantColors: event.geminiDominantColors,
+          geminiProcessedAt: event.geminiProcessedAt,
         });
       }
     }

@@ -29,6 +29,28 @@ interface GraphNode {
   objects?: string[];
   dominantColors?: string[];
   qualityScore?: number;
+  channelId?: string;
+  eventId?: string;
+  timestamp?: number;
+  // Gemini AI analysis properties
+  geminiCaption?: string;
+  geminiTags?: string[];
+  geminiObjects?: string[];
+  geminiPeopleCount?: number;
+  geminiVehicles?: string[];
+  geminiWeapons?: string[];
+  geminiClothingColors?: string[];
+  geminiLicensePlates?: string[];
+  geminiTextExtracted?: string[];
+  geminiQualityScore?: number;
+  geminiBlurScore?: number;
+  geminiTimeOfDay?: string;
+  geminiLightingCondition?: string;
+  geminiEnvironment?: string;
+  geminiWeatherCondition?: string;
+  geminiCameraPerspective?: string;
+  geminiDominantColors?: string[];
+  geminiProcessedAt?: number;
 }
 
 interface GraphLink {
