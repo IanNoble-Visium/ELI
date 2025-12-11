@@ -26,6 +26,9 @@ import {
   AlertCircle,
   Bomb,
   ShieldAlert,
+  Sparkles,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -129,6 +132,17 @@ export default function Settings() {
   const [includeCloudinary, setIncludeCloudinary] = useState(true);
   const [includeNeo4j, setIncludeNeo4j] = useState(true);
   
+  // Gemini AI config state
+  const [geminiConfig, setGeminiConfig] = useState<{
+    enabled: boolean;
+    model: string;
+    batchSize: number;
+    dailyRequestsUsed: number;
+    apiKeyConfigured: boolean;
+  } | null>(null);
+  const [geminiLoading, setGeminiLoading] = useState(true);
+  const [geminiToggling, setGeminiToggling] = useState(false);
+  
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
 
   // Fetch Cloudinary usage data
@@ -205,6 +219,59 @@ export default function Settings() {
       setTriggeringJob(null);
     }
   }, [fetchCronJobs]);
+
+  // Fetch Gemini AI config
+  const fetchGeminiConfig = useCallback(async () => {
+    try {
+      setGeminiLoading(true);
+      const response = await fetch("/api/data/gemini-config", { credentials: "include" });
+      const data = await response.json();
+      if (data.config) {
+        setGeminiConfig({
+          enabled: data.config.enabled,
+          model: data.config.model,
+          batchSize: data.config.batchSize,
+          dailyRequestsUsed: data.stats?.dailyRequestsUsed || 0,
+          apiKeyConfigured: data.config.apiKeyConfigured,
+        });
+      }
+    } catch (error) {
+      console.error("[Settings] Failed to fetch Gemini config:", error);
+    } finally {
+      setGeminiLoading(false);
+    }
+  }, []);
+
+  // Toggle Gemini enabled state
+  const toggleGeminiEnabled = useCallback(async () => {
+    if (!geminiConfig) return;
+    
+    try {
+      setGeminiToggling(true);
+      const newEnabled = !geminiConfig.enabled;
+      
+      const response = await fetch("/api/data/gemini-config", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newEnabled }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setGeminiConfig(prev => prev ? { ...prev, enabled: newEnabled } : null);
+        toast.success(newEnabled ? "Gemini AI processing enabled" : "Gemini AI processing disabled");
+      } else {
+        toast.error("Failed to update Gemini config", { description: data.error });
+      }
+    } catch (error) {
+      console.error("[Settings] Failed to toggle Gemini:", error);
+      toast.error("Failed to update Gemini config");
+    } finally {
+      setGeminiToggling(false);
+    }
+  }, [geminiConfig]);
 
   // Seed InfluxDB with initial data
   const seedInfluxDB = useCallback(async () => {
@@ -296,7 +363,8 @@ export default function Settings() {
     fetchCloudinaryData();
     fetchPostgresData();
     fetchCronJobs();
-  }, [fetchCloudinaryData, fetchPostgresData, fetchCronJobs]);
+    fetchGeminiConfig();
+  }, [fetchCloudinaryData, fetchPostgresData, fetchCronJobs, fetchGeminiConfig]);
   const updateConfigMutation = trpc.config.set.useMutation({
     onSuccess: () => {
       toast.success("Settings saved successfully");
@@ -731,6 +799,133 @@ export default function Settings() {
                   </Button>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Gemini AI Configuration */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25, duration: 0.4 }}
+        >
+          <Card className="border-yellow-500/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-yellow-500" />
+                    Gemini AI Image Analysis
+                  </CardTitle>
+                  <CardDescription>
+                    Configure automatic image analysis using Google Gemini AI
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchGeminiConfig}
+                  disabled={geminiLoading}
+                >
+                  <RefreshCw className={`w-4 h-4 ${geminiLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {geminiLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : geminiConfig ? (
+                <>
+                  {/* API Key Status */}
+                  <div className={`p-3 rounded-lg flex items-center gap-3 ${
+                    geminiConfig.apiKeyConfigured 
+                      ? "bg-green-500/10 border border-green-500/20" 
+                      : "bg-red-500/10 border border-red-500/20"
+                  }`}>
+                    {geminiConfig.apiKeyConfigured ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-500" />
+                    )}
+                    <div className="flex-1">
+                      <span className={`text-sm font-medium ${
+                        geminiConfig.apiKeyConfigured ? "text-green-400" : "text-red-400"
+                      }`}>
+                        API Key: {geminiConfig.apiKeyConfigured ? "Configured" : "Not Configured"}
+                      </span>
+                      {!geminiConfig.apiKeyConfigured && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Add GEMINI_API_KEY to Vercel environment variables
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Enable/Disable Toggle */}
+                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {geminiConfig.enabled ? (
+                        <ToggleRight className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <ToggleLeft className="w-5 h-5 text-muted-foreground" />
+                      )}
+                      <div>
+                        <span className="text-sm font-medium">
+                          Automatic Processing
+                        </span>
+                        <p className="text-xs text-muted-foreground">
+                          {geminiConfig.enabled 
+                            ? "Images will be analyzed automatically every hour" 
+                            : "Automatic processing is disabled"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant={geminiConfig.enabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={toggleGeminiEnabled}
+                      disabled={geminiToggling || !geminiConfig.apiKeyConfigured}
+                      className={geminiConfig.enabled ? "bg-green-600 hover:bg-green-700" : ""}
+                    >
+                      {geminiToggling ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : geminiConfig.enabled ? (
+                        "Enabled"
+                      ) : (
+                        "Disabled"
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-2 bg-muted/30 rounded-lg">
+                      <div className="text-lg font-bold text-yellow-400">{geminiConfig.model.replace('gemini-', '')}</div>
+                      <div className="text-xs text-muted-foreground">Model</div>
+                    </div>
+                    <div className="p-2 bg-muted/30 rounded-lg">
+                      <div className="text-lg font-bold">{geminiConfig.batchSize}</div>
+                      <div className="text-xs text-muted-foreground">Batch Size</div>
+                    </div>
+                    <div className="p-2 bg-muted/30 rounded-lg">
+                      <div className="text-lg font-bold">{geminiConfig.dailyRequestsUsed}</div>
+                      <div className="text-xs text-muted-foreground">Today's Requests</div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Gemini AI analyzes surveillance images to extract metadata like people count, vehicles, license plates, 
+                    weapons, and clothing colors. This data is stored in Neo4j for advanced querying in the Topology Graph.
+                  </p>
+                </>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  <AlertCircle className="w-6 h-6 mx-auto mb-2" />
+                  <p className="text-sm">Failed to load Gemini configuration</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
