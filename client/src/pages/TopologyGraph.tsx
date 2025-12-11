@@ -326,7 +326,7 @@ export default function TopologyGraph() {
 
         const sourceData = originalGraphData || graphData;
         const matchingIds = new Set(data.events.map((e: any) => e.id));
-        
+
         // Filter to only show matching nodes (and their connected cameras/locations)
         const matchingNodes = sourceData.nodes.filter(node => {
           // Always show matching event nodes
@@ -338,14 +338,14 @@ export default function TopologyGraph() {
               const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
               const targetId = typeof link.target === 'string' ? link.target : link.target.id;
               return (sourceId === node.id && matchingIds.has(targetId)) ||
-                     (targetId === node.id && matchingIds.has(sourceId));
+                (targetId === node.id && matchingIds.has(sourceId));
             });
           }
           return false;
         });
 
         const matchingNodeIds = new Set(matchingNodes.map(n => n.id));
-        
+
         // Filter links to only include those between visible nodes
         const matchingLinks = sourceData.links.filter(link => {
           const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
@@ -628,7 +628,7 @@ export default function TopologyGraph() {
       ...(node.region && { region: node.region }),
       ...(node.latitude && node.longitude && { location: `${node.latitude},${node.longitude}` }),
     });
-    setLocation(`/incidents?${params.toString()}`);
+    setLocation(`/dashboard/incidents?${params.toString()}`);
     toast.success("Creating incident...", {
       description: `Source: ${node.name} (${node.type})`,
     });
@@ -651,7 +651,7 @@ export default function TopologyGraph() {
       entityType: entityType,
       entityName: node.name,
     });
-    setLocation(`/pole?${params.toString()}`);
+    setLocation(`/dashboard/pole?${params.toString()}`);
     toast.success("Adding to POLE...", {
       description: `Entity: ${node.name} as ${entityType}`,
     });
@@ -659,9 +659,9 @@ export default function TopologyGraph() {
 
   const handleContextViewEvents = useCallback((node: ContextMenuNode) => {
     if (node.type === "camera") {
-      setLocation(`/webhooks?channelId=${node.id}`);
+      setLocation(`/dashboard/realtime?channelId=${node.id}`);
     } else {
-      setLocation("/webhooks");
+      setLocation("/dashboard/realtime");
     }
     toast.info("Viewing related events...");
   }, [setLocation]);
@@ -1086,8 +1086,8 @@ export default function TopologyGraph() {
                   <motion.div
                     key={stat.label}
                     className={`flex items-center justify-between p-1.5 rounded transition-colors cursor-pointer ${activeTypeFilter === stat.label
-                        ? "bg-primary/20 border border-primary/40"
-                        : "hover:bg-muted/30"
+                      ? "bg-primary/20 border border-primary/40"
+                      : "hover:bg-muted/30"
                       }`}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}

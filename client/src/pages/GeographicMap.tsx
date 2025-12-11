@@ -478,7 +478,7 @@ export default function GeographicMap() {
       ...(node.region && { region: node.region }),
       ...(node.latitude && node.longitude && { location: `${node.latitude},${node.longitude}` }),
     });
-    setLocation(`/incidents?${params.toString()}`);
+    setLocation(`/dashboard/incidents?${params.toString()}`);
     toast.success("Creating incident...", {
       description: `Source: ${node.name} (${node.type})`,
     });
@@ -492,7 +492,7 @@ export default function GeographicMap() {
       entityName: node.name,
       ...(node.latitude && node.longitude && { coords: `${node.latitude},${node.longitude}` }),
     });
-    setLocation(`/pole?${params.toString()}`);
+    setLocation(`/dashboard/pole?${params.toString()}`);
     toast.success("Adding to POLE...", {
       description: `Entity: ${node.name} as location`,
     });
@@ -506,7 +506,7 @@ export default function GeographicMap() {
       }
     } else {
       // For regions, go to webhooks filtered by region
-      setLocation(`/webhooks?region=${node.name}`);
+      setLocation(`/dashboard/realtime?region=${node.name}`);
     }
   }, [cameras, handleViewEvents, setLocation]);
 
@@ -514,7 +514,7 @@ export default function GeographicMap() {
     const params = new URLSearchParams({
       highlight: node.id,
     });
-    setLocation(`/topology?${params.toString()}`);
+    setLocation(`/dashboard/topology?${params.toString()}`);
     toast.info("Opening Topology Graph...");
   }, [setLocation]);
 

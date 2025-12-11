@@ -1,6 +1,6 @@
 # ELI Unified Dashboard
 
-> **Last Updated:** December 11, 2025 (Context Menu Feature Release)
+> **Last Updated:** December 11, 2025 (Gemini AI Image Analysis + Quick Filters)
 
 ## Executive Summary – ELI for Peru
 
@@ -75,6 +75,8 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - **Mark as High Risk** *(New Dec 2025)* - Flag nodes with pulsing red animation
    - **Fullscreen presentation mode** - Toggle button for clean presentations
    - **Memoized rendering** *(New Dec 2025)* - Optimized callbacks prevent unnecessary re-renders
+   - **Gemini AI Filters** *(New Dec 2025)* - Filter events by AI-detected properties
+   - **Quick Filters** *(New Dec 2025)* - One-click filters for weapons, license plates, multi-person scenes
    - Mini-map navigator
    - Zoom controls and fit-to-screen
    - Color-coded entity types
@@ -229,6 +231,170 @@ When a user clicks "Create Incident" or "Add to POLE" from the context menu, the
 | `location` | Coordinates | `-12.0464,-77.0428` |
 
 The target screen displays a context banner showing the source and suggesting appropriate incident type or POLE entity type.
+
+---
+
+## 🤖 Gemini AI Image Analysis *(New Dec 2025)*
+
+ELI integrates Google's Gemini 2.0 Flash model to automatically analyze surveillance images and extract rich metadata for intelligent filtering and search.
+
+### How It Works
+
+```mermaid
+flowchart TB
+    subgraph "Image Ingestion"
+        WH[Webhook Event] --> |"Contains snapshot"| CL[Cloudinary Upload]
+        CL --> |"Store URL"| PG[(PostgreSQL)]
+    end
+    
+    subgraph "AI Processing Pipeline"
+        CRON[CRON Job] --> |"Every 30 min"| FETCH[Fetch Unprocessed Images]
+        FETCH --> |"Batch of 100"| GEMINI[Gemini 2.0 Flash API]
+        GEMINI --> |"Analyze image"| RESULT[Structured JSON Response]
+    end
+    
+    subgraph "Metadata Extraction"
+        RESULT --> TAGS[Scene Tags]
+        RESULT --> OBJECTS[Detected Objects]
+        RESULT --> PEOPLE[People Count]
+        RESULT --> VEHICLES[Vehicle Types]
+        RESULT --> PLATES[License Plates]
+        RESULT --> WEAPONS[Weapons Detection]
+        RESULT --> COLORS[Clothing Colors]
+        RESULT --> TEXT[Text/Signs]
+        RESULT --> QUALITY[Quality Score]
+    end
+    
+    subgraph "Storage & Sync"
+        TAGS --> PG2[(PostgreSQL)]
+        PG2 --> NEO[(Neo4j)]
+    end
+    
+    subgraph "User Interface"
+        NEO --> TOP[Topology Graph]
+        TOP --> FILTERS[Gemini AI Filters Panel]
+        FILTERS --> SEARCH[Quick Filters + Search]
+    end
+    
+    style GEMINI fill:#4285F4,color:#fff
+    style FILTERS fill:#FFD700,color:#000
+```
+
+### Gemini Analysis Response Structure
+
+The AI extracts the following metadata from each image:
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `caption` | string | Natural language scene description | "Nighttime urban street with parked vehicles" |
+| `tags` | string[] | Scene classification tags | `["outdoor", "night", "urban", "street"]` |
+| `objects` | string[] | Detected objects | `["car", "streetlight", "building"]` |
+| `peopleCount` | number | Number of people detected | `2` |
+| `vehicles` | object[] | Vehicle details with type, color, make | `[{type: "SUV", color: "gray", make: "Mercedes"}]` |
+| `licensePlates` | string[] | Detected license plate numbers | `["ABC-123"]` |
+| `weapons` | string[] | Detected weapons (if any) | `["handgun"]` |
+| `clothingColors` | string[] | Clothing colors of detected people | `["black", "white", "blue"]` |
+| `textExtracted` | string[] | Text/signs visible in image | `["STOP", "Main St"]` |
+| `qualityScore` | number | Image quality 0-100 | `85` |
+
+### Quick Filters in Topology Graph
+
+The Gemini AI Filters panel provides instant filtering capabilities:
+
+```mermaid
+flowchart LR
+    subgraph "Filter Categories"
+        QF[Quick Filters]
+        VT[Vehicle Types]
+        CC[Clothing Colors]
+    end
+    
+    subgraph "Quick Filters"
+        QF --> W[🛡️ Weapons]
+        QF --> LP[🚗 License Plates]
+        QF --> MP[👥 2+ People]
+    end
+    
+    subgraph "Vehicle Types"
+        VT --> CAR[car]
+        VT --> SUV[SUV]
+        VT --> VAN[van]
+        VT --> TRUCK[truck]
+        VT --> MOTO[motorcycle]
+    end
+    
+    subgraph "Clothing Colors"
+        CC --> BLK[black]
+        CC --> WHT[white]
+        CC --> BLU[blue]
+        CC --> RED[red]
+        CC --> GRY[gray]
+    end
+    
+    subgraph "Search Action"
+        W --> SEARCH[🔍 Search Button]
+        LP --> SEARCH
+        MP --> SEARCH
+        CAR --> SEARCH
+        BLK --> SEARCH
+        SEARCH --> |"Filter graph"| RESULT[Only Matching Nodes Displayed]
+    end
+    
+    style SEARCH fill:#EAB308,color:#000
+    style RESULT fill:#22C55E,color:#fff
+```
+
+### Filter Behavior
+
+When you click **Search** with filters selected:
+
+1. **Non-matching nodes are hidden** - Only events matching your criteria are displayed
+2. **Connected cameras/locations shown** - Related infrastructure nodes remain visible
+3. **Matching events highlighted** - Gold color and increased size for easy identification
+4. **Auto-zoom** - Graph automatically zooms to fit filtered results
+5. **Toast notification** - Shows count of matching events found
+
+Click **Clear** to restore the full graph.
+
+### Settings Configuration
+
+Configure Gemini AI processing in the **Settings** page:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| **Model** | Gemini model to use | `gemini-2.0-flash` |
+| **Batch Size** | Images per CRON run | `100` |
+| **Enabled** | Toggle AI processing | `false` |
+| **Schedule** | Minutes between runs | `30` |
+
+### Available Models
+
+| Model | Description | Rate Limit |
+|-------|-------------|------------|
+| `gemini-2.0-flash` | Fast multimodal model (recommended) | 15 RPM |
+| `gemini-2.0-flash-lite` | Lightweight, lower cost | 30 RPM |
+| `gemini-2.5-flash` | Latest with improved capabilities | 15 RPM |
+| `gemini-2.5-pro` | Most capable for complex analysis | 2 RPM |
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/data/gemini-config` | GET/POST | Get/update Gemini configuration |
+| `/api/data/gemini-search` | GET | Search events by AI metadata |
+| `/api/data/gemini-models` | GET | List available models for API key |
+| `/api/cron/process-gemini-images` | GET | Trigger image processing CRON |
+
+### Search Query Parameters
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `hasWeapons` | boolean | Filter for weapon detection | `true` |
+| `licensePlate` | string | Filter by plate number (* for any) | `ABC-123` or `*` |
+| `minPeopleCount` | number | Minimum people in scene | `2` |
+| `vehicleType` | string | Filter by vehicle type | `SUV` |
+| `clothingColor` | string | Filter by clothing color | `black` |
+| `limit` | number | Max results to return | `100` |
 
 ---
 
@@ -883,6 +1049,9 @@ Edit `client/src/index.css` to change colors:
 - [x] **Mark as High Risk** - Visual flagging with pulsing red animations *(Dec 2025)*
 - [x] **Cross-Screen Integration** - URL params pass context from Graph/Map to Incidents/POLE *(Dec 2025)*
 - [x] **Region Boundaries Context Menu** - Right-click on Peru regions in Geographic Map *(Dec 2025)*
+- [x] **Gemini AI Image Analysis** - Automatic metadata extraction from surveillance images *(Dec 2025)*
+- [x] **Quick Filters** - Filter topology graph by AI-detected properties (weapons, plates, people, vehicles, colors) *(Dec 2025)*
+- [x] **Neo4j Gemini Sync** - AI metadata synced to Neo4j Event nodes for graph queries *(Dec 2025)*
 
 ### High Priority
 - [ ] Test webhook endpoint with real IREX surveillance data

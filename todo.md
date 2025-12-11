@@ -1,6 +1,6 @@
 # ELI Dashboard - Pending Tasks
 
-> **Last Updated:** December 11, 2025 (Context Menu Feature + Cross-Screen Integration)
+> **Last Updated:** December 11, 2025 (Gemini AI Image Analysis + Quick Filters)
 
 ---
 
@@ -289,6 +289,19 @@
 | **POLE Integration** | `POLEAnalytics.tsx` | Reads URL params from context menu, shows entity suggestion banner |
 | **Toast Notifications** | All pages | Sonner toasts for action feedback |
 
+### Gemini AI Image Analysis (December 11, 2025 - Morning Session)
+| Feature | File(s) Modified | Notes |
+|---------|-----------------|-------|
+| **Gemini API Integration** | `api/lib/gemini.ts` | Google Gemini 2.0 Flash for image analysis |
+| **Image Processing CRON** | `api/cron/process-gemini-images.ts` | Batch processing with rate limiting |
+| **Gemini Config API** | `api/data/gemini-config.ts` | GET/POST configuration management |
+| **Gemini Search API** | `api/data/gemini-search.ts` | Query events by AI-detected metadata |
+| **Gemini Models API** | `api/data/gemini-models.ts` | List available models for API key |
+| **Neo4j Gemini Sync** | `api/data/topology-neo4j.ts` | Sync AI metadata to Event nodes |
+| **Settings UI** | `client/src/pages/Settings.tsx` | Model selector, batch size, retry failed images |
+| **Quick Filters UI** | `client/src/pages/TopologyGraph.tsx` | Filter panel with weapons, plates, people, vehicles, colors |
+| **Filter Behavior** | `TopologyGraph.tsx` | Hide non-matching nodes instead of just highlighting |
+
 ### New Components Added (Dec 11)
 | Component | Path | Purpose |
 |-----------|------|---------|
@@ -298,23 +311,41 @@
 | `peruRegions` | `data/peruRegions.ts` | GeoJSON for Peru 25 departments |
 | `NodeContextMenu` | `components/NodeContextMenu.tsx` | Right-click context menu for graph/map nodes |
 
+### New API Endpoints Added (Dec 11)
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/data/gemini-config` | GET/POST | Gemini configuration management |
+| `/api/data/gemini-search` | GET | Search events by AI metadata |
+| `/api/data/gemini-models` | GET | List available Gemini models |
+| `/api/cron/process-gemini-images` | GET | Trigger AI image processing |
+
 ---
 
 ## Suggested Next Steps
 
 ### Immediate (High Impact, Low Effort)
-1. **Integrate Sparklines into KPI cards** - The component is ready, just needs to be added to ExecutiveDashboard
-2. **Integrate StatChangeIndicator** - Track previous values in state and show diff on refresh
-3. **Add flash effect to cards on data update** - Apply `flash-highlight` class when values change
+1. ~~**Integrate Sparklines into KPI cards**~~ - Component ready, needs integration
+2. ~~**Integrate StatChangeIndicator**~~ - Track previous values in state
+3. ~~**Add flash effect to cards on data update**~~ - Apply `flash-highlight` class
 4. **Persist high-risk flags** - Store marked entities in localStorage or database
+5. **Gemini AI batch scheduling** - Enable automatic CRON scheduling via Vercel
+
+### Gemini AI Enhancements (New)
+6. **Face recognition integration** - Link detected faces to POLE Person entities
+7. **License plate lookup** - Cross-reference plates with vehicle database
+8. **Weapon alert notifications** - Auto-create high-priority incidents when weapons detected
+9. **Scene similarity search** - Find visually similar events using embeddings
+10. **Multi-language text extraction** - Support Spanish text in images
+11. **Night vision enhancement** - Pre-process low-light images before analysis
+12. **Confidence thresholds** - Filter results by AI confidence score
 
 ### Context Menu Enhancements
-5. **Add "Copy ID to Clipboard"** - Quick action to copy entity ID
-6. **Add "Show on Map"** - Navigate from Topology to Map centered on location
-7. **Add "View Related Entities"** - Show connected nodes in a filtered view
-8. **Add "Add Note"** - Quick note attachment from context menu
-9. **Submenu for entity type actions** - Different actions based on node type (person vs vehicle vs camera)
-10. **Keyboard shortcut hints** - Show shortcuts in menu items (Ctrl+I for incident, etc.)
+13. **Add "Copy ID to Clipboard"** - Quick action to copy entity ID
+14. **Add "Show on Map"** - Navigate from Topology to Map centered on location
+15. **Add "View Related Entities"** - Show connected nodes in a filtered view
+16. **Add "Add Note"** - Quick note attachment from context menu
+17. **Submenu for entity type actions** - Different actions based on node type (person vs vehicle vs camera)
+18. **Keyboard shortcut hints** - Show shortcuts in menu items (Ctrl+I for incident, etc.)
 
 ### Short Term (Medium Effort)
 11. **Heat map overlay toggle** - Add toggle for camera density visualization on map
@@ -392,3 +423,6 @@ These items from the Gemini AI suggestions were **not implemented** in this sess
 - [x] Update README.md with redesign details ✅ (Dec 10)
 - [x] Update README.md with Analytics Tab features ✅ (Dec 10 Late Night)
 - [x] Update todo.md with Analytics Tab completions ✅ (Dec 10 Late Night)
+- [x] Update README.md with Gemini AI documentation ✅ (Dec 11)
+- [x] Add Mermaid diagrams for Gemini AI flow ✅ (Dec 11)
+- [x] Document Quick Filters behavior ✅ (Dec 11)
