@@ -174,6 +174,12 @@ async function updateNeo4jEventWithGemini(
           e.geminiTextExtracted = $geminiTextExtracted,
           e.geminiQualityScore = $geminiQualityScore,
           e.geminiBlurScore = $geminiBlurScore,
+          e.geminiTimeOfDay = $geminiTimeOfDay,
+          e.geminiLightingCondition = $geminiLightingCondition,
+          e.geminiEnvironment = $geminiEnvironment,
+          e.geminiWeatherCondition = $geminiWeatherCondition,
+          e.geminiCameraPerspective = $geminiCameraPerspective,
+          e.geminiVehicleDetails = $geminiVehicleDetails,
           e.geminiProcessedAt = timestamp()
       `,
       {
@@ -190,6 +196,12 @@ async function updateNeo4jEventWithGemini(
         geminiTextExtracted: analysis.geminiTextExtracted,
         geminiQualityScore: analysis.geminiQualityScore,
         geminiBlurScore: analysis.geminiBlurScore,
+        geminiTimeOfDay: analysis.geminiTimeOfDay,
+        geminiLightingCondition: analysis.geminiLightingCondition,
+        geminiEnvironment: analysis.geminiEnvironment,
+        geminiWeatherCondition: analysis.geminiWeatherCondition,
+        geminiCameraPerspective: analysis.geminiCameraPerspective,
+        geminiVehicleDetails: JSON.stringify(analysis.geminiVehicleDetails),
       }
     );
 
@@ -210,6 +222,12 @@ async function updateNeo4jEventWithGemini(
           e.geminiTextExtracted = $geminiTextExtracted,
           e.geminiQualityScore = $geminiQualityScore,
           e.geminiBlurScore = $geminiBlurScore,
+          e.geminiTimeOfDay = $geminiTimeOfDay,
+          e.geminiLightingCondition = $geminiLightingCondition,
+          e.geminiEnvironment = $geminiEnvironment,
+          e.geminiWeatherCondition = $geminiWeatherCondition,
+          e.geminiCameraPerspective = $geminiCameraPerspective,
+          e.geminiVehicleDetails = $geminiVehicleDetails,
           e.geminiProcessedAt = timestamp()
       `,
       {
@@ -226,6 +244,12 @@ async function updateNeo4jEventWithGemini(
         geminiTextExtracted: analysis.geminiTextExtracted,
         geminiQualityScore: analysis.geminiQualityScore,
         geminiBlurScore: analysis.geminiBlurScore,
+        geminiTimeOfDay: analysis.geminiTimeOfDay,
+        geminiLightingCondition: analysis.geminiLightingCondition,
+        geminiEnvironment: analysis.geminiEnvironment,
+        geminiWeatherCondition: analysis.geminiWeatherCondition,
+        geminiCameraPerspective: analysis.geminiCameraPerspective,
+        geminiVehicleDetails: JSON.stringify(analysis.geminiVehicleDetails),
       }
     );
   });

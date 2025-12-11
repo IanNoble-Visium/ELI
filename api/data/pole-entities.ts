@@ -2,17 +2,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getDb, desc, eq, count, sql } from "../lib/db.js";
 import { pgTable, varchar, text, jsonb, timestamp, index } from "drizzle-orm/pg-core";
 
-// Import the poleEntities table from schema
+// Local table definition matching the actual database schema (camelCase column names)
 const poleEntities = pgTable("pole_entities", {
   id: varchar({ length: 255 }).primaryKey().notNull(),
-  entityType: varchar("entity_type", { length: 50 }).notNull(),
+  entityType: varchar({ length: 50 }).notNull(),
   name: varchar({ length: 500 }),
   description: text(),
   attributes: jsonb(),
-  threatLevel: varchar("threat_level", { length: 50 }),
-  relatedEntities: jsonb("related_entities"),
-  createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+  threatLevel: varchar({ length: 50 }),
+  relatedEntities: jsonb(),
+  createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 });
 
 // Import incidents table for linking
@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const db = await getDb();
-    
+
     // If database is not configured, return empty data
     if (!db) {
       return res.status(200).json({
@@ -168,7 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         linkedEvents: eventCountResult?.count || 0,
       },
       graphData,
-      message: entitiesList.length === 0 
+      message: entitiesList.length === 0
         ? "No POLE entities found in database. Data will appear when events are processed."
         : undefined,
     });

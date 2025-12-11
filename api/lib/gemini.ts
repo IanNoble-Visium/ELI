@@ -81,8 +81,31 @@ export interface GeminiAnalysisResult {
   geminiQualityScore: number;
   geminiBlurScore: number;
   
+  // Scene/Environment metadata
+  geminiTimeOfDay: string;
+  geminiLightingCondition: string;
+  geminiEnvironment: string;
+  geminiWeatherCondition: string;
+  geminiCameraPerspective: string;
+  
+  // Enhanced vehicle details
+  geminiVehicleDetails: GeminiVehicleDetail[];
+  
   // Raw detailed objects (for advanced queries)
   geminiDetailedObjects: GeminiDetectedObject[];
+}
+
+export interface GeminiVehicleDetail {
+  type: string;
+  make: string;
+  model: string;
+  color: string;
+  licensePlate: string;
+  direction: string;
+  emergencyVehicle: boolean;
+  emergencyLightsActive: boolean;
+  liveryColors: string[];
+  textOnVehicle: string[];
 }
 
 export interface GeminiDetectedObject {
@@ -97,67 +120,100 @@ export interface GeminiDetectedObject {
  * The surveillance image analysis prompt
  * Optimized for Peru security camera scenarios
  */
-export const GEMINI_ANALYSIS_PROMPT = `You are an expert security camera image analyst specializing in surveillance footage from Peru. Analyze this image and extract detailed metadata for security and investigative purposes.
+export const GEMINI_ANALYSIS_PROMPT = `You are an expert security camera image analyst specializing in surveillance footage. Analyze this image and extract comprehensive metadata for security, investigation, and cross-image correlation purposes.
 
 IMPORTANT: Return ONLY valid JSON with no markdown formatting, no code blocks, no explanations - just the raw JSON object.
 
-Extract the following information:
+Extract ALL of the following information with maximum detail:
 
-1. **Scene Description**: A detailed natural language description of what's happening in the image.
+## SCENE & ENVIRONMENT
+1. **Scene Description**: Detailed natural language description of the scene, activity, and context.
+2. **Time of Day**: night, early_morning, morning, afternoon, evening, dusk, dawn
+3. **Lighting Condition**: natural_daylight, artificial, low_light, infrared, emergency_lights, mixed, backlit
+4. **Environment**: urban_street, highway, residential, commercial, parking_lot, intersection, rural, indoor
+5. **Weather Condition**: clear, rainy, foggy, overcast, unknown
+6. **Camera Perspective**: overhead, eye_level, low_angle, side_view, front_view, rear_view
 
-2. **Tags**: Descriptive tags for categorization (e.g., "daytime", "street", "traffic", "residential", "commercial", "night_vision", "motion_blur").
+## OBJECTS & PEOPLE
+7. **Objects Detected**: All significant objects (person, car, motorcycle, truck, bus, dog, bag, etc.)
+8. **People Count**: Exact count of visible people
+9. **Clothing Colors**: Colors worn by each person
+10. **Weapons**: Any weapons detected (gun, knife, bat, etc.)
 
-3. **Objects Detected**: List all significant objects visible (person, car, motorcycle, bicycle, truck, bus, dog, bag, backpack, phone, etc.).
+## VEHICLE DETAILS (Critical for correlation)
+For EACH vehicle, extract:
+- Type: car, suv, sedan, hatchback, truck, motorcycle, mototaxi, bus, van
+- Make: Manufacturer if identifiable (Toyota, Hyundai, Kia, etc.)
+- Model: Specific model if identifiable
+- Color: Primary body color
+- License Plate: Exact text if visible, or "obscured"/"not_visible"
+- Direction: approaching, departing, stationary, turning_left, turning_right
+- Emergency Vehicle: true/false
+- Emergency Lights Active: true/false (if emergency vehicle)
+- Livery Colors: Colors of any markings/livery on vehicle
+- Text on Vehicle: Any text visible on the vehicle (company names, police text, etc.)
 
-4. **People Count**: Exact count of people visible in the image.
+## TEXT & IDENTIFICATION
+11. **License Plates**: All visible plate numbers (Peru format: ABC-123 or A1B-234)
+12. **Text Extracted**: ALL visible text - signs, vehicle text, storefronts, banners, uniforms
 
-5. **Vehicles**: Types of vehicles detected with details (car, motorcycle, mototaxi, bus, truck, bicycle, etc.).
+## VISUAL QUALITY
+13. **Dominant Colors**: 5 most dominant colors as hex codes
+14. **Quality Score**: 0-100 (100 = perfect clarity)
+15. **Blur Score**: 0-100 (100 = extremely blurred)
 
-6. **Weapons**: Any weapons detected (gun, knife, bat, etc.). If none, return empty array.
-
-7. **Clothing Colors**: Colors of clothing worn by people in the image.
-
-8. **Dominant Colors**: The 3-5 most dominant colors in the image as hex codes.
-
-9. **License Plates**: Any visible license plate numbers. Peru plates typically follow formats like ABC-123 or A1B-234. Extract exactly as visible.
-
-10. **Text Extracted**: Any visible text from signs, shirts, storefronts, banners, etc.
-
-11. **Quality Score**: Rate image quality from 0-100 (100 = perfect clarity).
-
-12. **Blur Score**: Rate blur level from 0-100 (100 = extremely blurred, 0 = sharp).
-
-13. **Detailed Objects**: For each significant object, provide structured details including location in frame and attributes.
+## TAGS
+16. **Tags**: Comprehensive categorization tags
 
 Return this exact JSON structure:
 {
-  "geminiCaption": "string - detailed scene description",
-  "geminiTags": ["array", "of", "tags"],
-  "geminiObjects": ["person", "car", "etc"],
+  "geminiCaption": "Detailed scene description including all activity, vehicles, people, and context",
+  "geminiTags": ["night", "police", "emergency_vehicle", "urban", "traffic_stop"],
+  "geminiObjects": ["car", "road", "lane_markings"],
   "geminiPeopleCount": 0,
-  "geminiVehicles": ["car - dark grey SUV", "motorcycle - red"],
+  "geminiVehicles": ["police_car - white/blue Hyundai sedan"],
   "geminiWeapons": [],
-  "geminiClothingColors": ["blue", "white", "black"],
-  "geminiDominantColors": ["#808080", "#2F4F4F", "#000000"],
+  "geminiClothingColors": [],
+  "geminiDominantColors": ["#000033", "#0066FF", "#FFFFFF", "#333333", "#FFFF00"],
   "geminiLicensePlates": ["ABC-123"],
-  "geminiTextExtracted": ["STOP", "Calle Lima"],
-  "geminiQualityScore": 75,
-  "geminiBlurScore": 15,
+  "geminiTextExtracted": ["SERENAZGO", "POLICIA"],
+  "geminiQualityScore": 70,
+  "geminiBlurScore": 20,
+  "geminiTimeOfDay": "night",
+  "geminiLightingCondition": "emergency_lights",
+  "geminiEnvironment": "urban_street",
+  "geminiWeatherCondition": "clear",
+  "geminiCameraPerspective": "overhead",
+  "geminiVehicleDetails": [
+    {
+      "type": "sedan",
+      "make": "Hyundai",
+      "model": "unknown",
+      "color": "white",
+      "licensePlate": "obscured",
+      "direction": "approaching",
+      "emergencyVehicle": true,
+      "emergencyLightsActive": true,
+      "liveryColors": ["white", "dark_blue"],
+      "textOnVehicle": ["SERENAZGO"]
+    }
+  ],
   "geminiDetailedObjects": [
     {
       "id": "vehicle_1",
       "type": "vehicle",
-      "description": "Dark grey compact SUV, possibly Daihatsu Terios",
+      "description": "Police patrol vehicle with active emergency lights",
       "location": "center",
       "attributes": {
-        "color": "dark grey",
-        "license_plate": "D2D-035",
-        "country": "Peru"
+        "color": "white",
+        "emergency_status": "active",
+        "light_color": "blue"
       }
     }
   ]
 }
 
+Be thorough - this data is used to correlate and match vehicles/people across multiple camera feeds. Extract EVERY detail visible.
 Remember: Return ONLY the JSON object, nothing else.`;
 
 /**
@@ -295,7 +351,28 @@ function sanitizeGeminiResult(result: any): GeminiAnalysisResult {
     geminiTextExtracted: Array.isArray(result.geminiTextExtracted) ? result.geminiTextExtracted.filter((t: any) => typeof t === 'string') : [],
     geminiQualityScore: typeof result.geminiQualityScore === 'number' ? Math.min(100, Math.max(0, result.geminiQualityScore)) : 50,
     geminiBlurScore: typeof result.geminiBlurScore === 'number' ? Math.min(100, Math.max(0, result.geminiBlurScore)) : 50,
+    geminiTimeOfDay: typeof result.geminiTimeOfDay === 'string' ? result.geminiTimeOfDay : 'unknown',
+    geminiLightingCondition: typeof result.geminiLightingCondition === 'string' ? result.geminiLightingCondition : 'unknown',
+    geminiEnvironment: typeof result.geminiEnvironment === 'string' ? result.geminiEnvironment : 'unknown',
+    geminiWeatherCondition: typeof result.geminiWeatherCondition === 'string' ? result.geminiWeatherCondition : 'unknown',
+    geminiCameraPerspective: typeof result.geminiCameraPerspective === 'string' ? result.geminiCameraPerspective : 'unknown',
+    geminiVehicleDetails: Array.isArray(result.geminiVehicleDetails) ? result.geminiVehicleDetails.map(sanitizeVehicleDetail) : [],
     geminiDetailedObjects: Array.isArray(result.geminiDetailedObjects) ? result.geminiDetailedObjects.map(sanitizeDetailedObject) : [],
+  };
+}
+
+function sanitizeVehicleDetail(v: any): GeminiVehicleDetail {
+  return {
+    type: typeof v.type === 'string' ? v.type : 'unknown',
+    make: typeof v.make === 'string' ? v.make : 'unknown',
+    model: typeof v.model === 'string' ? v.model : 'unknown',
+    color: typeof v.color === 'string' ? v.color : 'unknown',
+    licensePlate: typeof v.licensePlate === 'string' ? v.licensePlate : 'not_visible',
+    direction: typeof v.direction === 'string' ? v.direction : 'unknown',
+    emergencyVehicle: v.emergencyVehicle === true,
+    emergencyLightsActive: v.emergencyLightsActive === true,
+    liveryColors: Array.isArray(v.liveryColors) ? v.liveryColors.filter((c: any) => typeof c === 'string') : [],
+    textOnVehicle: Array.isArray(v.textOnVehicle) ? v.textOnVehicle.filter((t: any) => typeof t === 'string') : [],
   };
 }
 
