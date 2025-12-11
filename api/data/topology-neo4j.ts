@@ -4,6 +4,7 @@
  * Provides Cypher queries for topology graph data from Neo4j.
  * Used for graph relationships and network visualization.
  */
+import neo4j from "neo4j-driver";
 import {
   runQuery,
   writeTransaction,
@@ -768,9 +769,10 @@ export async function searchEventsByGemini(criteria: {
 }): Promise<Neo4jEvent[]> {
   if (!isNeo4jConfigured()) return [];
 
-  const limit = criteria.limit || 50;
+  // Ensure limit is an integer (Neo4j requires integer for LIMIT)
+  const limit = Math.floor(criteria.limit || 50);
   const conditions: string[] = ["e.geminiProcessedAt IS NOT NULL"];
-  const params: any = { limit };
+  const params: any = { limit: neo4j.int(limit) };
 
   if (criteria.hasWeapons === true) {
     conditions.push("size(e.geminiWeapons) > 0");
