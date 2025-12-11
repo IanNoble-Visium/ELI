@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2 } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import NodeContextMenu, { type ContextMenuNode, type ContextMenuPosition } from "@/components/NodeContextMenu";
 
 // Staggered animation variants
 const containerVariants = {
@@ -150,7 +152,7 @@ export default function TopologyGraph() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
+
   // Gemini AI filter state
   const [geminiStats, setGeminiStats] = useState<GeminiStats | null>(null);
   const [geminiLoading, setGeminiLoading] = useState(false);
@@ -162,10 +164,15 @@ export default function TopologyGraph() {
     clothingColor: "",
   });
   const [geminiSearching, setGeminiSearching] = useState(false);
-  
+
   // Node type filter state
   const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
   const [originalGraphData, setOriginalGraphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] } | null>(null);
+
+  // Context menu state
+  const [contextMenuNode, setContextMenuNode] = useState<ContextMenuNode | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null);
+  const [highRiskNodes, setHighRiskNodes] = useState<Set<string>>(new Set());
 
   // Fullscreen toggle handler
   const toggleFullscreen = useCallback(() => {
@@ -300,7 +307,7 @@ export default function TopologyGraph() {
     try {
       setGeminiSearching(true);
       const params = new URLSearchParams();
-      
+
       if (geminiFilters.hasWeapons) params.append("hasWeapons", "true");
       if (geminiFilters.hasLicensePlates) params.append("licensePlate", "*");
       if (geminiFilters.hasMultiplePeople) params.append("minPeopleCount", "2");
@@ -310,7 +317,7 @@ export default function TopologyGraph() {
 
       const response = await fetch(`/api/data/gemini-search?${params.toString()}`, { credentials: "include" });
       const data = await response.json();
-      
+
       if (data.events && data.events.length > 0) {
         // Highlight matching events in the graph
         const matchingIds = new Set(data.events.map((e: any) => e.id));
@@ -324,7 +331,7 @@ export default function TopologyGraph() {
             color: matchingIds.has(node.id) ? "#FFD700" : node.color,
           })),
         }));
-        
+
         // Zoom to fit the matching nodes
         if (graphRef.current) {
           graphRef.current.zoomToFit(500, 50);
@@ -377,16 +384,16 @@ export default function TopologyGraph() {
     // Filter nodes by type
     const typeMap: Record<string, string> = {
       "Cameras": "camera",
-      "Persons": "person", 
+      "Persons": "person",
       "Vehicles": "vehicle",
       "Locations": "location",
       "Events": "event",
     };
     const nodeType = typeMap[type] || type.toLowerCase();
-    
+
     const filteredNodes = sourceData.nodes.filter(n => n.type === nodeType);
     const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
-    
+
     // Keep links where both source and target are in filtered nodes
     const filteredLinks = sourceData.links.filter(l => {
       const sourceId = typeof l.source === 'string' ? l.source : l.source?.id;
@@ -530,12 +537,114 @@ export default function TopologyGraph() {
 
   const handleNodeClick = useCallback((node: any) => {
     setSelectedNode(node);
+    // Close context menu on regular click
+    setContextMenuNode(null);
+    setContextMenuPosition(null);
     if (graphRef.current && graphRef.current.centerAt) {
       graphRef.current.centerAt(node.x, node.y, 1000);
       if (graphRef.current.zoom) {
         graphRef.current.zoom(2, 1000);
       }
     }
+  }, []);
+
+  // Handle right-click on node for context menu
+  const handleNodeRightClick = useCallback((node: any, event: MouseEvent) => {
+    event.preventDefault();
+    setContextMenuNode({
+      id: node.id,
+      name: node.name || node.id,
+      type: node.type || "event",
+      latitude: node.latitude,
+      longitude: node.longitude,
+      region: node.region,
+      imageUrl: node.imageUrl,
+    });
+    setContextMenuPosition({ x: event.clientX, y: event.clientY });
+  }, []);
+
+  // Close context menu
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenuNode(null);
+    setContextMenuPosition(null);
+  }, []);
+
+  // Context menu action handlers
+  const handleContextViewDetails = useCallback((node: ContextMenuNode) => {
+    // Find the full node data and select it
+    const fullNode = graphData.nodes.find(n => n.id === node.id);
+    if (fullNode) {
+      setSelectedNode(fullNode);
+      if (graphRef.current && graphRef.current.centerAt) {
+        graphRef.current.centerAt(fullNode.x, fullNode.y, 1000);
+        graphRef.current.zoom?.(2, 1000);
+      }
+    }
+  }, [graphData.nodes]);
+
+  const handleContextCreateIncident = useCallback((node: ContextMenuNode) => {
+    const params = new URLSearchParams({
+      from: "topology",
+      nodeId: node.id,
+      nodeType: node.type,
+      nodeName: node.name,
+      ...(node.region && { region: node.region }),
+      ...(node.latitude && node.longitude && { location: `${node.latitude},${node.longitude}` }),
+    });
+    setLocation(`/incidents?${params.toString()}`);
+    toast.success("Creating incident...", {
+      description: `Source: ${node.name} (${node.type})`,
+    });
+  }, [setLocation]);
+
+  const handleContextAddToPole = useCallback((node: ContextMenuNode) => {
+    // Map node type to POLE entity type
+    const poleTypeMap: Record<string, string> = {
+      person: "person",
+      vehicle: "object",
+      camera: "location",
+      location: "location",
+      event: "event",
+    };
+    const entityType = poleTypeMap[node.type] || "event";
+
+    const params = new URLSearchParams({
+      from: "topology",
+      entityId: node.id,
+      entityType: entityType,
+      entityName: node.name,
+    });
+    setLocation(`/pole?${params.toString()}`);
+    toast.success("Adding to POLE...", {
+      description: `Entity: ${node.name} as ${entityType}`,
+    });
+  }, [setLocation]);
+
+  const handleContextViewEvents = useCallback((node: ContextMenuNode) => {
+    if (node.type === "camera") {
+      setLocation(`/webhooks?channelId=${node.id}`);
+    } else {
+      setLocation("/webhooks");
+    }
+    toast.info("Viewing related events...");
+  }, [setLocation]);
+
+  const handleContextMarkHighRisk = useCallback((node: ContextMenuNode) => {
+    setHighRiskNodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(node.id)) {
+        newSet.delete(node.id);
+        toast.info(`Removed high-risk flag from ${node.name}`);
+      } else {
+        newSet.add(node.id);
+        toast.warning(`Marked ${node.name} as HIGH RISK`, {
+          description: "This entity is now flagged for priority attention.",
+        });
+      }
+      return newSet;
+    });
+    // Force graph refresh to show the visual change
+    setGraphData(prev => ({ ...prev, nodes: [...prev.nodes] }));
   }, []);
 
   const handleZoomIn = () => {
@@ -615,8 +724,27 @@ export default function TopologyGraph() {
     const label = node.name || "";
     const fontSize = 12 / globalScale;
     const nodeRadius = Math.max(1, node.val || 5);
-    const nodeColor = node.color || "#888888";
+    const isHighRisk = highRiskNodes.has(node.id);
+    // Override color to red if marked as high risk
+    const nodeColor = isHighRisk ? "#EF4444" : (node.color || "#888888");
     const hasImage = node.imageUrl && imageCache.has(node.imageUrl);
+
+    // Draw high-risk pulsing animation
+    if (isHighRisk) {
+      // Outer danger glow
+      const dangerPulse = nodeRadius + 6 + Math.sin(Date.now() / 150) * 4;
+      ctx.beginPath();
+      ctx.arc(x, y, dangerPulse, 0, 2 * Math.PI, false);
+      ctx.strokeStyle = "rgba(239, 68, 68, 0.6)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Inner danger glow
+      ctx.beginPath();
+      ctx.arc(x, y, nodeRadius + 3, 0, 2 * Math.PI, false);
+      ctx.fillStyle = "rgba(239, 68, 68, 0.3)";
+      ctx.fill();
+    }
 
     // Draw outer glow for selected or hovered nodes
     if (selectedNode?.id === node.id) {
@@ -756,7 +884,7 @@ export default function TopologyGraph() {
       ctx.fillStyle = "#F9FAFB";
       ctx.fillText(label, x, textY);
     }
-  }, [selectedNode, loadedImages]);
+  }, [selectedNode, loadedImages, highRiskNodes]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -920,11 +1048,10 @@ export default function TopologyGraph() {
                 ].map((stat, index) => (
                   <motion.div
                     key={stat.label}
-                    className={`flex items-center justify-between p-1.5 rounded transition-colors cursor-pointer ${
-                      activeTypeFilter === stat.label 
-                        ? "bg-primary/20 border border-primary/40" 
+                    className={`flex items-center justify-between p-1.5 rounded transition-colors cursor-pointer ${activeTypeFilter === stat.label
+                        ? "bg-primary/20 border border-primary/40"
                         : "hover:bg-muted/30"
-                    }`}
+                      }`}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3 + index * 0.05 }}
@@ -1212,9 +1339,9 @@ export default function TopologyGraph() {
                           key={i}
                           variant={geminiFilters.vehicleType === v.type ? "default" : "outline"}
                           className={`cursor-pointer text-[10px] ${geminiFilters.vehicleType === v.type ? "bg-orange-500" : "hover:bg-orange-500/20"}`}
-                          onClick={() => setGeminiFilters(prev => ({ 
-                            ...prev, 
-                            vehicleType: prev.vehicleType === v.type ? "" : v.type 
+                          onClick={() => setGeminiFilters(prev => ({
+                            ...prev,
+                            vehicleType: prev.vehicleType === v.type ? "" : v.type
                           }))}
                         >
                           {v.type} ({v.count})
@@ -1234,9 +1361,9 @@ export default function TopologyGraph() {
                           key={i}
                           variant={geminiFilters.clothingColor === c.color ? "default" : "outline"}
                           className={`cursor-pointer text-[10px] capitalize ${geminiFilters.clothingColor === c.color ? "bg-purple-500" : "hover:bg-purple-500/20"}`}
-                          onClick={() => setGeminiFilters(prev => ({ 
-                            ...prev, 
-                            clothingColor: prev.clothingColor === c.color ? "" : c.color 
+                          onClick={() => setGeminiFilters(prev => ({
+                            ...prev,
+                            clothingColor: prev.clothingColor === c.color ? "" : c.color
                           }))}
                         >
                           {c.color} ({c.count})
@@ -1277,7 +1404,7 @@ export default function TopologyGraph() {
                     {geminiConfig.message}
                   </div>
                 )}
-                
+
                 {/* No data message */}
                 {!geminiStats?.totalProcessed && !geminiLoading && !geminiConfig?.message && (
                   <div className="text-center py-2 text-xs text-muted-foreground">
@@ -1358,6 +1485,7 @@ export default function TopologyGraph() {
             linkDirectionalParticleWidth={2}
             linkDirectionalParticleColor={linkDirectionalParticleColor}
             onNodeClick={handleNodeClick}
+            onNodeRightClick={handleNodeRightClick}
             backgroundColor="#1F2937"
             linkColor={linkColor}
             linkWidth={1.5}
@@ -1366,6 +1494,18 @@ export default function TopologyGraph() {
             onEngineStop={onEngineStop}
             nodeCanvasObject={nodeCanvasObject}
             nodePointerAreaPaint={nodePointerAreaPaint}
+          />
+
+          {/* Context Menu */}
+          <NodeContextMenu
+            node={contextMenuNode}
+            position={contextMenuPosition}
+            onClose={handleCloseContextMenu}
+            onViewDetails={handleContextViewDetails}
+            onCreateIncident={handleContextCreateIncident}
+            onAddToPole={handleContextAddToPole}
+            onViewRelatedEvents={handleContextViewEvents}
+            onMarkAsHighRisk={handleContextMarkHighRisk}
           />
         </div>
       </div>

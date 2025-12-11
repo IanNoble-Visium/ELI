@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,10 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 import { peruRegionsGeoJSON, REGION_COLORS } from "@/data/peruRegions";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import NodeContextMenu, { type ContextMenuNode, type ContextMenuPosition } from "@/components/NodeContextMenu";
 
 // Staggered animation variants
 const containerVariants = {
@@ -207,6 +209,12 @@ export default function GeographicMap() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Context menu state
+  const [contextMenuNode, setContextMenuNode] = useState<ContextMenuNode | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null);
+  const [highRiskCameras, setHighRiskCameras] = useState<Set<string>>(new Set());
+  const geoJsonRef = useRef<L.GeoJSON | null>(null);
+
   // Fullscreen toggle handler
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -389,6 +397,191 @@ export default function GeographicMap() {
       default: return { label: "Low", color: "bg-blue-500" };
     }
   };
+
+  // Close context menu
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenuNode(null);
+    setContextMenuPosition(null);
+  }, []);
+
+  // Open context menu for camera
+  const handleCameraContextMenu = useCallback((camera: CameraData, event: L.LeafletMouseEvent) => {
+    event.originalEvent.preventDefault();
+    setContextMenuNode({
+      id: camera.id,
+      name: camera.name,
+      type: "camera",
+      latitude: camera.latitude,
+      longitude: camera.longitude,
+      region: camera.address.region || camera.address.city,
+    });
+    setContextMenuPosition({
+      x: event.originalEvent.clientX,
+      y: event.originalEvent.clientY
+    });
+  }, []);
+
+  // Open context menu for region
+  const handleRegionContextMenu = useCallback((regionName: string, event: L.LeafletMouseEvent) => {
+    event.originalEvent.preventDefault();
+    // Get center coordinates of the region from our predefined centers
+    const regionCenters: Record<string, [number, number]> = {
+      "Lima": [-12.0464, -77.0428],
+      "Cusco": [-13.5320, -71.9675],
+      "Arequipa": [-16.4090, -71.5375],
+      "Trujillo": [-8.1116, -79.0288],
+      "Piura": [-5.1945, -80.6328],
+      "Chiclayo": [-6.7714, -79.8409],
+      "Iquitos": [-3.7489, -73.2516],
+      "Huancayo": [-12.0651, -75.2049],
+      "Tacna": [-18.0146, -70.2536],
+      "Puno": [-15.8402, -70.0219],
+    };
+    const coords = regionCenters[regionName] || [-9.19, -75.0152];
+
+    setContextMenuNode({
+      id: `region-${regionName}`,
+      name: regionName,
+      type: "region",
+      latitude: coords[0],
+      longitude: coords[1],
+      region: regionName,
+    });
+    setContextMenuPosition({
+      x: event.originalEvent.clientX,
+      y: event.originalEvent.clientY
+    });
+  }, []);
+
+  // Context menu action handlers
+  const handleContextViewDetails = useCallback((node: ContextMenuNode) => {
+    if (node.type === "camera") {
+      const camera = cameras.find(c => c.id === node.id);
+      if (camera) {
+        setSelectedCamera(camera);
+        // Center map on the camera
+        setMapCenter([camera.latitude, camera.longitude]);
+        setMapZoom(14);
+      }
+    } else if (node.type === "region") {
+      // For regions, just zoom to that region
+      handleRegionChange(node.name);
+    }
+  }, [cameras]);
+
+  const handleContextCreateIncident = useCallback((node: ContextMenuNode) => {
+    const params = new URLSearchParams({
+      from: "map",
+      nodeId: node.id,
+      nodeType: node.type,
+      nodeName: node.name,
+      ...(node.region && { region: node.region }),
+      ...(node.latitude && node.longitude && { location: `${node.latitude},${node.longitude}` }),
+    });
+    setLocation(`/incidents?${params.toString()}`);
+    toast.success("Creating incident...", {
+      description: `Source: ${node.name} (${node.type})`,
+    });
+  }, [setLocation]);
+
+  const handleContextAddToPole = useCallback((node: ContextMenuNode) => {
+    const params = new URLSearchParams({
+      from: "map",
+      entityId: node.id,
+      entityType: "location",
+      entityName: node.name,
+      ...(node.latitude && node.longitude && { coords: `${node.latitude},${node.longitude}` }),
+    });
+    setLocation(`/pole?${params.toString()}`);
+    toast.success("Adding to POLE...", {
+      description: `Entity: ${node.name} as location`,
+    });
+  }, [setLocation]);
+
+  const handleContextViewEvents = useCallback((node: ContextMenuNode) => {
+    if (node.type === "camera") {
+      const camera = cameras.find(c => c.id === node.id);
+      if (camera) {
+        handleViewEvents(camera);
+      }
+    } else {
+      // For regions, go to webhooks filtered by region
+      setLocation(`/webhooks?region=${node.name}`);
+    }
+  }, [cameras, handleViewEvents, setLocation]);
+
+  const handleContextViewInTopology = useCallback((node: ContextMenuNode) => {
+    const params = new URLSearchParams({
+      highlight: node.id,
+    });
+    setLocation(`/topology?${params.toString()}`);
+    toast.info("Opening Topology Graph...");
+  }, [setLocation]);
+
+  const handleContextMarkHighRisk = useCallback((node: ContextMenuNode) => {
+    if (node.type === "camera") {
+      setHighRiskCameras(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(node.id)) {
+          newSet.delete(node.id);
+          toast.info(`Removed high-risk flag from ${node.name}`);
+        } else {
+          newSet.add(node.id);
+          toast.warning(`Marked ${node.name} as HIGH RISK`, {
+            description: "This camera is now flagged for priority attention.",
+          });
+        }
+        return newSet;
+      });
+    } else {
+      // For regions, mark all cameras in that region
+      const regionCameras = cameras.filter(c =>
+        c.address.region === node.name || c.address.city === node.name
+      );
+      if (regionCameras.length > 0) {
+        setHighRiskCameras(prev => {
+          const newSet = new Set(prev);
+          regionCameras.forEach(c => newSet.add(c.id));
+          return newSet;
+        });
+        toast.warning(`Marked ${regionCameras.length} cameras in ${node.name} as HIGH RISK`);
+      }
+    }
+  }, [cameras]);
+
+  // Create high-risk icon with pulsing animation
+  const createHighRiskIcon = useCallback(() => {
+    return L.divIcon({
+      className: "",
+      html: `
+        <div style="position: relative; width: 24px; height: 24px;">
+          <div style="
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            background: #EF4444;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.6);
+            animation: highRiskPulse 1s ease-in-out infinite;
+          "></div>
+          <style>
+            @keyframes highRiskPulse {
+              0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 2px 8px rgba(239, 68, 68, 0.6); }
+              50% { transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 4px 16px rgba(239, 68, 68, 0.9); }
+            }
+          </style>
+        </div>
+      `,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+    });
+  }, []);
+
+  const highRiskIcon = createHighRiskIcon();
 
   return (
     <div className="min-h-screen bg-background">
@@ -720,34 +913,55 @@ export default function GeographicMap() {
               showCoverageOnHover={false}
               disableClusteringAtZoom={12}
             >
-              {cameras.map((camera) => (
-                <Marker
-                  key={camera.id}
-                  position={[camera.latitude, camera.longitude]}
-                  icon={camera.status === "alert" ? alertIcon : camera.status === "active" ? activeIcon : inactiveIcon}
-                  eventHandlers={{
-                    click: () => setSelectedCamera(camera),
-                  }}
-                >
-                  <Popup>
-                    <div className="text-sm min-w-[150px]">
-                      <div className="font-semibold">{camera.name}</div>
-                      <div className="text-xs text-gray-600">{camera.address.region || camera.address.city}</div>
-                      <div className="text-xs mt-1">
-                        Status: <span className={
-                          camera.status === "active" ? "text-green-600" :
-                            camera.status === "alert" ? "text-red-600" : "text-gray-600"
-                        }>
-                          {camera.status}
-                        </span>
+              {cameras.map((camera) => {
+                // Determine icon based on status and high-risk flag
+                const getIcon = () => {
+                  if (highRiskCameras.has(camera.id)) return highRiskIcon;
+                  if (camera.status === "alert") return alertIcon;
+                  if (camera.status === "active") return activeIcon;
+                  return inactiveIcon;
+                };
+
+                return (
+                  <Marker
+                    key={camera.id}
+                    position={[camera.latitude, camera.longitude]}
+                    icon={getIcon()}
+                    eventHandlers={{
+                      click: () => setSelectedCamera(camera),
+                      contextmenu: (e) => handleCameraContextMenu(camera, e),
+                    }}
+                  >
+                    <Popup>
+                      <div className="text-sm min-w-[150px]">
+                        <div className="font-semibold">
+                          {highRiskCameras.has(camera.id) && (
+                            <span className="text-red-500 mr-1">⚠️</span>
+                          )}
+                          {camera.name}
+                        </div>
+                        <div className="text-xs text-gray-600">{camera.address.region || camera.address.city}</div>
+                        <div className="text-xs mt-1">
+                          Status: <span className={
+                            camera.status === "active" ? "text-green-600" :
+                              camera.status === "alert" ? "text-red-600" : "text-gray-600"
+                          }>
+                            {camera.status}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Events: {camera.eventCount}
+                        </div>
+                        {highRiskCameras.has(camera.id) && (
+                          <div className="text-xs text-red-500 font-semibold mt-1">
+                            🚨 HIGH RISK
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Events: {camera.eventCount}
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
+                    </Popup>
+                  </Marker>
+                );
+              })}
             </MarkerClusterGroup>
 
             {/* Region Boundaries Overlay */}
@@ -767,10 +981,27 @@ export default function GeographicMap() {
                     direction: "center",
                     className: "region-tooltip",
                   });
+                  // Add right-click handler for context menu
+                  layer.on('contextmenu', (e: L.LeafletMouseEvent) => {
+                    handleRegionContextMenu(feature.properties.NOMBDEP, e);
+                  });
                 }
               }}
             />
           </MapContainer>
+
+          {/* Context Menu */}
+          <NodeContextMenu
+            node={contextMenuNode}
+            position={contextMenuPosition}
+            onClose={handleCloseContextMenu}
+            onViewDetails={handleContextViewDetails}
+            onCreateIncident={handleContextCreateIncident}
+            onAddToPole={handleContextAddToPole}
+            onViewRelatedEvents={handleContextViewEvents}
+            onViewInTopology={handleContextViewInTopology}
+            onMarkAsHighRisk={handleContextMarkHighRisk}
+          />
         </div>
 
         {/* Event Panel Slide-out */}
