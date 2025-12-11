@@ -78,21 +78,25 @@ export default async function handler(
              pg_size_pretty(pg_database_size(current_database())) as size_pretty
     `;
 
-    // Get table statistics
+    // Get table statistics (exclude drizzle internal tables that may not exist)
     const tableStatsResult = await sql`
       SELECT 
         relname as name,
         n_live_tup as rows,
-        pg_total_relation_size(quote_ident(relname)) as size_bytes,
-        pg_size_pretty(pg_total_relation_size(quote_ident(relname))) as size_pretty
+        pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(relname)) as size_bytes,
+        pg_size_pretty(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(relname))) as size_pretty
       FROM pg_stat_user_tables
-      ORDER BY pg_total_relation_size(quote_ident(relname)) DESC
+      WHERE relname NOT LIKE '%drizzle%'
+        AND schemaname = 'public'
+      ORDER BY pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(relname)) DESC
     `;
 
-    // Get total row count
+    // Get total row count (exclude drizzle internal tables)
     const totalRowsResult = await sql`
       SELECT SUM(n_live_tup)::bigint as total_rows
       FROM pg_stat_user_tables
+      WHERE relname NOT LIKE '%drizzle%'
+        AND schemaname = 'public'
     `;
 
     // Get connection info
