@@ -152,11 +152,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from(incidents);
 
     // Get related events count (POLE-relevant topics)
-    const poleTopics = ['PlateMatched', 'FaceMatched', 'PersonDetected', 'VehicleDetected'];
     const [eventCountResult] = await db
       .select({ count: count() })
       .from(events)
-      .where(inArray(events.topic, poleTopics));
+      .where(sql`${events.topic} IN ('PlateMatched', 'FaceMatched', 'PersonDetected', 'VehicleDetected')`);
 
     return res.status(200).json({
       success: true,
