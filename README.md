@@ -31,11 +31,24 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
 
 1. **Executive Dashboard**
    - Real-time KPIs and metrics
-   - **Live event ticker** - Scrolling real-time events below header with pause-on-hover
+   - **Live event ticker** - Scrolling real-time events with clickable image preview
+     - Filters for events with Cloudinary images only
+     - Click to view event images in modal dialog
+     - Pause-on-hover functionality
+   - **Trends & Predictions Tab** *(New Dec 2025)*
+     - Grafana-style time series visualizations
+     - **KPI Projection Cards**: Predicted events, trend direction, peak activity, confidence level
+     - **Events Trend & Forecast Chart**: Historical data with predicted future values
+     - **Activity Heatmap**: GitHub-style hour/day activity patterns
+     - **Alert Distribution Chart**: Stacked bar by severity level
+     - **Regional Comparison Chart**: Multi-line comparison across regions
+     - **Hourly Distribution Chart**: Bar chart with peak hour highlighting
+     - **Anomaly Detection**: Identifies unusual patterns using z-score method
+     - Time range selector (24h, 7d, 30d, 90d)
+     - Auto-refresh toggle and CSV export
    - Interactive timeline with zoom functionality
    - Event distribution charts (Recharts)
    - Regional activity visualization
-   - Time-range selector (24h, 7d, 30d, 90d)
 
 2. **Geographic Map**
    - Leaflet integration with OpenStreetMap
@@ -504,6 +517,8 @@ These endpoints query real data from the PostgreSQL/TiDB database:
 | `/api/data/stats` | GET | Returns aggregated dashboard statistics | `events`, `channels` |
 | `/api/data/incidents` | GET | Returns incident management data | `incidents` |
 | `/api/data/pole-entities` | GET | Returns POLE entities with graph data | `pole_entities` |
+| `/api/analytics/time-series` | GET | Returns time-aggregated data for analytics visualizations | `events` |
+| `/api/analytics/predictions` | GET | Returns forecasts, anomaly detection, trend analysis | `events` |
 
 **Query Parameters:**
 - `limit` - Maximum number of records to return
@@ -750,6 +765,12 @@ Edit `client/src/index.css` to change colors:
 - [x] **POLE stale data bug fix** - Now fetches from database, shows empty state when purged (Dec 2024)
 - [x] **POLE entities API** - New `/api/data/pole-entities` endpoint (Dec 2024)
 - [x] **Framer Motion animations** - Smooth transitions on both pages (Dec 2024)
+- [x] **Trends & Predictions Tab** - Grafana-style analytics with forecasting (Dec 2024)
+- [x] **Analytics Time Series API** - `/api/analytics/time-series` with heatmaps, regional comparisons (Dec 2024)
+- [x] **Analytics Predictions API** - `/api/analytics/predictions` with linear regression, anomaly detection (Dec 2024)
+- [x] **Live Event Ticker with Images** - Click to view Cloudinary images in modal (Dec 2024)
+- [x] **Camera Marker Clustering** - Uses react-leaflet-cluster for grouped markers (Dec 2024)
+- [x] **Fullscreen Presentation Mode** - Toggle buttons on Map and Topology pages (Dec 2024)
 
 ### High Priority
 - [ ] Test webhook endpoint with real IREX surveillance data

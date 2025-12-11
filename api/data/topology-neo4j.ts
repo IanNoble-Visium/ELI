@@ -751,6 +751,190 @@ export async function searchImages(criteria: {
 }
 
 /**
+ * Search events by Gemini AI analysis criteria
+ */
+export async function searchEventsByGemini(criteria: {
+  hasWeapons?: boolean;
+  minPeopleCount?: number;
+  maxPeopleCount?: number;
+  licensePlate?: string;
+  vehicleType?: string;
+  clothingColor?: string;
+  textContains?: string;
+  minQualityScore?: number;
+  maxBlurScore?: number;
+  tag?: string;
+  limit?: number;
+}): Promise<Neo4jEvent[]> {
+  if (!isNeo4jConfigured()) return [];
+
+  const limit = criteria.limit || 50;
+  const conditions: string[] = ["e.geminiProcessedAt IS NOT NULL"];
+  const params: any = { limit };
+
+  if (criteria.hasWeapons === true) {
+    conditions.push("size(e.geminiWeapons) > 0");
+  }
+
+  if (criteria.minPeopleCount !== undefined) {
+    conditions.push("e.geminiPeopleCount >= $minPeopleCount");
+    params.minPeopleCount = criteria.minPeopleCount;
+  }
+
+  if (criteria.maxPeopleCount !== undefined) {
+    conditions.push("e.geminiPeopleCount <= $maxPeopleCount");
+    params.maxPeopleCount = criteria.maxPeopleCount;
+  }
+
+  if (criteria.licensePlate) {
+    conditions.push("any(plate IN e.geminiLicensePlates WHERE toUpper(plate) CONTAINS toUpper($licensePlate))");
+    params.licensePlate = criteria.licensePlate;
+  }
+
+  if (criteria.vehicleType) {
+    conditions.push("any(v IN e.geminiVehicles WHERE toLower(v) CONTAINS toLower($vehicleType))");
+    params.vehicleType = criteria.vehicleType;
+  }
+
+  if (criteria.clothingColor) {
+    conditions.push("any(c IN e.geminiClothingColors WHERE toLower(c) CONTAINS toLower($clothingColor))");
+    params.clothingColor = criteria.clothingColor;
+  }
+
+  if (criteria.textContains) {
+    conditions.push("any(t IN e.geminiTextExtracted WHERE toLower(t) CONTAINS toLower($textContains))");
+    params.textContains = criteria.textContains;
+  }
+
+  if (criteria.minQualityScore !== undefined) {
+    conditions.push("e.geminiQualityScore >= $minQualityScore");
+    params.minQualityScore = criteria.minQualityScore;
+  }
+
+  if (criteria.maxBlurScore !== undefined) {
+    conditions.push("e.geminiBlurScore <= $maxBlurScore");
+    params.maxBlurScore = criteria.maxBlurScore;
+  }
+
+  if (criteria.tag) {
+    conditions.push("any(tag IN e.geminiTags WHERE toLower(tag) CONTAINS toLower($tag))");
+    params.tag = criteria.tag;
+  }
+
+  try {
+    const result = await runQuery<any>(
+      `
+      MATCH (e:Event)
+      WHERE ${conditions.join(" AND ")}
+      RETURN e
+      ORDER BY e.timestamp DESC
+      LIMIT $limit
+      `,
+      params
+    );
+
+    return result.map((record) => nodeToObject<Neo4jEvent>(record.e));
+  } catch (error) {
+    console.error("[Neo4j Gemini Search] Error:", error);
+    return [];
+  }
+}
+
+/**
+ * Get Gemini analysis statistics
+ */
+export async function getGeminiAnalysisStats(): Promise<{
+  totalProcessed: number;
+  withWeapons: number;
+  withLicensePlates: number;
+  withMultiplePeople: number;
+  avgQualityScore: number;
+  topVehicleTypes: Array<{ type: string; count: number }>;
+  topClothingColors: Array<{ color: string; count: number }>;
+} | null> {
+  if (!isNeo4jConfigured()) return null;
+
+  try {
+    return await readTransaction(async (tx) => {
+      // Total processed
+      const totalResult = await tx.run(`
+        MATCH (e:Event) WHERE e.geminiProcessedAt IS NOT NULL
+        RETURN count(e) as total
+      `);
+      const totalProcessed = toNumber(totalResult.records[0]?.get("total") || 0);
+
+      // With weapons
+      const weaponsResult = await tx.run(`
+        MATCH (e:Event) WHERE e.geminiProcessedAt IS NOT NULL AND size(e.geminiWeapons) > 0
+        RETURN count(e) as count
+      `);
+      const withWeapons = toNumber(weaponsResult.records[0]?.get("count") || 0);
+
+      // With license plates
+      const platesResult = await tx.run(`
+        MATCH (e:Event) WHERE e.geminiProcessedAt IS NOT NULL AND size(e.geminiLicensePlates) > 0
+        RETURN count(e) as count
+      `);
+      const withLicensePlates = toNumber(platesResult.records[0]?.get("count") || 0);
+
+      // With multiple people
+      const peopleResult = await tx.run(`
+        MATCH (e:Event) WHERE e.geminiProcessedAt IS NOT NULL AND e.geminiPeopleCount > 1
+        RETURN count(e) as count
+      `);
+      const withMultiplePeople = toNumber(peopleResult.records[0]?.get("count") || 0);
+
+      // Average quality score
+      const qualityResult = await tx.run(`
+        MATCH (e:Event) WHERE e.geminiProcessedAt IS NOT NULL AND e.geminiQualityScore IS NOT NULL
+        RETURN avg(e.geminiQualityScore) as avgQuality
+      `);
+      const avgQualityScore = qualityResult.records[0]?.get("avgQuality") || 0;
+
+      // Top vehicle types
+      const vehiclesResult = await tx.run(`
+        MATCH (e:Event) WHERE e.geminiProcessedAt IS NOT NULL
+        UNWIND e.geminiVehicles as vehicle
+        WITH split(vehicle, ' - ')[0] as vehicleType
+        RETURN vehicleType as type, count(*) as count
+        ORDER BY count DESC
+        LIMIT 10
+      `);
+      const topVehicleTypes = vehiclesResult.records.map((r: any) => ({
+        type: r.get("type"),
+        count: toNumber(r.get("count")),
+      }));
+
+      // Top clothing colors
+      const colorsResult = await tx.run(`
+        MATCH (e:Event) WHERE e.geminiProcessedAt IS NOT NULL
+        UNWIND e.geminiClothingColors as color
+        RETURN toLower(color) as color, count(*) as count
+        ORDER BY count DESC
+        LIMIT 10
+      `);
+      const topClothingColors = colorsResult.records.map((r: any) => ({
+        color: r.get("color"),
+        count: toNumber(r.get("count")),
+      }));
+
+      return {
+        totalProcessed,
+        withWeapons,
+        withLicensePlates,
+        withMultiplePeople,
+        avgQualityScore: typeof avgQualityScore === 'number' ? avgQualityScore : 0,
+        topVehicleTypes,
+        topClothingColors,
+      };
+    });
+  } catch (error) {
+    console.error("[Neo4j Gemini Stats] Error:", error);
+    return null;
+  }
+}
+
+/**
  * Get statistics for image analysis dashboard
  */
 export async function getImageAnalysisStats(): Promise<{

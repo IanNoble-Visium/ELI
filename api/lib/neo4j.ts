@@ -186,6 +186,10 @@ export async function initializeSchema(): Promise<void> {
       "CREATE INDEX event_timestamp IF NOT EXISTS FOR (e:Event) ON (e.timestamp)",
       "CREATE INDEX event_type IF NOT EXISTS FOR (e:Event) ON (e.type)",
       "CREATE INDEX vehicle_plate IF NOT EXISTS FOR (v:Vehicle) ON (v.plate)",
+      // Gemini AI analysis indexes for efficient querying
+      "CREATE INDEX event_gemini_people IF NOT EXISTS FOR (e:Event) ON (e.geminiPeopleCount)",
+      "CREATE INDEX event_gemini_quality IF NOT EXISTS FOR (e:Event) ON (e.geminiQualityScore)",
+      "CREATE INDEX event_gemini_processed IF NOT EXISTS FOR (e:Event) ON (e.geminiProcessedAt)",
     ];
 
     for (const constraint of constraints) {
@@ -253,7 +257,7 @@ export interface Neo4jEvent {
   timestamp: number;
   imageUrl?: string;
   channelId?: string;
-  // Analysis Data
+  // Cloudinary Analysis Data
   tags?: string[];
   objects?: string[];
   dominantColors?: string[];
@@ -261,6 +265,20 @@ export interface Neo4jEvent {
   caption?: string;
   moderationStatus?: string;
   phash?: string;
+  // Gemini AI Analysis Data
+  geminiCaption?: string;
+  geminiTags?: string[];
+  geminiObjects?: string[];
+  geminiPeopleCount?: number;
+  geminiVehicles?: string[];
+  geminiWeapons?: string[];
+  geminiClothingColors?: string[];
+  geminiDominantColors?: string[];
+  geminiLicensePlates?: string[];
+  geminiTextExtracted?: string[];
+  geminiQualityScore?: number;
+  geminiBlurScore?: number;
+  geminiProcessedAt?: number;
 }
 
 // ========== Relationship Types ==========

@@ -1,6 +1,6 @@
 # ELI Dashboard - Pending Tasks
 
-> **Last Updated:** December 10, 2024 (Late Night Session - Analytics Tab)
+> **Last Updated:** December 10, 2025 (Late Night Session - Analytics Tab)
 
 ---
 
@@ -47,10 +47,13 @@
   - Clusters disable at zoom level 12+ for individual marker visibility
   - Peru-themed red cluster markers with count badges
 - [x] **Real-time event ticker** - Scrolling ticker on Executive Dashboard ✅ (Completed Dec 10)
-  - New `EventTicker.tsx` component with auto-refresh every 10 seconds
+  - `EventTicker.tsx` component with auto-refresh every 10 seconds
   - Pause-on-hover functionality
   - Color-coded severity badges (CRITICAL, HIGH, MEDIUM, LOW)
-  - Shows "Waiting for events..." placeholder when database is empty
+  - Shows "Waiting for events with images..." placeholder when no images available
+  - **Click-to-view images** - Opens modal dialog with event images ✅ (Dec 10 Late Night)
+  - **Filters for Cloudinary images only** - Only displays events with valid `cloudinary.com` URLs
+  - **Image count badge** - Shows number of available images per event
 - [x] **Full-screen mode** - Toggle for presentations ✅ (Completed Dec 10)
   - Added fullscreen button (Maximize2/Minimize2 icons) to Geographic Map header
   - Added fullscreen button to Topology Graph header
@@ -58,6 +61,17 @@
 - [x] **Cloudinary image filtering** - Filter events by valid images ✅ (Completed Dec 10)
   - Updated `hasValidImages()` to require actual Cloudinary URLs
   - Events without `cloudinary.com` in imageUrl are filtered out
+- [x] **Trends & Predictions Tab** - Analytics dashboard ✅ (Completed Dec 10 Late Night)
+  - New tabbed interface on Executive Dashboard
+  - Grafana-style time series visualizations
+  - KPI projection cards (predicted events, trend, peak activity, confidence)
+  - Events Trend & Forecast chart with historical + predicted data
+  - Activity Heatmap (hour × day of week)
+  - Alert Distribution by severity
+  - Regional Comparison multi-line chart
+  - Hourly Distribution with peak highlighting
+  - Anomaly detection using z-score method
+  - Auto-refresh toggle and CSV export
 
 ### Map Improvements
 - [ ] Region boundary overlays - Show Peru region outlines
@@ -228,6 +242,9 @@
 | **RegionalComparisonChart** | `client/src/components/analytics/RegionalComparisonChart.tsx` (new) | Multi-line regional comparison |
 | **HourlyActivityChart** | `client/src/components/analytics/HourlyActivityChart.tsx` (new) | Bar chart with peak hour highlighting |
 | **EventTicker Improvements** | `EventTicker.tsx` | Improved readability with larger badges, better spacing |
+| **Click-to-View Images** | `EventTicker.tsx` | Modal dialog preview of event Cloudinary images |
+| **Image Count Badge** | `EventTicker.tsx` | Shows number of images available per event |
+| **Cloudinary-Only Filter** | `EventTicker.tsx` | Ticker only shows events with valid Cloudinary URLs |
 
 ---
 
@@ -273,6 +290,14 @@ These items from the Gemini AI suggestions were **not implemented** in this sess
 12. **Hotspot detection** - Identify locations with high incident density
 13. **Network analysis** - Find central figures in criminal networks
 
+### Trends & Predictions Enhancements
+14. **Seasonal pattern detection** - Identify weekly/monthly recurring patterns
+15. **Multiple forecasting algorithms** - Add ARIMA, Prophet options
+16. **Custom alert thresholds** - Trigger notifications when predictions exceed limits
+17. **Comparative analytics** - Compare current period vs same period last year/month
+18. **Drill-down capabilities** - Click on chart data points to see underlying events
+19. **Export charts as images** - PNG/SVG export for reports
+
 ---
 
 ## Documentation Tasks
@@ -281,4 +306,5 @@ These items from the Gemini AI suggestions were **not implemented** in this sess
 - [ ] Deployment instructions
 - [ ] Add changelog for version tracking
 - [x] Update README.md with redesign details ✅ (Dec 10)
-
+- [x] Update README.md with Analytics Tab features ✅ (Dec 10 Late Night)
+- [x] Update todo.md with Analytics Tab completions ✅ (Dec 10 Late Night)

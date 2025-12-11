@@ -127,7 +127,7 @@ type LayoutType = "force" | "hierarchical" | "radial";
 export default function POLEAnalytics() {
   const [, setLocation] = useLocation();
   const searchString = useSearch();
-  
+
   // State
   const [selectedNode, setSelectedNode] = useState<POLEGraphNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<POLEGraphNode | null>(null);
@@ -139,7 +139,7 @@ export default function POLEAnalytics() {
   const [language, setLanguage] = useState<Language>("en");
   const [dbConnected, setDbConnected] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Data state - starts empty, populated from API
   const [graphData, setGraphData] = useState<{ nodes: POLEGraphNode[]; links: POLEGraphLink[] }>({
     nodes: [],
@@ -501,6 +501,33 @@ export default function POLEAnalytics() {
     return "#4B556320";
   }, [hoveredNode]);
 
+  // Memoized link width callback
+  const linkWidthCallback = useCallback((link: any) => {
+    if (!hoveredNode) return 1;
+    const sourceId = typeof link.source === "string" ? link.source : link.source?.id;
+    const targetId = typeof link.target === "string" ? link.target : link.target?.id;
+    if (sourceId === hoveredNode.id || targetId === hoveredNode.id) return 3;
+    return 0.5;
+  }, [hoveredNode]);
+
+  // Memoized onEngineStop callback
+  const onEngineStopCallback = useCallback(() => {
+    if (layout === "force") {
+      graphRef.current?.zoomToFit(400, 50);
+    }
+  }, [layout]);
+
+  // Memoized nodePointerAreaPaint callback
+  const nodePointerAreaPaint = useCallback((node: any, color: string, ctx: CanvasRenderingContext2D) => {
+    const x = node.x;
+    const y = node.y;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, node.val || 8, 0, 2 * Math.PI, false);
+    ctx.fill();
+  }, []);
+
   // =============================================================================
   // HELPER FUNCTIONS
   // =============================================================================
@@ -705,8 +732,8 @@ export default function POLEAnalytics() {
               {isLoading ? (
                 <LoadingState language={language} />
               ) : !hasData ? (
-                <EmptyState 
-                  language={language} 
+                <EmptyState
+                  language={language}
                   dbConnected={dbConnected}
                   error={error}
                   onRefresh={() => fetchPOLEData(true)}
@@ -719,7 +746,7 @@ export default function POLEAnalytics() {
                                       linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
                     backgroundSize: '50px 50px'
                   }} />
-                  
+
                   <ForceGraph2D
                     ref={graphRef}
                     graphData={graphData}
@@ -732,33 +759,15 @@ export default function POLEAnalytics() {
                     linkDirectionalParticleSpeed={0.003}
                     linkDirectionalParticleWidth={2}
                     linkColor={linkColor}
-                    linkWidth={(link: any) => {
-                      if (!hoveredNode) return 1;
-                      const sourceId = typeof link.source === "string" ? link.source : link.source?.id;
-                      const targetId = typeof link.target === "string" ? link.target : link.target?.id;
-                      if (sourceId === hoveredNode.id || targetId === hoveredNode.id) return 3;
-                      return 0.5;
-                    }}
+                    linkWidth={linkWidthCallback}
                     onNodeClick={handleNodeClick}
                     onNodeHover={handleNodeHover}
                     backgroundColor="transparent"
                     cooldownTicks={layout === "force" ? 100 : 0}
                     warmupTicks={layout === "force" ? 100 : 0}
-                    onEngineStop={() => {
-                      if (layout === "force") {
-                        graphRef.current?.zoomToFit(400, 50);
-                      }
-                    }}
+                    onEngineStop={onEngineStopCallback}
                     nodeCanvasObject={nodeCanvasObject}
-                    nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-                      const x = node.x;
-                      const y = node.y;
-                      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-                      ctx.fillStyle = color;
-                      ctx.beginPath();
-                      ctx.arc(x, y, node.val || 8, 0, 2 * Math.PI, false);
-                      ctx.fill();
-                    }}
+                    nodePointerAreaPaint={nodePointerAreaPaint}
                   />
 
                   {/* Zoom Controls */}
@@ -806,8 +815,8 @@ export default function POLEAnalytics() {
             {/* Timeline Tab */}
             <TabsContent value="timeline" className="flex-1 m-0 p-6 overflow-auto">
               {!hasData ? (
-                <EmptyState 
-                  language={language} 
+                <EmptyState
+                  language={language}
                   dbConnected={dbConnected}
                   error={error}
                   onRefresh={() => fetchPOLEData(true)}
@@ -839,8 +848,8 @@ export default function POLEAnalytics() {
             {/* Entity List Tab */}
             <TabsContent value="list" className="flex-1 m-0 p-6 overflow-auto">
               {!hasData ? (
-                <EmptyState 
-                  language={language} 
+                <EmptyState
+                  language={language}
                   dbConnected={dbConnected}
                   error={error}
                   onRefresh={() => fetchPOLEData(true)}
@@ -873,9 +882,8 @@ export default function POLEAnalytics() {
                         transition={{ delay: index * 0.02 }}
                       >
                         <Card
-                          className={`cursor-pointer hover:border-primary/50 transition-all bg-card/50 backdrop-blur border-white/10 ${
-                            selectedNode?.id === node.id ? "border-primary ring-1 ring-primary/50" : ""
-                          }`}
+                          className={`cursor-pointer hover:border-primary/50 transition-all bg-card/50 backdrop-blur border-white/10 ${selectedNode?.id === node.id ? "border-primary ring-1 ring-primary/50" : ""
+                            }`}
                           onClick={() => {
                             setSelectedNode(node);
                             setActiveTab("graph");
@@ -988,13 +996,13 @@ function LoadingState({ language }: { language: Language }) {
   );
 }
 
-function EmptyState({ 
-  language, 
-  dbConnected, 
+function EmptyState({
+  language,
+  dbConnected,
   error,
-  onRefresh 
-}: { 
-  language: Language; 
+  onRefresh
+}: {
+  language: Language;
   dbConnected: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -1013,18 +1021,18 @@ function EmptyState({
             <Fingerprint className="w-12 h-12 text-blue-400 opacity-50" />
           )}
         </div>
-        
+
         <h3 className="text-xl font-semibold mb-2 text-white">
-          {!dbConnected 
-            ? "Database Not Connected" 
+          {!dbConnected
+            ? "Database Not Connected"
             : "No Intelligence Data"
           }
         </h3>
-        
+
         <p className="text-muted-foreground mb-6">
-          {!dbConnected 
+          {!dbConnected
             ? "Unable to connect to the database. Please check your configuration."
-            : error 
+            : error
               ? error
               : "The POLE intelligence database is empty. Data will appear automatically when camera events detect persons, vehicles, or other entities of interest."
           }
@@ -1035,7 +1043,7 @@ function EmptyState({
             <RefreshCw className="w-4 h-4" />
             Refresh Data
           </Button>
-          
+
           {dbConnected && (
             <p className="text-xs text-muted-foreground">
               POLE entities are created from PlateMatched, FaceMatched, and other detection events.
@@ -1080,10 +1088,10 @@ function DossierPanel({
                             linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
           backgroundSize: '20px 20px'
         }} />
-        
+
         {/* Entity icon */}
         <div className="absolute -bottom-8 left-6">
-          <div 
+          <div
             className="w-20 h-20 rounded-xl border-4 border-slate-900 overflow-hidden shadow-lg flex items-center justify-center"
             style={{ backgroundColor: `${NODE_COLORS[node.type]}30` }}
           >
@@ -1096,8 +1104,8 @@ function DossierPanel({
 
         {/* Risk badge */}
         <div className="absolute top-4 right-4">
-          <Badge 
-            variant={isHighRisk ? "destructive" : "outline"} 
+          <Badge
+            variant={isHighRisk ? "destructive" : "outline"}
             className={`text-xs uppercase tracking-widest ${isHighRisk ? "animate-pulse" : ""}`}
           >
             {node.riskLevel || "UNKNOWN"} RISK
@@ -1105,9 +1113,9 @@ function DossierPanel({
         </div>
 
         {/* Close button */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onClose}
           className="absolute top-4 left-4 hover:bg-white/10"
         >
@@ -1187,7 +1195,7 @@ function DossierPanel({
                       className="flex items-center gap-3 p-3 rounded hover:bg-white/5 cursor-pointer transition-colors border border-transparent hover:border-white/10"
                       onClick={() => connectedNode && onNodeSelect(connectedNode)}
                     >
-                      <div 
+                      <div
                         className="w-2 h-10 rounded-sm"
                         style={{ backgroundColor: connectedNode ? NODE_COLORS[connectedNode.type] : "#6B7280" }}
                       />
@@ -1196,7 +1204,7 @@ function DossierPanel({
                           {connectedNode?.name || connectedId}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {language === "en" 
+                          {language === "en"
                             ? RELATIONSHIP_TYPES[relType]?.en || link.label
                             : RELATIONSHIP_TYPES[relType]?.label || link.label
                           }
@@ -1210,18 +1218,18 @@ function DossierPanel({
                 const targetId = typeof link.target === "string" ? link.target : (link.target as any).id;
                 return sourceId === node.id || targetId === node.id;
               }).length === 0 && (
-                <p className="text-sm text-slate-500 text-center py-4">
-                  {language === "en" ? "No connections found" : "Sin conexiones"}
-                </p>
-              )}
+                  <p className="text-sm text-slate-500 text-center py-4">
+                    {language === "en" ? "No connections found" : "Sin conexiones"}
+                  </p>
+                )}
             </div>
           </div>
 
           {/* Actions */}
           <div className="pt-4 space-y-2">
             {node.type === "location" && node.coordinates && (
-              <Button 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white" 
+              <Button
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => setLocation(`/dashboard/map?lat=${node.coordinates?.lat}&lng=${node.coordinates?.lng}`)}
               >
                 <Map className="w-4 h-4 mr-2" />
@@ -1229,17 +1237,17 @@ function DossierPanel({
               </Button>
             )}
             {node.type === "event" && (
-              <Button 
-                className="w-full bg-red-600 hover:bg-red-700 text-white" 
+              <Button
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
                 onClick={() => setLocation(`/dashboard/incidents?id=${encodeURIComponent(node.id)}`)}
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 {t("viewIncident", language)}
               </Button>
             )}
-            <Button 
+            <Button
               variant="outline"
-              className="w-full border-white/20 hover:bg-white/10" 
+              className="w-full border-white/20 hover:bg-white/10"
               onClick={() => setLocation(`/dashboard/topology?entity=${encodeURIComponent(node.id)}`)}
             >
               <Network className="w-4 h-4 mr-2" />

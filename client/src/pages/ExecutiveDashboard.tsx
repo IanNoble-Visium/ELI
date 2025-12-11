@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,10 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { motion } from "framer-motion";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import EventTicker from "@/components/EventTicker";
+import LiveIndicator from "@/components/LiveIndicator";
+import Sparkline from "@/components/Sparkline";
 
 // Staggered animation variants for container and children
 const containerVariants = {
@@ -193,6 +195,17 @@ export default function ExecutiveDashboard() {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
+  // Relative time display state
+  const [relativeTime, setRelativeTime] = useState("");
+  useEffect(() => {
+    const updateRelativeTime = () => {
+      setRelativeTime(formatDistanceToNow(lastRefresh, { addSuffix: true }));
+    };
+    updateRelativeTime();
+    const interval = setInterval(updateRelativeTime, 10000); // Update every 10 seconds
+    return () => clearInterval(interval);
+  }, [lastRefresh]);
+
   // Prepare chart data
   const eventsByType = stats ? Object.entries(stats.eventsByType).map(([name, value], i) => ({
     name,
@@ -254,9 +267,12 @@ export default function ExecutiveDashboard() {
               Back
             </Button>
             <div>
-              <h1 className="text-xl font-bold">Executive Dashboard</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold">Executive Dashboard</h1>
+                <LiveIndicator />
+              </div>
               <p className="text-xs text-muted-foreground">
-                Real-time analytics • Last updated: {format(lastRefresh, "HH:mm:ss")}
+                Updated {relativeTime} • {format(lastRefresh, "HH:mm:ss")}
               </p>
             </div>
           </div>

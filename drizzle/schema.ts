@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, index, varchar, doublePrecision, jsonb, text, timestamp, integer, bigint, primaryKey } from "drizzle-orm/pg-core"
+import { pgTable, pgEnum, index, varchar, doublePrecision, jsonb, text, timestamp, integer, bigint, primaryKey, boolean } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 // PostgreSQL enums
@@ -194,11 +194,20 @@ export const snapshots = pgTable("snapshots", {
 	imageUrl: varchar({ length: 1000 }),
 	cloudinaryPublicId: varchar({ length: 500 }),
 	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	// Gemini AI processing fields
+	geminiProcessed: boolean("gemini_processed").default(false).notNull(),
+	geminiProcessedAt: timestamp("gemini_processed_at", { mode: 'string' }),
+	geminiModelUsed: varchar("gemini_model_used", { length: 100 }),
+	geminiError: text("gemini_error"),
 },
 (table) => [
 	index("idx_snapshots_event_id").on(table.eventId),
 	index("idx_snapshots_type").on(table.type),
+	index("idx_snapshots_gemini_processed").on(table.geminiProcessed),
 ]);
+
+export type Snapshot = typeof snapshots.$inferSelect;
+export type InsertSnapshot = typeof snapshots.$inferInsert;
 
 export const systemConfig = pgTable("system_config", {
 	id: integer().notNull().generatedAlwaysAsIdentity(),

@@ -13,6 +13,8 @@ import {
   snapshots,
   incidents,
   systemConfig,
+  type Snapshot,
+  type InsertSnapshot,
 } from "../../drizzle/schema.js";
 
 // Cache the drizzle instance to reuse across requests
@@ -47,6 +49,9 @@ export { and, desc, eq, gte, lte, sql, count };
 
 // Re-export schema tables
 export { events, channels, webhookRequests, snapshots, incidents, systemConfig };
+
+// Re-export types
+export type { Snapshot, InsertSnapshot };
 
 // ========== Snapshots ==========
 

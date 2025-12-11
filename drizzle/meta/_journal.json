@@ -1,6 +1,6 @@
 {
   "version": "7",
-  "dialect": "mysql",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
@@ -14,6 +14,13 @@
       "version": "5",
       "when": 1764666995048,
       "tag": "0001_sturdy_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765428249823,
+      "tag": "0002_good_hellfire_club",
       "breakpoints": true
     }
   ]

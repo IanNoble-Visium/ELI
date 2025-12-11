@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/record-throttle-metrics",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/process-gemini-images",
+      "schedule": "0 * * * *"
     }
   ],
   "rewrites": [
@@ -49,6 +53,14 @@
     {
       "source": "/api/cron/:path*",
       "destination": "/api/cron/:path*"
+    },
+    {
+      "source": "/api/data/gemini-config",
+      "destination": "/api/data/gemini-config"
+    },
+    {
+      "source": "/api/data/gemini-search",
+      "destination": "/api/data/gemini-search"
     },
     {
       "source": "/((?!api/|webhook/|ingest/).*)",

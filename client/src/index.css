@@ -44,8 +44,10 @@
 
 :root {
   /* Peru National Colors Theme - Red, White, Dark Gray */
-  --primary: oklch(0.55 0.22 25); /* Peru Red #D91023 */
-  --primary-foreground: oklch(1 0 0); /* White */
+  --primary: oklch(0.55 0.22 25);
+  /* Peru Red #D91023 */
+  --primary-foreground: oklch(1 0 0);
+  /* White */
   --sidebar-primary: oklch(0.55 0.22 25);
   --sidebar-primary-foreground: oklch(1 0 0);
   --chart-1: oklch(0.55 0.22 25);
@@ -54,23 +56,29 @@
   --chart-4: oklch(0.35 0.20 25);
   --chart-5: oklch(0.75 0.15 25);
   --radius: 0.65rem;
-  --background: oklch(0.15 0.01 256); /* Dark Gray #1F2937 */
-  --foreground: oklch(0.98 0.01 106); /* Near White */
-  --card: oklch(0.22 0.01 256); /* Card Background #374151 */
+  --background: oklch(0.15 0.01 256);
+  /* Dark Gray #1F2937 */
+  --foreground: oklch(0.98 0.01 106);
+  /* Near White */
+  --card: oklch(0.22 0.01 256);
+  /* Card Background #374151 */
   --card-foreground: oklch(0.98 0.01 106);
   --popover: oklch(0.22 0.01 256);
   --popover-foreground: oklch(0.98 0.01 106);
-  --secondary: oklch(0.96 0.01 106); /* Light Gray */
+  --secondary: oklch(0.96 0.01 106);
+  /* Light Gray */
   --secondary-foreground: oklch(0.2 0.02 256);
   --muted: oklch(0.3 0.01 256);
   --muted-foreground: oklch(0.7 0.01 106);
-  --accent: oklch(0.55 0.22 25); /* Peru Red for accents */
+  --accent: oklch(0.55 0.22 25);
+  /* Peru Red for accents */
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.55 0.25 27);
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.3 0.01 256);
   --input: oklch(0.3 0.01 256);
-  --ring: oklch(0.55 0.22 25); /* Peru Red for focus rings */
+  --ring: oklch(0.55 0.22 25);
+  /* Peru Red for focus rings */
   --sidebar: oklch(0.22 0.01 256);
   --sidebar-foreground: oklch(0.98 0.01 106);
   --sidebar-accent: oklch(0.3 0.01 256);
@@ -119,9 +127,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   [type="button"]:not(:disabled),
@@ -136,6 +146,7 @@
 }
 
 @layer components {
+
   /**
    * Custom container utility that centers content and adds responsive padding.
    *
@@ -153,7 +164,8 @@
     width: 100%;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
+    padding-left: 1rem;
+    /* 16px - mobile padding */
     padding-right: 1rem;
   }
 
@@ -164,33 +176,42 @@
 
   @media (min-width: 640px) {
     .container {
-      padding-left: 1.5rem; /* 24px - tablet padding */
+      padding-left: 1.5rem;
+      /* 24px - tablet padding */
       padding-right: 1.5rem;
     }
   }
 
   @media (min-width: 1024px) {
     .container {
-      padding-left: 2rem; /* 32px - desktop padding */
+      padding-left: 2rem;
+      /* 32px - desktop padding */
       padding-right: 2rem;
-      max-width: 1280px; /* Standard content width */
+      max-width: 1280px;
+      /* Standard content width */
     }
   }
 
   /* Custom animations for micro-interactions */
   @keyframes pulse-glow {
-    0%, 100% {
+
+    0%,
+    100% {
       box-shadow: 0 0 0 0 rgba(217, 16, 35, 0.4);
     }
+
     50% {
       box-shadow: 0 0 0 8px rgba(217, 16, 35, 0);
     }
   }
 
   @keyframes float {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: translateY(0);
     }
+
     50% {
       transform: translateY(-4px);
     }
@@ -200,6 +221,7 @@
     0% {
       background-position: -200% 0;
     }
+
     100% {
       background-position: 200% 0;
     }
@@ -214,12 +236,10 @@
   }
 
   .animate-shimmer {
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(217, 16, 35, 0.1) 50%,
-      transparent 100%
-    );
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(217, 16, 35, 0.1) 50%,
+        transparent 100%);
     background-size: 200% 100%;
     animation: shimmer 2s ease-in-out infinite;
   }
@@ -250,6 +270,7 @@
     0% {
       transform: translateX(0);
     }
+
     100% {
       transform: translateX(-50%);
     }
@@ -257,6 +278,40 @@
 
   .animate-scroll {
     animation: scroll 30s linear infinite;
+  }
+
+  /* Flash highlight animation for new data */
+  @keyframes flash-highlight {
+    0% {
+      background-color: rgba(217, 16, 35, 0.15);
+      box-shadow: 0 0 0 2px rgba(217, 16, 35, 0.3);
+    }
+
+    100% {
+      background-color: transparent;
+      box-shadow: none;
+    }
+  }
+
+  .flash-highlight {
+    animation: flash-highlight 1s ease-out;
+  }
+
+  /* Data update pulse animation */
+  @keyframes data-pulse {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  .animate-data-pulse {
+    animation: data-pulse 0.5s ease-in-out;
   }
 
   /* Marker Cluster Styles */
@@ -317,5 +372,21 @@
     width: 42px;
     height: 42px;
     font-size: 14px;
+  }
+
+  /* Region boundary tooltip styling */
+  .region-tooltip {
+    background: rgba(31, 41, 55, 0.95) !important;
+    border: 1px solid rgba(217, 16, 35, 0.5) !important;
+    border-radius: 6px !important;
+    color: #F9FAFB !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .region-tooltip::before {
+    border-top-color: rgba(217, 16, 35, 0.5) !important;
   }
 }

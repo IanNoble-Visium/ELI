@@ -8,10 +8,7 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
-import GeographicMap from "./pages/GeographicMap";
-import TopologyGraph from "./pages/TopologyGraph";
 import IncidentManagement from "./pages/IncidentManagement";
-import POLEAnalytics from "./pages/POLEAnalytics";
 import RealtimeWebhooks from "./pages/RealtimeWebhooks";
 import Settings from "./pages/Settings";
 import CloudinaryMonitoring from "./pages/CloudinaryMonitoring";
@@ -19,7 +16,24 @@ import PostgreSQLMonitoring from "./pages/PostgreSQLMonitoring";
 import ImageAnalysisDashboard from "./pages/ImageAnalysisDashboard";
 import { useAuth } from "./_core/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
+
+// Lazy load heavy pages for better performance
+const GeographicMap = lazy(() => import("./pages/GeographicMap"));
+const TopologyGraph = lazy(() => import("./pages/TopologyGraph"));
+const POLEAnalytics = lazy(() => import("./pages/POLEAnalytics"));
+
+// Loading fallback component for lazy-loaded pages
+function PageLoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center space-y-4">
+        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-muted-foreground">Loading page...</p>
+      </div>
+    </div>
+  );
+}
 
 // Page transition variants for smooth navigation
 const pageVariants = {
@@ -103,16 +117,28 @@ function Router() {
           {() => <AnimatedPage><ProtectedRoute component={ExecutiveDashboard} /></AnimatedPage>}
         </Route>
         <Route path="/dashboard/map">
-          {() => <AnimatedPage><ProtectedRoute component={GeographicMap} /></AnimatedPage>}
+          {() => (
+            <Suspense fallback={<PageLoadingFallback />}>
+              <AnimatedPage><ProtectedRoute component={GeographicMap} /></AnimatedPage>
+            </Suspense>
+          )}
         </Route>
         <Route path="/dashboard/topology">
-          {() => <AnimatedPage><ProtectedRoute component={TopologyGraph} /></AnimatedPage>}
+          {() => (
+            <Suspense fallback={<PageLoadingFallback />}>
+              <AnimatedPage><ProtectedRoute component={TopologyGraph} /></AnimatedPage>
+            </Suspense>
+          )}
         </Route>
         <Route path="/dashboard/incidents">
           {() => <AnimatedPage><ProtectedRoute component={IncidentManagement} /></AnimatedPage>}
         </Route>
         <Route path="/dashboard/pole">
-          {() => <AnimatedPage><ProtectedRoute component={POLEAnalytics} /></AnimatedPage>}
+          {() => (
+            <Suspense fallback={<PageLoadingFallback />}>
+              <AnimatedPage><ProtectedRoute component={POLEAnalytics} /></AnimatedPage>
+            </Suspense>
+          )}
         </Route>
         <Route path="/dashboard/realtime">
           {() => <AnimatedPage><ProtectedRoute component={RealtimeWebhooks} /></AnimatedPage>}

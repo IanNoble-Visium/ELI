@@ -382,6 +382,29 @@ export default function TopologyGraph() {
     return null;
   }, [layout]);
 
+  // Memoized callbacks for ForceGraph2D to prevent unnecessary re-renders
+  const linkColor = useCallback(() => "#4B556380", []);
+
+  const linkDirectionalParticleColor = useCallback(() => {
+    const colors = ["#D91023", "#10B981", "#3B82F6", "#F59E0B"];
+    return colors[Math.floor(Math.random() * colors.length)];
+  }, []);
+
+  const onEngineStop = useCallback(() => {
+    if (layout === "force") {
+      graphRef.current?.zoomToFit(400, 50);
+    }
+  }, [layout]);
+
+  const nodePointerAreaPaint = useCallback((node: any, color: string, ctx: CanvasRenderingContext2D) => {
+    const x = Number.isFinite(node.x) ? node.x : 0;
+    const y = Number.isFinite(node.y) ? node.y : 0;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, node.val || 5, 0, 2 * Math.PI, false);
+    ctx.fill();
+  }, []);
+
   // Computed stats from real data
   const displayStats = {
     nodes: graphData.nodes.length,
@@ -973,33 +996,16 @@ export default function TopologyGraph() {
             linkDirectionalParticles={3}
             linkDirectionalParticleSpeed={0.004}
             linkDirectionalParticleWidth={2}
-            linkDirectionalParticleColor={(link: any) => {
-              // Vary particle color based on link type
-              const colors = ["#D91023", "#10B981", "#3B82F6", "#F59E0B"];
-              return colors[Math.floor(Math.random() * colors.length)];
-            }}
+            linkDirectionalParticleColor={linkDirectionalParticleColor}
             onNodeClick={handleNodeClick}
             backgroundColor="#1F2937"
-            linkColor={() => "#4B556380"}
+            linkColor={linkColor}
             linkWidth={1.5}
             cooldownTicks={layout === "force" ? 100 : 0}
             warmupTicks={layout === "force" ? 100 : 0}
-            onEngineStop={() => {
-              if (layout === "force") {
-                graphRef.current?.zoomToFit(400, 50);
-              }
-            }}
+            onEngineStop={onEngineStop}
             nodeCanvasObject={nodeCanvasObject}
-            nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-              // Use fallback coordinates if node position is invalid
-              const x = Number.isFinite(node.x) ? node.x : 0;
-              const y = Number.isFinite(node.y) ? node.y : 0;
-
-              ctx.fillStyle = color;
-              ctx.beginPath();
-              ctx.arc(x, y, node.val || 5, 0, 2 * Math.PI, false);
-              ctx.fill();
-            }}
+            nodePointerAreaPaint={nodePointerAreaPaint}
           />
         </div>
       </div>

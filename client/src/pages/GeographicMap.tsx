@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, MapPin, Camera, AlertTriangle, RefreshCw, Activity, Clock, Eye, X, ChevronLeft, ChevronRight, Image, List, Maximize2, Minimize2 } from "lucide-react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, GeoJSON } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
+import { peruRegionsGeoJSON, REGION_COLORS } from "@/data/peruRegions";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import "leaflet/dist/leaflet.css";
@@ -748,6 +749,27 @@ export default function GeographicMap() {
                 </Marker>
               ))}
             </MarkerClusterGroup>
+
+            {/* Region Boundaries Overlay */}
+            <GeoJSON
+              data={peruRegionsGeoJSON as any}
+              style={(feature) => ({
+                color: REGION_COLORS[feature?.properties?.NOMBDEP] || "#D91023",
+                weight: 2,
+                opacity: 0.7,
+                fillColor: REGION_COLORS[feature?.properties?.NOMBDEP] || "#D91023",
+                fillOpacity: 0.08,
+              })}
+              onEachFeature={(feature, layer) => {
+                if (feature.properties?.NOMBDEP) {
+                  layer.bindTooltip(feature.properties.NOMBDEP, {
+                    permanent: false,
+                    direction: "center",
+                    className: "region-tooltip",
+                  });
+                }
+              }}
+            />
           </MapContainer>
         </div>
 
