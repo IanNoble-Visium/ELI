@@ -159,9 +159,11 @@ async function updateNeo4jEventWithGemini(
   if (!isNeo4jConfigured()) return;
 
   await writeTransaction(async (tx) => {
-    await tx.run(
+    // Primary match: by id field (snapshot.eventId = Neo4j Event.id = eventDbId like "evt_...")
+    // This is the correct match since syncEvent creates nodes with id = eventDbId
+    const result = await tx.run(
       `
-      MATCH (e:Event {eventId: $eventId})
+      MATCH (e:Event {id: $eventId})
       SET e.geminiCaption = $geminiCaption,
           e.geminiTags = $geminiTags,
           e.geminiObjects = $geminiObjects,
@@ -181,6 +183,7 @@ async function updateNeo4jEventWithGemini(
           e.geminiCameraPerspective = $geminiCameraPerspective,
           e.geminiVehicleDetails = $geminiVehicleDetails,
           e.geminiProcessedAt = timestamp()
+      RETURN e.id as matchedId
       `,
       {
         eventId,
@@ -205,53 +208,64 @@ async function updateNeo4jEventWithGemini(
       }
     );
 
-    // Also try to match by id field (some events may use id instead of eventId)
-    await tx.run(
-      `
-      MATCH (e:Event)
-      WHERE e.id CONTAINS $eventId OR e.eventId = $eventId
-      SET e.geminiCaption = $geminiCaption,
-          e.geminiTags = $geminiTags,
-          e.geminiObjects = $geminiObjects,
-          e.geminiPeopleCount = $geminiPeopleCount,
-          e.geminiVehicles = $geminiVehicles,
-          e.geminiWeapons = $geminiWeapons,
-          e.geminiClothingColors = $geminiClothingColors,
-          e.geminiDominantColors = $geminiDominantColors,
-          e.geminiLicensePlates = $geminiLicensePlates,
-          e.geminiTextExtracted = $geminiTextExtracted,
-          e.geminiQualityScore = $geminiQualityScore,
-          e.geminiBlurScore = $geminiBlurScore,
-          e.geminiTimeOfDay = $geminiTimeOfDay,
-          e.geminiLightingCondition = $geminiLightingCondition,
-          e.geminiEnvironment = $geminiEnvironment,
-          e.geminiWeatherCondition = $geminiWeatherCondition,
-          e.geminiCameraPerspective = $geminiCameraPerspective,
-          e.geminiVehicleDetails = $geminiVehicleDetails,
-          e.geminiProcessedAt = timestamp()
-      `,
-      {
-        eventId,
-        geminiCaption: analysis.geminiCaption,
-        geminiTags: analysis.geminiTags,
-        geminiObjects: analysis.geminiObjects,
-        geminiPeopleCount: analysis.geminiPeopleCount,
-        geminiVehicles: analysis.geminiVehicles,
-        geminiWeapons: analysis.geminiWeapons,
-        geminiClothingColors: analysis.geminiClothingColors,
-        geminiDominantColors: analysis.geminiDominantColors,
-        geminiLicensePlates: analysis.geminiLicensePlates,
-        geminiTextExtracted: analysis.geminiTextExtracted,
-        geminiQualityScore: analysis.geminiQualityScore,
-        geminiBlurScore: analysis.geminiBlurScore,
-        geminiTimeOfDay: analysis.geminiTimeOfDay,
-        geminiLightingCondition: analysis.geminiLightingCondition,
-        geminiEnvironment: analysis.geminiEnvironment,
-        geminiWeatherCondition: analysis.geminiWeatherCondition,
-        geminiCameraPerspective: analysis.geminiCameraPerspective,
-        geminiVehicleDetails: JSON.stringify(analysis.geminiVehicleDetails),
+    // Log if primary match succeeded
+    if (result.records.length > 0) {
+      console.log(`[Gemini->Neo4j] Updated Event node: ${result.records[0].get('matchedId')}`);
+    } else {
+      // Fallback: try matching by eventId property (for legacy nodes)
+      const fallbackResult = await tx.run(
+        `
+        MATCH (e:Event {eventId: $eventId})
+        SET e.geminiCaption = $geminiCaption,
+            e.geminiTags = $geminiTags,
+            e.geminiObjects = $geminiObjects,
+            e.geminiPeopleCount = $geminiPeopleCount,
+            e.geminiVehicles = $geminiVehicles,
+            e.geminiWeapons = $geminiWeapons,
+            e.geminiClothingColors = $geminiClothingColors,
+            e.geminiDominantColors = $geminiDominantColors,
+            e.geminiLicensePlates = $geminiLicensePlates,
+            e.geminiTextExtracted = $geminiTextExtracted,
+            e.geminiQualityScore = $geminiQualityScore,
+            e.geminiBlurScore = $geminiBlurScore,
+            e.geminiTimeOfDay = $geminiTimeOfDay,
+            e.geminiLightingCondition = $geminiLightingCondition,
+            e.geminiEnvironment = $geminiEnvironment,
+            e.geminiWeatherCondition = $geminiWeatherCondition,
+            e.geminiCameraPerspective = $geminiCameraPerspective,
+            e.geminiVehicleDetails = $geminiVehicleDetails,
+            e.geminiProcessedAt = timestamp()
+        RETURN e.id as matchedId
+        `,
+        {
+          eventId,
+          geminiCaption: analysis.geminiCaption,
+          geminiTags: analysis.geminiTags,
+          geminiObjects: analysis.geminiObjects,
+          geminiPeopleCount: analysis.geminiPeopleCount,
+          geminiVehicles: analysis.geminiVehicles,
+          geminiWeapons: analysis.geminiWeapons,
+          geminiClothingColors: analysis.geminiClothingColors,
+          geminiDominantColors: analysis.geminiDominantColors,
+          geminiLicensePlates: analysis.geminiLicensePlates,
+          geminiTextExtracted: analysis.geminiTextExtracted,
+          geminiQualityScore: analysis.geminiQualityScore,
+          geminiBlurScore: analysis.geminiBlurScore,
+          geminiTimeOfDay: analysis.geminiTimeOfDay,
+          geminiLightingCondition: analysis.geminiLightingCondition,
+          geminiEnvironment: analysis.geminiEnvironment,
+          geminiWeatherCondition: analysis.geminiWeatherCondition,
+          geminiCameraPerspective: analysis.geminiCameraPerspective,
+          geminiVehicleDetails: JSON.stringify(analysis.geminiVehicleDetails),
+        }
+      );
+
+      if (fallbackResult.records.length > 0) {
+        console.log(`[Gemini->Neo4j] Updated Event node (fallback): ${fallbackResult.records[0].get('matchedId')}`);
+      } else {
+        console.warn(`[Gemini->Neo4j] No Event node found for eventId: ${eventId}`);
       }
-    );
+    }
   });
 }
 

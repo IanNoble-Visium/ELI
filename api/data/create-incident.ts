@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getDb, sql } from "../lib/db.js";
-import { pgTable, varchar, text, jsonb, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, jsonb, timestamp, doublePrecision, integer } from "drizzle-orm/pg-core";
 
-// Incidents table definition
+// Incidents table definition - must match drizzle/schema.ts exactly (camelCase columns)
 const incidents = pgTable("incidents", {
     id: varchar({ length: 255 }).primaryKey().notNull(),
-    incidentType: varchar("incident_type", { length: 100 }).notNull(),
+    incidentType: varchar({ length: 100 }).notNull(),
     priority: varchar({ length: 50 }).notNull(),
     status: varchar({ length: 50 }).default('open').notNull(),
     location: varchar({ length: 500 }),
@@ -13,13 +13,14 @@ const incidents = pgTable("incidents", {
     latitude: doublePrecision(),
     longitude: doublePrecision(),
     description: text(),
-    assignedOfficer: varchar("assigned_officer", { length: 255 }),
-    assignedUnit: varchar("assigned_unit", { length: 100 }),
-    responseTime: varchar("response_time", { length: 50 }),
-    videoUrl: varchar("video_url", { length: 1000 }),
-    hasVideo: varchar("has_video", { length: 10 }),
-    eventIds: jsonb("event_ids"),
-    createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+    videoUrl: text(),
+    assignedOfficer: varchar({ length: 255 }),
+    assignedUnit: varchar({ length: 255 }),
+    responseTime: integer(),
+    eventIds: jsonb(),
+    metadata: jsonb(),
+    createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+    updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 });
 
 // Crime story templates based on node type
@@ -209,8 +210,9 @@ function generateIncidentData(nodeType: string, nodeName: string, nodeId: string
         }
     }
 
-    // Generate random response time
-    const responseTime = `${Math.floor(Math.random() * 15) + 3}`;
+    // Generate random response time in minutes (integer)
+    const responseTime = Math.floor(Math.random() * 15) + 3;
+    const now = new Date().toISOString();
 
     return {
         id: generateIncidentId(),
@@ -226,9 +228,10 @@ function generateIncidentData(nodeType: string, nodeName: string, nodeId: string
         assignedUnit: officer.unit,
         responseTime,
         videoUrl: null,
-        hasVideo: "false",
         eventIds: [nodeId],
-        createdAt: new Date().toISOString(),
+        metadata: { sourceType: nodeType, sourceName: nodeName, sourceId: nodeId },
+        createdAt: now,
+        updatedAt: now,
     };
 }
 

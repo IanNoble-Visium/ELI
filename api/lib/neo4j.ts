@@ -278,6 +278,12 @@ export interface Neo4jEvent {
   geminiTextExtracted?: string[];
   geminiQualityScore?: number;
   geminiBlurScore?: number;
+  geminiTimeOfDay?: string;
+  geminiLightingCondition?: string;
+  geminiEnvironment?: string;
+  geminiWeatherCondition?: string;
+  geminiCameraPerspective?: string;
+  geminiVehicleDetails?: string; // JSON stringified array
   geminiProcessedAt?: number;
 }
 

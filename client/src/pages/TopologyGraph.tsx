@@ -11,6 +11,7 @@ import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import NodeContextMenu, { type ContextMenuNode, type ContextMenuPosition } from "@/components/NodeContextMenu";
+import NodeDetailsPanel from "@/components/NodeDetailsPanel";
 
 // Staggered animation variants
 const containerVariants = {
@@ -173,6 +174,10 @@ export default function TopologyGraph() {
   const [contextMenuNode, setContextMenuNode] = useState<ContextMenuNode | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null);
   const [highRiskNodes, setHighRiskNodes] = useState<Set<string>>(new Set());
+
+  // Node details panel state
+  const [detailsPanelNode, setDetailsPanelNode] = useState<GraphNode | null>(null);
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false);
 
   // Reverse image search state
   const [reverseSearchImage, setReverseSearchImage] = useState<string | null>(null);
@@ -765,9 +770,11 @@ export default function TopologyGraph() {
 
   // Context menu action handlers
   const handleContextViewDetails = useCallback((node: ContextMenuNode) => {
-    // Find the full node data and select it
+    // Find the full node data and open the details panel
     const fullNode = graphData.nodes.find(n => n.id === node.id);
     if (fullNode) {
+      setDetailsPanelNode(fullNode);
+      setIsDetailsPanelOpen(true);
       setSelectedNode(fullNode);
       if (graphRef.current && graphRef.current.centerAt) {
         graphRef.current.centerAt(fullNode.x, fullNode.y, 1000);
@@ -775,6 +782,11 @@ export default function TopologyGraph() {
       }
     }
   }, [graphData.nodes]);
+
+  // Close details panel
+  const handleCloseDetailsPanel = useCallback(() => {
+    setIsDetailsPanelOpen(false);
+  }, []);
 
   const handleContextCreateIncident = useCallback(async (node: ContextMenuNode) => {
     toast.loading("Creating incident...", { id: "create-incident" });
@@ -1958,6 +1970,13 @@ export default function TopologyGraph() {
             onMarkAsHighRisk={handleContextMarkHighRisk}
           />
         </div>
+
+        {/* Node Details Panel */}
+        <NodeDetailsPanel
+          node={detailsPanelNode}
+          isOpen={isDetailsPanelOpen}
+          onClose={handleCloseDetailsPanel}
+        />
       </div>
     </div>
   );
