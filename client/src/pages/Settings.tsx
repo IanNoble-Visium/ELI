@@ -144,6 +144,7 @@ export default function Settings() {
   const [geminiLoading, setGeminiLoading] = useState(true);
   const [geminiToggling, setGeminiToggling] = useState(false);
   const [geminiModelChanging, setGeminiModelChanging] = useState(false);
+  const [geminiRetrying, setGeminiRetrying] = useState(false);
   
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
 
@@ -306,6 +307,34 @@ export default function Settings() {
       setGeminiModelChanging(false);
     }
   }, [geminiConfig]);
+
+  // Retry failed Gemini analyses
+  const retryFailedGemini = useCallback(async () => {
+    try {
+      setGeminiRetrying(true);
+      
+      const response = await fetch("/api/data/gemini-config", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retryErrors: true }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success("Failed images reset for retry");
+        fetchGeminiConfig();
+      } else {
+        toast.error("Failed to reset errors", { description: data.error });
+      }
+    } catch (error) {
+      console.error("[Settings] Failed to retry Gemini errors:", error);
+      toast.error("Failed to reset errors");
+    } finally {
+      setGeminiRetrying(false);
+    }
+  }, [fetchGeminiConfig]);
 
   // Seed InfluxDB with initial data
   const seedInfluxDB = useCallback(async () => {
@@ -966,6 +995,22 @@ export default function Settings() {
                       <div className="text-xs text-muted-foreground">Today's Requests</div>
                     </div>
                   </div>
+
+                  {/* Retry Failed Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={retryFailedGemini}
+                    disabled={geminiRetrying}
+                    className="w-full"
+                  >
+                    {geminiRetrying ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Retry Failed Images
+                  </Button>
 
                   <p className="text-xs text-muted-foreground">
                     Gemini AI analyzes surveillance images to extract metadata like people count, vehicles, license plates, 
