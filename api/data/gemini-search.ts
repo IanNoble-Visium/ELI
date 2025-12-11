@@ -10,6 +10,8 @@ import {
   searchEventsByGemini,
   getGeminiAnalysisStats,
 } from "./topology-neo4j.js";
+import { isGeminiConfigured, GEMINI_CONFIG_KEYS } from "../lib/gemini.js";
+import { getSystemConfig } from "../lib/db.js";
 
 /**
  * GET: Search events by Gemini criteria or get stats
@@ -51,15 +53,37 @@ export default async function handler(
     const action = req.query.action as string || 'search';
 
     if (action === 'stats') {
+      // Get configuration status
+      const geminiConfigured = isGeminiConfigured();
+      const geminiEnabled = await getSystemConfig(GEMINI_CONFIG_KEYS.ENABLED);
+      const dailyCount = await getSystemConfig(GEMINI_CONFIG_KEYS.DAILY_REQUESTS_COUNT);
+      
       const stats = await getGeminiAnalysisStats();
-      if (!stats) {
-        res.status(200).json({
-          error: 'Neo4j not configured or no data available',
-          stats: null,
-        });
-        return;
-      }
-      res.status(200).json({ stats });
+      
+      // Return stats with configuration info
+      res.status(200).json({ 
+        stats: stats || {
+          totalProcessed: 0,
+          withWeapons: 0,
+          withLicensePlates: 0,
+          withMultiplePeople: 0,
+          avgQualityScore: 0,
+          topVehicleTypes: [],
+          topClothingColors: [],
+        },
+        config: {
+          apiKeyConfigured: geminiConfigured,
+          enabled: geminiEnabled === 'true',
+          dailyRequestsUsed: parseInt(dailyCount || '0', 10),
+        },
+        message: !geminiConfigured 
+          ? 'GEMINI_API_KEY not configured in environment variables'
+          : geminiEnabled !== 'true'
+            ? 'Gemini processing is disabled. Enable it in Settings or run the job with ?force=true'
+            : stats?.totalProcessed === 0
+              ? 'No images processed yet. Run the Gemini AI Image Analysis job from Settings.'
+              : null,
+      });
       return;
     }
 

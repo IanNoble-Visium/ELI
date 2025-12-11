@@ -270,6 +270,9 @@ export default function TopologyGraph() {
     }
   }, []);
 
+  // Gemini config status
+  const [geminiConfig, setGeminiConfig] = useState<{ apiKeyConfigured: boolean; enabled: boolean; message?: string } | null>(null);
+
   // Fetch Gemini AI stats
   const fetchGeminiStats = useCallback(async () => {
     try {
@@ -278,6 +281,12 @@ export default function TopologyGraph() {
       const data = await response.json();
       if (data.stats) {
         setGeminiStats(data.stats);
+      }
+      if (data.config) {
+        setGeminiConfig(data.config);
+      }
+      if (data.message) {
+        setGeminiConfig(prev => ({ ...prev, apiKeyConfigured: prev?.apiKeyConfigured ?? false, enabled: prev?.enabled ?? false, message: data.message }));
       }
     } catch (err) {
       console.error("[TopologyGraph] Failed to fetch Gemini stats:", err);
@@ -1261,8 +1270,16 @@ export default function TopologyGraph() {
                   </Button>
                 </div>
 
+                {/* Configuration/Status message */}
+                {geminiConfig?.message && (
+                  <div className="p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-400">
+                    <AlertCircle className="w-3 h-3 inline mr-1" />
+                    {geminiConfig.message}
+                  </div>
+                )}
+                
                 {/* No data message */}
-                {!geminiStats && !geminiLoading && (
+                {!geminiStats?.totalProcessed && !geminiLoading && !geminiConfig?.message && (
                   <div className="text-center py-2 text-xs text-muted-foreground">
                     <Sparkles className="w-4 h-4 mx-auto mb-1 opacity-50" />
                     No Gemini analysis data yet.
