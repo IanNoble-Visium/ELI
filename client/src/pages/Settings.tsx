@@ -139,9 +139,11 @@ export default function Settings() {
     batchSize: number;
     dailyRequestsUsed: number;
     apiKeyConfigured: boolean;
+    availableModels?: Array<{ id: string; name: string; description: string }>;
   } | null>(null);
   const [geminiLoading, setGeminiLoading] = useState(true);
   const [geminiToggling, setGeminiToggling] = useState(false);
+  const [geminiModelChanging, setGeminiModelChanging] = useState(false);
   
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
 
@@ -234,6 +236,7 @@ export default function Settings() {
           batchSize: data.batchSize,
           dailyRequestsUsed: data.dailyRequestsCount || 0,
           apiKeyConfigured: data.configured,
+          availableModels: data.availableModels || [],
         });
       }
     } catch (error) {
@@ -271,6 +274,36 @@ export default function Settings() {
       toast.error("Failed to update Gemini config");
     } finally {
       setGeminiToggling(false);
+    }
+  }, [geminiConfig]);
+
+  // Change Gemini model
+  const changeGeminiModel = useCallback(async (newModel: string) => {
+    if (!geminiConfig || newModel === geminiConfig.model) return;
+    
+    try {
+      setGeminiModelChanging(true);
+      
+      const response = await fetch("/api/data/gemini-config", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: newModel }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setGeminiConfig(prev => prev ? { ...prev, model: newModel } : null);
+        toast.success(`Gemini model changed to ${newModel}`);
+      } else {
+        toast.error("Failed to change model", { description: data.error });
+      }
+    } catch (error) {
+      console.error("[Settings] Failed to change Gemini model:", error);
+      toast.error("Failed to change model");
+    } finally {
+      setGeminiModelChanging(false);
     }
   }, [geminiConfig]);
 
@@ -900,12 +933,30 @@ export default function Settings() {
                     </Button>
                   </div>
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <div className="text-lg font-bold text-yellow-400">{geminiConfig.model.replace('gemini-', '')}</div>
-                      <div className="text-xs text-muted-foreground">Model</div>
+                  {/* Model Selector */}
+                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div>
+                      <span className="text-sm font-medium">Model</span>
+                      <p className="text-xs text-muted-foreground">
+                        Select the Gemini model for image analysis
+                      </p>
                     </div>
+                    <select
+                      value={geminiConfig.model}
+                      onChange={(e) => changeGeminiModel(e.target.value)}
+                      disabled={geminiModelChanging}
+                      className="bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    >
+                      {geminiConfig.availableModels?.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-3 text-center">
                     <div className="p-2 bg-muted/30 rounded-lg">
                       <div className="text-lg font-bold">{geminiConfig.batchSize}</div>
                       <div className="text-xs text-muted-foreground">Batch Size</div>
