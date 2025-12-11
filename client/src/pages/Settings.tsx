@@ -226,13 +226,14 @@ export default function Settings() {
       setGeminiLoading(true);
       const response = await fetch("/api/data/gemini-config", { credentials: "include" });
       const data = await response.json();
-      if (data.config) {
+      // API returns config at root level, not nested under 'config'
+      if (data.model) {
         setGeminiConfig({
-          enabled: data.config.enabled,
-          model: data.config.model,
-          batchSize: data.config.batchSize,
-          dailyRequestsUsed: data.stats?.dailyRequestsUsed || 0,
-          apiKeyConfigured: data.config.apiKeyConfigured,
+          enabled: data.enabled,
+          model: data.model,
+          batchSize: data.batchSize,
+          dailyRequestsUsed: data.dailyRequestsCount || 0,
+          apiKeyConfigured: data.configured,
         });
       }
     } catch (error) {
