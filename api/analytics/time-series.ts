@@ -120,6 +120,9 @@ export default async function handler(
         // Get database connection
         const db = await getDb();
 
+        console.log("[Analytics Time Series] Query params:", { timeRange, granularity: effectiveGranularity, from: startDate.toISOString(), to: endDate.toISOString() });
+        console.log("[Analytics Time Series] Database connected:", !!db);
+
         const response: AnalyticsTimeSeriesResponse = {
             success: true,
             data: {
@@ -195,6 +198,14 @@ export default async function handler(
                 startDate.getTime(),
                 endDate.getTime()
             );
+
+            console.log("[Analytics Time Series] Data retrieved:", {
+                eventsOverTime: response.data!.eventsOverTime.length,
+                alertsOverTime: response.data!.alertsOverTime.length,
+                heatmap: response.data!.cameraActivityHeatmap.length,
+                alertDistribution: response.data!.alertDistribution.length,
+                hourlyActivity: response.data!.hourlyActivity.length,
+            });
         }
 
         // Get InfluxDB metrics if configured

@@ -151,6 +151,8 @@ export function AnalyticsTab() {
     const fetchAnalytics = useCallback(async () => {
         try {
             setError(null);
+            console.log("[AnalyticsTab] Fetching analytics with timeRange:", timeRange);
+
             const [analyticsRes, predictionsRes] = await Promise.all([
                 fetch(`/api/analytics/time-series?timeRange=${timeRange}`, {
                     credentials: "include",
@@ -160,18 +162,27 @@ export function AnalyticsTab() {
                 }),
             ]);
 
+            console.log("[AnalyticsTab] Analytics response status:", analyticsRes.status);
+            console.log("[AnalyticsTab] Predictions response status:", predictionsRes.status);
+
             if (analyticsRes.ok) {
                 const analyticsJson = await analyticsRes.json();
+                console.log("[AnalyticsTab] Analytics data:", analyticsJson.success, "points:", analyticsJson.data?.eventsOverTime?.length || 0);
                 if (analyticsJson.success && analyticsJson.data) {
                     setAnalyticsData(analyticsJson.data);
                 }
+            } else {
+                console.error("[AnalyticsTab] Analytics API error:", analyticsRes.status, analyticsRes.statusText);
             }
 
             if (predictionsRes.ok) {
                 const predictionsJson = await predictionsRes.json();
+                console.log("[AnalyticsTab] Predictions data:", predictionsJson.success, "forecast:", predictionsJson.data?.eventsForecast?.length || 0);
                 if (predictionsJson.success && predictionsJson.data) {
                     setPredictionsData(predictionsJson.data);
                 }
+            } else {
+                console.error("[AnalyticsTab] Predictions API error:", predictionsRes.status, predictionsRes.statusText);
             }
         } catch (err) {
             console.error("[AnalyticsTab] Fetch error:", err);
