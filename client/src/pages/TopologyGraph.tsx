@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2 } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
 
@@ -60,10 +60,32 @@ interface GraphNode {
   qualityScore?: number;
   moderationStatus?: string;
   caption?: string;
+  // Gemini AI analysis properties
+  geminiCaption?: string;
+  geminiTags?: string[];
+  geminiObjects?: string[];
+  geminiPeopleCount?: number;
+  geminiVehicles?: string[];
+  geminiWeapons?: string[];
+  geminiClothingColors?: string[];
+  geminiLicensePlates?: string[];
+  geminiTextExtracted?: string[];
+  geminiQualityScore?: number;
+  geminiProcessedAt?: number;
   x?: number;
   y?: number;
   fx?: number | null; // Fixed x position for custom layouts
   fy?: number | null; // Fixed y position for custom layouts
+}
+
+interface GeminiStats {
+  totalProcessed: number;
+  withWeapons: number;
+  withLicensePlates: number;
+  withMultiplePeople: number;
+  avgQualityScore: number;
+  topVehicleTypes: Array<{ type: string; count: number }>;
+  topClothingColors: Array<{ color: string; count: number }>;
 }
 
 interface GraphLink {
@@ -128,6 +150,18 @@ export default function TopologyGraph() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Gemini AI filter state
+  const [geminiStats, setGeminiStats] = useState<GeminiStats | null>(null);
+  const [geminiLoading, setGeminiLoading] = useState(false);
+  const [geminiFilters, setGeminiFilters] = useState({
+    hasWeapons: false,
+    hasLicensePlates: false,
+    hasMultiplePeople: false,
+    vehicleType: "",
+    clothingColor: "",
+  });
+  const [geminiSearching, setGeminiSearching] = useState(false);
 
   // Fullscreen toggle handler
   const toggleFullscreen = useCallback(() => {
@@ -232,10 +266,82 @@ export default function TopologyGraph() {
     }
   }, []);
 
+  // Fetch Gemini AI stats
+  const fetchGeminiStats = useCallback(async () => {
+    try {
+      setGeminiLoading(true);
+      const response = await fetch("/api/data/gemini-search?action=stats", { credentials: "include" });
+      const data = await response.json();
+      if (data.stats) {
+        setGeminiStats(data.stats);
+      }
+    } catch (err) {
+      console.error("[TopologyGraph] Failed to fetch Gemini stats:", err);
+    } finally {
+      setGeminiLoading(false);
+    }
+  }, []);
+
+  // Search events by Gemini criteria
+  const searchByGemini = useCallback(async () => {
+    try {
+      setGeminiSearching(true);
+      const params = new URLSearchParams();
+      
+      if (geminiFilters.hasWeapons) params.append("hasWeapons", "true");
+      if (geminiFilters.hasLicensePlates) params.append("licensePlate", "*");
+      if (geminiFilters.hasMultiplePeople) params.append("minPeopleCount", "2");
+      if (geminiFilters.vehicleType) params.append("vehicleType", geminiFilters.vehicleType);
+      if (geminiFilters.clothingColor) params.append("clothingColor", geminiFilters.clothingColor);
+      params.append("limit", "100");
+
+      const response = await fetch(`/api/data/gemini-search?${params.toString()}`, { credentials: "include" });
+      const data = await response.json();
+      
+      if (data.events && data.events.length > 0) {
+        // Highlight matching events in the graph
+        const matchingIds = new Set(data.events.map((e: any) => e.id));
+        setGraphData(prev => ({
+          ...prev,
+          nodes: prev.nodes.map(node => ({
+            ...node,
+            // Increase size of matching nodes
+            val: matchingIds.has(node.id) ? (node.val || 5) * 2 : node.val,
+            // Add glow effect by changing color slightly
+            color: matchingIds.has(node.id) ? "#FFD700" : node.color,
+          })),
+        }));
+        
+        // Zoom to fit the matching nodes
+        if (graphRef.current) {
+          graphRef.current.zoomToFit(500, 50);
+        }
+      }
+    } catch (err) {
+      console.error("[TopologyGraph] Gemini search failed:", err);
+    } finally {
+      setGeminiSearching(false);
+    }
+  }, [geminiFilters]);
+
+  // Clear Gemini filters and reset graph
+  const clearGeminiFilters = useCallback(() => {
+    setGeminiFilters({
+      hasWeapons: false,
+      hasLicensePlates: false,
+      hasMultiplePeople: false,
+      vehicleType: "",
+      clothingColor: "",
+    });
+    // Refresh topology data to reset node colors/sizes
+    fetchTopologyData();
+  }, [fetchTopologyData]);
+
   // Initial fetch
   useEffect(() => {
     fetchTopologyData();
-  }, [fetchTopologyData]);
+    fetchGeminiStats();
+  }, [fetchTopologyData, fetchGeminiStats]);
 
   // Apply layout algorithm when layout changes
   useEffect(() => {
@@ -927,6 +1033,158 @@ export default function TopologyGraph() {
                     Fit to Screen
                   </Button>
                 </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Gemini AI Filters */}
+          <motion.div variants={cardVariants}>
+            <Card className="hover:shadow-lg hover:shadow-yellow-500/5 transition-shadow duration-300 border-yellow-500/20">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-yellow-500" />
+                    Gemini AI Filters
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" onClick={fetchGeminiStats} disabled={geminiLoading}>
+                    <RefreshCw className={`w-3 h-3 ${geminiLoading ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
+                <CardDescription className="text-xs">
+                  Filter events by AI-detected properties
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Stats Summary */}
+                {geminiStats && (
+                  <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                    <div className="p-2 bg-yellow-500/10 rounded-lg text-center">
+                      <div className="font-bold text-yellow-400">{geminiStats.totalProcessed}</div>
+                      <div className="text-muted-foreground">Analyzed</div>
+                    </div>
+                    <div className="p-2 bg-red-500/10 rounded-lg text-center">
+                      <div className="font-bold text-red-400">{geminiStats.withWeapons}</div>
+                      <div className="text-muted-foreground">With Weapons</div>
+                    </div>
+                    <div className="p-2 bg-blue-500/10 rounded-lg text-center">
+                      <div className="font-bold text-blue-400">{geminiStats.withLicensePlates}</div>
+                      <div className="text-muted-foreground">License Plates</div>
+                    </div>
+                    <div className="p-2 bg-green-500/10 rounded-lg text-center">
+                      <div className="font-bold text-green-400">{geminiStats.withMultiplePeople}</div>
+                      <div className="text-muted-foreground">Multi-Person</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Filters */}
+                <div className="space-y-2">
+                  <span className="text-xs font-medium text-muted-foreground">Quick Filters</span>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge
+                      variant={geminiFilters.hasWeapons ? "default" : "outline"}
+                      className={`cursor-pointer text-[10px] ${geminiFilters.hasWeapons ? "bg-red-500 hover:bg-red-600" : "hover:bg-red-500/20"}`}
+                      onClick={() => setGeminiFilters(prev => ({ ...prev, hasWeapons: !prev.hasWeapons }))}
+                    >
+                      <Shield className="w-3 h-3 mr-1" />
+                      Weapons
+                    </Badge>
+                    <Badge
+                      variant={geminiFilters.hasLicensePlates ? "default" : "outline"}
+                      className={`cursor-pointer text-[10px] ${geminiFilters.hasLicensePlates ? "bg-blue-500 hover:bg-blue-600" : "hover:bg-blue-500/20"}`}
+                      onClick={() => setGeminiFilters(prev => ({ ...prev, hasLicensePlates: !prev.hasLicensePlates }))}
+                    >
+                      <Car className="w-3 h-3 mr-1" />
+                      License Plates
+                    </Badge>
+                    <Badge
+                      variant={geminiFilters.hasMultiplePeople ? "default" : "outline"}
+                      className={`cursor-pointer text-[10px] ${geminiFilters.hasMultiplePeople ? "bg-green-500 hover:bg-green-600" : "hover:bg-green-500/20"}`}
+                      onClick={() => setGeminiFilters(prev => ({ ...prev, hasMultiplePeople: !prev.hasMultiplePeople }))}
+                    >
+                      <Users className="w-3 h-3 mr-1" />
+                      2+ People
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Vehicle Type Filter */}
+                {geminiStats?.topVehicleTypes && geminiStats.topVehicleTypes.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-muted-foreground">Vehicle Types</span>
+                    <div className="flex flex-wrap gap-1">
+                      {geminiStats.topVehicleTypes.slice(0, 5).map((v, i) => (
+                        <Badge
+                          key={i}
+                          variant={geminiFilters.vehicleType === v.type ? "default" : "outline"}
+                          className={`cursor-pointer text-[10px] ${geminiFilters.vehicleType === v.type ? "bg-orange-500" : "hover:bg-orange-500/20"}`}
+                          onClick={() => setGeminiFilters(prev => ({ 
+                            ...prev, 
+                            vehicleType: prev.vehicleType === v.type ? "" : v.type 
+                          }))}
+                        >
+                          {v.type} ({v.count})
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Clothing Colors Filter */}
+                {geminiStats?.topClothingColors && geminiStats.topClothingColors.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-muted-foreground">Clothing Colors</span>
+                    <div className="flex flex-wrap gap-1">
+                      {geminiStats.topClothingColors.slice(0, 6).map((c, i) => (
+                        <Badge
+                          key={i}
+                          variant={geminiFilters.clothingColor === c.color ? "default" : "outline"}
+                          className={`cursor-pointer text-[10px] capitalize ${geminiFilters.clothingColor === c.color ? "bg-purple-500" : "hover:bg-purple-500/20"}`}
+                          onClick={() => setGeminiFilters(prev => ({ 
+                            ...prev, 
+                            clothingColor: prev.clothingColor === c.color ? "" : c.color 
+                          }))}
+                        >
+                          {c.color} ({c.count})
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black"
+                    onClick={searchByGemini}
+                    disabled={geminiSearching || (!geminiFilters.hasWeapons && !geminiFilters.hasLicensePlates && !geminiFilters.hasMultiplePeople && !geminiFilters.vehicleType && !geminiFilters.clothingColor)}
+                  >
+                    {geminiSearching ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Search className="w-3 h-3 mr-1" />
+                    )}
+                    Search
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={clearGeminiFilters}
+                  >
+                    Clear
+                  </Button>
+                </div>
+
+                {/* No data message */}
+                {!geminiStats && !geminiLoading && (
+                  <div className="text-center py-2 text-xs text-muted-foreground">
+                    <Sparkles className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                    No Gemini analysis data yet.
+                    <br />
+                    Run the CRON job in Settings.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

@@ -1,6 +1,6 @@
 # ELI Dashboard - Pending Tasks
 
-> **Last Updated:** December 10, 2025 (Late Night Session - Analytics Tab)
+> **Last Updated:** December 11, 2025 (Late Night Session - Performance & Real-time Updates)
 
 ---
 
@@ -74,25 +74,42 @@
   - Auto-refresh toggle and CSV export
 
 ### Map Improvements
-- [ ] Region boundary overlays - Show Peru region outlines
+- [x] **Region boundary overlays** - Show Peru region outlines ✅ (Completed Dec 11)
+  - Created `peruRegions.ts` with GeoJSON data for all 25 departments
+  - Peru-themed color-coded boundaries with hover tooltips
+  - Styled region tooltip with glassmorphism effect
 
 ### Performance
-- [ ] Lazy load heavy pages - React.lazy for Map, Topology, POLE
-- [ ] ForceGraph memoization - Prevent unnecessary re-renders
+- [x] **Lazy load heavy pages** - React.lazy for Map, Topology, POLE ✅ (Completed Dec 11)
+  - `GeographicMap`, `TopologyGraph`, `POLEAnalytics` now load on-demand
+  - Added `Suspense` with loading spinner fallback
+  - Separate JS chunks for each page (verified in build output)
+- [x] **ForceGraph memoization** - Prevent unnecessary re-renders ✅ (Completed Dec 11)
+  - Memoized `linkColor`, `linkWidth`, `onEngineStop`, `nodePointerAreaPaint` callbacks
+  - Applied to both `TopologyGraph.tsx` and `POLEAnalytics.tsx`
 
 ---
 
 ## P2 - Medium Priority
 
 ### Real-time Updates
-- [ ] Live data indicator - Animated "LIVE" badge in header
+- [x] **Live data indicator** - Animated "LIVE" badge in header ✅ (Completed Dec 11)
+  - Created `LiveIndicator.tsx` component with pulsing red dot
+  - Added to Executive Dashboard header
 - [x] Auto-refresh countdown - Ticker shows live data with auto-refresh
-- [ ] New data flash effect - Highlight when new data arrives
+- [x] **New data flash effect** - Highlight when new data arrives ✅ (Completed Dec 11)
+  - Added `flash-highlight` and `animate-data-pulse` CSS animations
 
 ### Dashboard Refinements
-- [ ] Stat change indicators - Animated +/- on KPI changes
-- [ ] Trend sparklines - Mini charts showing 7-day trends
-- [ ] Last updated timestamps - "Updated 30 seconds ago"
+- [x] **Stat change indicators** - Animated +/- on KPI changes ✅ (Completed Dec 11)
+  - Created `StatChangeIndicator.tsx` with Framer Motion animations
+  - Color-coded green/red for positive/negative changes
+- [x] **Trend sparklines** - Mini charts showing 7-day trends ✅ (Completed Dec 11)
+  - Created `Sparkline.tsx` component using Recharts
+  - Auto-detects trend direction for color coding
+- [x] **Last updated timestamps** - "Updated 30 seconds ago" ✅ (Completed Dec 11)
+  - Added relative time formatting using `formatDistanceToNow` from date-fns
+  - Updates every 10 seconds on Executive Dashboard
 
 ### Incident Management
 - [x] Priority badges animation - Pulse on critical ✅ (Dec 10 - Command Center redesign)
@@ -203,7 +220,7 @@
 
 ---
 
-## Recently Completed (December 10, 2024)
+## Recently Completed (December 10-11, 2025)
 
 ### Geographic Map Enhancements
 | Feature | File(s) Modified | Notes |
@@ -245,6 +262,46 @@
 | **Click-to-View Images** | `EventTicker.tsx` | Modal dialog preview of event Cloudinary images |
 | **Image Count Badge** | `EventTicker.tsx` | Shows number of images available per event |
 | **Cloudinary-Only Filter** | `EventTicker.tsx` | Ticker only shows events with valid Cloudinary URLs |
+
+### Performance & Real-time Updates (December 11, 2025 - Late Night Session)
+| Feature | File(s) Modified | Notes |
+|---------|-----------------|-------|
+| **Peru Region Boundaries** | `GeographicMap.tsx`, `peruRegions.ts` (new) | GeoJSON overlay for 25 departments with color-coded boundaries |
+| **Lazy Loading** | `App.tsx` | Map, Topology, POLE pages now load on-demand with React.lazy() |
+| **ForceGraph Memoization** | `TopologyGraph.tsx`, `POLEAnalytics.tsx` | Memoized callbacks to prevent re-renders |
+| **Live Indicator** | `LiveIndicator.tsx` (new), `ExecutiveDashboard.tsx` | Animated pulsing "LIVE" badge component |
+| **Flash Effect CSS** | `index.css` | `flash-highlight` and `animate-data-pulse` animations |
+| **Stat Change Indicator** | `StatChangeIndicator.tsx` (new) | Animated +/- with Framer Motion |
+| **Sparkline Component** | `Sparkline.tsx` (new) | Mini trend charts using Recharts |
+| **Relative Timestamps** | `ExecutiveDashboard.tsx` | "Updated X seconds ago" using date-fns |
+| **Region Tooltip Styling** | `index.css` | Glassmorphism tooltip for region boundaries |
+
+### New Components Added (Dec 11)
+| Component | Path | Purpose |
+|-----------|------|---------|
+| `LiveIndicator` | `components/LiveIndicator.tsx` | Animated pulsing "LIVE" badge |
+| `StatChangeIndicator` | `components/StatChangeIndicator.tsx` | +/- change with color coding |
+| `Sparkline` | `components/Sparkline.tsx` | Minimal 7-day trend chart |
+| `peruRegions` | `data/peruRegions.ts` | GeoJSON for Peru 25 departments |
+
+---
+
+## Suggested Next Steps
+
+### Immediate (High Impact, Low Effort)
+1. **Integrate Sparklines into KPI cards** - The component is ready, just needs to be added to ExecutiveDashboard
+2. **Integrate StatChangeIndicator** - Track previous values in state and show diff on refresh
+3. **Add flash effect to cards on data update** - Apply `flash-highlight` class when values change
+
+### Short Term (Medium Effort)
+4. **Heat map overlay toggle** - Add toggle for camera density visualization on map
+5. **Tag filtering dropdown** - Filter incidents by tag in Incident Management
+6. **Breadcrumb navigation** - Show current path in dashboard header
+
+### Long Term (Higher Effort)
+7. **Neo4j Integration** - Enable graph database for richer POLE relationship queries
+8. **Automatic POLE entity creation** - Extract entities from PlateMatched/FaceMatched events
+9. **PDF report export** - Generate downloadable reports from dashboard data
 
 ---
 

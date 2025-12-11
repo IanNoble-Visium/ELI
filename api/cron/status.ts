@@ -32,6 +32,16 @@ const CRON_JOBS = [
     enabled: true,
     dependencies: ["INFLUXDB_TOKEN", "INFLUXDB_ORG_ID"],
   },
+  {
+    id: "process-gemini-images",
+    name: "Gemini AI Image Analysis",
+    description: "Analyzes surveillance images using Google Gemini AI to extract metadata (objects, people, vehicles, license plates, etc.)",
+    path: "/api/cron/process-gemini-images",
+    schedule: "0 * * * *",
+    scheduleDescription: "Every hour",
+    enabled: true,
+    dependencies: ["GEMINI_API_KEY", "DATABASE_URL"],
+  },
 ];
 
 interface CronJobStatus {

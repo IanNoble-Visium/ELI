@@ -54,6 +54,7 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Leaflet integration with OpenStreetMap
    - 3,084 camera markers across 25 Peru regions
    - **Camera marker clustering** - Groups nearby cameras at low zoom (react-leaflet-cluster)
+   - **Region boundary overlays** *(New Dec 2025)* - GeoJSON Peru department boundaries with tooltips
    - Real-time event location plotting
    - Interactive camera status (active/inactive/alert)
    - Click-to-view camera details
@@ -67,6 +68,7 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Node/edge filtering and search
    - **Image nodes** - Events display Cloudinary images as node thumbnails
    - **Fullscreen presentation mode** - Toggle button for clean presentations
+   - **Memoized rendering** *(New Dec 2025)* - Optimized callbacks prevent unnecessary re-renders
    - Mini-map navigator
    - Zoom controls and fit-to-screen
    - Color-coded entity types
@@ -116,11 +118,14 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
 - **Serverless Backend**: tRPC API with Express
 - **Database**: PostgreSQL (TiDB) with Drizzle ORM
 - **Real-time Updates**: Auto-refresh and live data streaming
+- **Live Indicator**: Animated "LIVE" badge with pulsing red dot
+- **Relative Timestamps**: "Updated X seconds ago" using date-fns
+- **Lazy Loading** *(New Dec 2025)*: React.lazy() for heavy pages (Map, Topology, POLE)
 - **Responsive Design**: Mobile-first approach with Tailwind CSS 4
 - **Animations**: Framer Motion for smooth transitions
-- **Charts**: Recharts for data visualization
-- **Maps**: Leaflet for geographic visualization
-- **Graphs**: react-force-graph-2d for network topology
+- **Charts**: Recharts for data visualization (including Sparklines)
+- **Maps**: Leaflet for geographic visualization with GeoJSON layers
+- **Graphs**: react-force-graph-2d with memoized rendering
 
 ---
 
