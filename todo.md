@@ -1,6 +1,6 @@
 # ELI Dashboard - Pending Tasks
 
-> **Last Updated:** December 11, 2025 (Late Night Session - Performance & Real-time Updates)
+> **Last Updated:** December 11, 2025 (Context Menu Feature + Cross-Screen Integration)
 
 ---
 
@@ -34,6 +34,8 @@
 - [ ] Topology graph renders
 - [x] Incidents list displays ✅ (Redesigned Dec 10)
 - [x] POLE tabs switch correctly ✅ (Redesigned Dec 10)
+- [x] Context menu on Topology Graph ✅ (Completed Dec 11)
+- [x] Context menu on Geographic Map ✅ (Completed Dec 11)
 - [ ] Real-time feed updates
 - [ ] Settings page functional
 
@@ -304,16 +306,29 @@
 1. **Integrate Sparklines into KPI cards** - The component is ready, just needs to be added to ExecutiveDashboard
 2. **Integrate StatChangeIndicator** - Track previous values in state and show diff on refresh
 3. **Add flash effect to cards on data update** - Apply `flash-highlight` class when values change
+4. **Persist high-risk flags** - Store marked entities in localStorage or database
+
+### Context Menu Enhancements
+5. **Add "Copy ID to Clipboard"** - Quick action to copy entity ID
+6. **Add "Show on Map"** - Navigate from Topology to Map centered on location
+7. **Add "View Related Entities"** - Show connected nodes in a filtered view
+8. **Add "Add Note"** - Quick note attachment from context menu
+9. **Submenu for entity type actions** - Different actions based on node type (person vs vehicle vs camera)
+10. **Keyboard shortcut hints** - Show shortcuts in menu items (Ctrl+I for incident, etc.)
 
 ### Short Term (Medium Effort)
-4. **Heat map overlay toggle** - Add toggle for camera density visualization on map
-5. **Tag filtering dropdown** - Filter incidents by tag in Incident Management
-6. **Breadcrumb navigation** - Show current path in dashboard header
+11. **Heat map overlay toggle** - Add toggle for camera density visualization on map
+12. **Tag filtering dropdown** - Filter incidents by tag in Incident Management
+13. **Breadcrumb navigation** - Show current path in dashboard header
+14. **Save high-risk to database** - Persist flagged entities via API endpoint
+15. **Context menu for Event Ticker** - Right-click on ticker items to create incidents
 
 ### Long Term (Higher Effort)
-7. **Neo4j Integration** - Enable graph database for richer POLE relationship queries
-8. **Automatic POLE entity creation** - Extract entities from PlateMatched/FaceMatched events
-9. **PDF report export** - Generate downloadable reports from dashboard data
+16. **Neo4j Integration** - Enable graph database for richer POLE relationship queries
+17. **Automatic POLE entity creation** - Extract entities from PlateMatched/FaceMatched events
+18. **PDF report export** - Generate downloadable reports from dashboard data
+19. **WebSocket for real-time context** - Push high-risk updates to all connected clients
+20. **Context menu customization** - Admin configurable menu items via Settings
 
 ---
 

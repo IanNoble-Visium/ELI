@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getDb, desc, eq, count, sql } from "../lib/db.js";
+import { getDb, desc, eq, count, sql, inArray } from "../lib/db.js";
 import { pgTable, varchar, text, jsonb, timestamp, index } from "drizzle-orm/pg-core";
 
 // Local table definition matching the actual database schema (camelCase column names)
@@ -156,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const [eventCountResult] = await db
       .select({ count: count() })
       .from(events)
-      .where(sql`${events.topic} = ANY(${poleTopics})`);
+      .where(inArray(events.topic, poleTopics));
 
     return res.status(200).json({
       success: true,

@@ -1,5 +1,7 @@
 # ELI Unified Dashboard
 
+> **Last Updated:** December 11, 2025 (Context Menu Feature Release)
+
 ## Executive Summary – ELI for Peru
 
 **What ELI Does**
@@ -60,6 +62,8 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Click-to-view camera details
    - **Fullscreen presentation mode** - Toggle button for clean presentations
    - **Cloudinary image filtering** - Only displays events with valid Cloudinary images
+   - **Right-click context menu** *(New Dec 2025)* - Actions for cameras and region boundaries
+   - **Mark as High Risk** *(New Dec 2025)* - Flag cameras with pulsing red animation
    - Professional legend and controls
 
 3. **Topology Graph**
@@ -67,6 +71,8 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - 5 layout modes: Force-Directed, Hierarchical, Radial, Grid, Circular
    - Node/edge filtering and search
    - **Image nodes** - Events display Cloudinary images as node thumbnails
+   - **Right-click context menu** *(New Dec 2025)* - Context-aware actions on any node
+   - **Mark as High Risk** *(New Dec 2025)* - Flag nodes with pulsing red animation
    - **Fullscreen presentation mode** - Toggle button for clean presentations
    - **Memoized rendering** *(New Dec 2025)* - Optimized callbacks prevent unnecessary re-renders
    - Mini-map navigator
@@ -82,6 +88,7 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Video evidence integration
    - Notes and tags management (tRPC)
    - Quick navigation to Map, Topology, and POLE Analysis
+   - **Context menu integration** *(New Dec 2025)* - Receives prefilled data from Topology/Map
    - **Framer Motion animations** throughout
    - **Empty state handling** when no incidents exist
 
@@ -95,6 +102,7 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - **Dossier-style detail panel** with entity information
    - Timeline visualization
    - Entity list with search
+   - **Context menu integration** *(New Dec 2025)* - Receives prefilled entity data from Topology/Map
    - **Framer Motion animations** throughout
    - **Language toggle** (English/Spanish)
 
@@ -126,6 +134,101 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
 - **Charts**: Recharts for data visualization (including Sparklines)
 - **Maps**: Leaflet for geographic visualization with GeoJSON layers
 - **Graphs**: react-force-graph-2d with memoized rendering
+- **Context Menus**: Custom floating menus with Framer Motion animations
+- **Toast Notifications**: Sonner for action feedback
+
+---
+
+## 🖱️ Context Menu System *(New Dec 2025)*
+
+The context menu feature enables rich right-click interactions across the Topology Graph and Geographic Map screens.
+
+### Flow Diagram
+
+```mermaid
+flowchart TB
+    subgraph "Context Menu Trigger"
+        T1["Right-click Node\n(Topology Graph)"] 
+        T2["Right-click Camera\n(Geographic Map)"]
+        T3["Right-click Region\n(Geographic Map)"]
+    end
+    
+    T1 --> CM[NodeContextMenu Component]
+    T2 --> CM
+    T3 --> CM
+    
+    subgraph "Menu Actions"
+        CM --> A1[View Details]
+        CM --> A2[Create Incident]
+        CM --> A3[Add to POLE]
+        CM --> A4[View Related Events]
+        CM --> A5[View in Topology]
+        CM --> A6[Mark as High Risk]
+    end
+    
+    subgraph "Navigation Targets"
+        A2 --> |"URL params"| INC[Incident Management]
+        A3 --> |"URL params"| POLE[POLE Analytics]
+        A4 --> |"channelId"| WH[Webhooks Viewer]
+        A5 --> |"highlight"| TOP[Topology Graph]
+    end
+    
+    subgraph "Visual Feedback"
+        A6 --> VF1[Pulsing Red Animation]
+        A6 --> VF2[HIGH RISK Badge]
+        A6 --> VF3[Toast Notification]
+    end
+    
+    INC --> B1[Show Context Banner]
+    POLE --> B2[Show Entity Banner]
+    
+    style CM fill:#8B5CF6,color:#fff
+    style A6 fill:#EF4444,color:#fff
+    style VF1 fill:#EF4444,color:#fff
+```
+
+### Usage
+
+| Screen | Right-Click Target | Available Actions |
+|--------|-------------------|-----------|
+| Topology Graph | Any node (camera, person, vehicle, location, event) | View Details, Create Incident, Add to POLE, View Events*, Mark as High Risk |
+| Geographic Map | Camera markers | View Details, Create Incident, Add to POLE, View Events, View in Topology, Mark as High Risk |
+| Geographic Map | Region boundaries | View Details, Create Incident, Add to POLE, View in Topology, Mark as High Risk (all cameras) |
+
+*View Events only available for cameras/locations
+
+### Mark as High Risk Feature
+
+```mermaid
+stateDiagram-v2
+    [*] --> Normal: Node displayed
+    Normal --> HighRisk: Right-click → Mark as High Risk
+    HighRisk --> Normal: Right-click → Remove High Risk
+    
+    note right of HighRisk
+        Visual Effects:
+        • Pulsing red animation
+        • Red node color override
+        • ⚠️ icon in popups
+        • 🚨 HIGH RISK badge
+        • Toast notification
+    end note
+```
+
+### Integration with Incident/POLE Screens
+
+When a user clicks "Create Incident" or "Add to POLE" from the context menu, they are navigated to the respective screen with URL parameters that prefill the form:
+
+| Parameter | Description | Example |
+|-----------|-------------|--------|
+| `from` | Source screen | `topology`, `map` |
+| `nodeId` | Entity identifier | `camera-123` |
+| `nodeType` | Entity type | `camera`, `person`, `vehicle` |
+| `nodeName` | Display name | `CAM-LIMA-001` |
+| `region` | Geographic region | `Lima` |
+| `location` | Coordinates | `-12.0464,-77.0428` |
+
+The target screen displays a context banner showing the source and suggesting appropriate incident type or POLE entity type.
 
 ---
 
@@ -776,6 +879,10 @@ Edit `client/src/index.css` to change colors:
 - [x] **Live Event Ticker with Images** - Click to view Cloudinary images in modal (Dec 2024)
 - [x] **Camera Marker Clustering** - Uses react-leaflet-cluster for grouped markers (Dec 2024)
 - [x] **Fullscreen Presentation Mode** - Toggle buttons on Map and Topology pages (Dec 2024)
+- [x] **Context Menu System** - Right-click actions on Topology Graph and Geographic Map *(Dec 2025)*
+- [x] **Mark as High Risk** - Visual flagging with pulsing red animations *(Dec 2025)*
+- [x] **Cross-Screen Integration** - URL params pass context from Graph/Map to Incidents/POLE *(Dec 2025)*
+- [x] **Region Boundaries Context Menu** - Right-click on Peru regions in Geographic Map *(Dec 2025)*
 
 ### High Priority
 - [ ] Test webhook endpoint with real IREX surveillance data

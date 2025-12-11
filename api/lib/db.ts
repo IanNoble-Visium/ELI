@@ -5,7 +5,7 @@
  */
 import { neon } from "@neondatabase/serverless";
 import { drizzle, NeonHttpDatabase } from "drizzle-orm/neon-http";
-import { and, desc, eq, gte, lte, sql, count } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql, count, inArray } from "drizzle-orm";
 import {
   events,
   channels,
@@ -45,7 +45,7 @@ export async function getDb(): Promise<NeonHttpDatabase | null> {
 }
 
 // Re-export commonly used drizzle functions for convenience
-export { and, desc, eq, gte, lte, sql, count };
+export { and, desc, eq, gte, lte, sql, count, inArray };
 
 // Re-export schema tables
 export { events, channels, webhookRequests, snapshots, incidents, systemConfig };
