@@ -5,28 +5,35 @@
  * using Google's Gemini Vision models.
  */
 
-// Gemini model options - use model names that work with the REST API
+// Gemini model options - verified available via /api/data/gemini-models
 export const GEMINI_MODELS = {
-  'gemini-pro-vision': {
-    name: 'Gemini Pro Vision',
-    description: 'Stable vision model for image analysis (v1 API)',
-    rpm: 60,
+  'gemini-2.0-flash': {
+    name: 'Gemini 2.0 Flash',
+    description: 'Fast multimodal model for image analysis',
+    rpm: 15,
     rpd: 1500,
     apiVersion: 'v1',
   },
-  'gemini-1.5-flash': {
-    name: 'Gemini 1.5 Flash',
-    description: 'Fast multimodal model (v1beta API)',
+  'gemini-2.0-flash-lite': {
+    name: 'Gemini 2.0 Flash Lite',
+    description: 'Lightweight fast model, lower cost',
+    rpm: 30,
+    rpd: 1500,
+    apiVersion: 'v1',
+  },
+  'gemini-2.5-flash': {
+    name: 'Gemini 2.5 Flash',
+    description: 'Latest flash model with improved capabilities',
     rpm: 15,
     rpd: 1500,
-    apiVersion: 'v1beta',
+    apiVersion: 'v1',
   },
-  'gemini-1.5-pro': {
-    name: 'Gemini 1.5 Pro',
-    description: 'Most capable multimodal model (v1beta API)',
+  'gemini-2.5-pro': {
+    name: 'Gemini 2.5 Pro',
+    description: 'Most capable model for complex analysis',
     rpm: 2,
     rpd: 50,
-    apiVersion: 'v1beta',
+    apiVersion: 'v1',
   },
 } as const;
 
@@ -34,7 +41,7 @@ export type GeminiModelId = keyof typeof GEMINI_MODELS;
 
 // Default configuration
 export const GEMINI_DEFAULTS = {
-  model: 'gemini-pro-vision' as GeminiModelId,
+  model: 'gemini-2.0-flash' as GeminiModelId,
   batchSize: 100,
   enabled: false,
   scheduleMinutes: 30,
@@ -232,7 +239,7 @@ export function getGeminiApiKey(): string | null {
  */
 export async function analyzeImageWithGemini(
   imageUrl: string,
-  model: GeminiModelId = 'gemini-pro-vision'
+  model: GeminiModelId = 'gemini-2.0-flash'
 ): Promise<GeminiAnalysisResult | null> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
