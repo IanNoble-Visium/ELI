@@ -37,7 +37,7 @@ export type GeminiModelId = keyof typeof GEMINI_MODELS;
 
 // Default configuration
 export const GEMINI_DEFAULTS = {
-  model: 'gemini-1.5-flash' as GeminiModelId,
+  model: 'gemini-2.0-flash' as GeminiModelId,
   batchSize: 100,
   enabled: false,
   scheduleMinutes: 30,
@@ -179,7 +179,7 @@ export function getGeminiApiKey(): string | null {
  */
 export async function analyzeImageWithGemini(
   imageUrl: string,
-  model: GeminiModelId = 'gemini-1.5-flash'
+  model: GeminiModelId = 'gemini-2.0-flash'
 ): Promise<GeminiAnalysisResult | null> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
