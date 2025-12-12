@@ -1,6 +1,6 @@
 # ELI Dashboard - Pending Tasks
 
-> **Last Updated:** December 11, 2025 (Reverse Image Search Feature)
+> **Last Updated:** December 12, 2025 (AI Agent System Planning)
 
 ---
 
@@ -128,6 +128,73 @@
 - [ ] Breadcrumb trail - Show navigation path
 - [ ] Keyboard shortcuts - Ctrl+1-6 for quick navigation
 
+### Topology Graph Reporting *(Completed Dec 12, 2025)*
+- [x] Multi-select (Shift + drag lasso) on Topology Graph ✅
+- [x] Generate executive summary from multi-selection ✅
+  - Uses Google Gemini text generation (`GEMINI_API_KEY`)
+- [x] Persist reports in PostgreSQL (`topology_reports`) ✅
+- [x] Reports table in Executive Dashboard ✅
+- [x] Share link view (`/share/report/:token`) ✅
+- [x] Export report as JSON/CSV ✅
+- [x] Flag selection as issue + write back to Neo4j (`flaggedReportId`) ✅
+- [x] Production fix: missing `topology_reports` table created in DB ✅
+
+### AI Agent System *(Phase 2 Complete Dec 12, 2025)*
+
+> **Goal:** Discover patterns ("needles in the haystack") in surveillance data via autonomous agents
+
+#### Phase 1: Foundation ✅ (Completed Dec 12)
+- [x] **PostgreSQL schema** - `agent_runs`, `agent_config`, `agent_run_logs` tables ✅
+- [x] **Agent base utilities** - `api/lib/agent-base.ts` with shared logic ✅
+  - Run ID/Group ID generation
+  - Configuration management with defaults
+  - Duplicate detection (10-node overlap threshold)
+  - Jaccard similarity calculation (90% threshold)
+  - Neo4j tagging helpers
+  - Execution time management (7-second limit)
+- [x] **API endpoints** - `api/data/agent-config.ts`, `api/data/agent-runs.ts` ✅
+- [x] **CRON job registration** - Timeline, Correlation, Anomaly jobs (disabled until implemented) ✅
+
+#### Phase 2: Timeline Agent ✅ (Completed Dec 12)
+- [x] **CRON handler** - `api/cron/agent-timeline.ts` with 7-second timeout ✅
+  - Batch processing with smart sampling
+  - Jaccard similarity matching (90% threshold)
+  - Duplicate detection before tagging
+  - Executive summary generation
+- [x] **Timeline dashboard** - `TimelineAgentDashboard.tsx` ✅
+  - Stats cards (runs, timelines, nodes tagged)
+  - Run history list with status icons
+  - Timeline visualization (vertical sequence)
+  - Run details panel with shared properties
+  - Manual trigger button
+- [x] **Route added** - `/dashboard/agents/timeline` ✅
+- [ ] **Context trigger** - Right-click node → "Find Timeline" action (Phase 5)
+
+#### Phase 3: Correlation Agent
+- [ ] **CRON handler** - `api/cron/agent-correlation.ts` with 7-second timeout
+- [ ] **Context trigger** - Right-click node → "Find Correlations" action
+- [ ] **Correlation dashboard** - `CorrelationAgentDashboard.tsx` with cluster visualization
+- [ ] **Cluster discovery** - Group nodes with 90%+ property similarity (order-independent)
+
+#### Phase 4: Anomaly Agent
+- [ ] **CRON handler** - `api/cron/agent-anomaly.ts` with 7-second timeout
+- [ ] **Anomaly detection** - Fire, fights, crashes, unusual gatherings (Gemini tags)
+- [ ] **Time windowing** - Group anomalies within 1-hour window
+- [ ] **Geographic segregation** - Different regions = different anomaly groups
+- [ ] **Anomaly dashboard** - `AnomalyAgentDashboard.tsx` with regional heat map
+
+#### Phase 5: Integration
+- [ ] **Context menu integration** - Add agent triggers to Topology/Map right-click menus
+- [ ] **Settings UI** - Agent configuration in Settings page (batch size, thresholds)
+
+#### Future Scalability (Billions of Images)
+- [ ] **Migrate to Inngest** - Step-based workflows, each step under 10s
+- [ ] **Alternative: Trigger.dev** - Durable workflows with job UI and observability
+- [ ] **Alternative: Upstash QStash** - Message queue with retries and scheduling
+- [ ] **Priority-based sampling** - Smart node selection instead of random sampling
+- [ ] **Temporal partitioning** - Only scan recent data, archive older events
+- [ ] **Pre-computed similarity hashes** - LSH for fast nearest-neighbor at scale
+
 ---
 
 ## P3 - Future Enhancements
@@ -170,6 +237,11 @@
 - [ ] Database connection pooling for serverless
 - [ ] Request rate limiting on webhook endpoint
 - [ ] Database backup strategy
+
+### Neo4j Reliability (Follow-up)
+- [ ] Address intermittent Neo4j driver pool acquisition timeouts
+  - Symptoms: "Connection acquisition timed out in 30000 ms. Pool status: Active conn count = 2"
+  - Consider: increasing max pool size, ensuring sessions are always closed, reducing webhook concurrency
 
 ### Advanced Features
 - [ ] Full purge logic implementation
@@ -364,6 +436,16 @@
 3. ~~**Add flash effect to cards on data update**~~ - Apply `flash-highlight` class
 4. **Persist high-risk flags** - Store marked entities in localStorage or database
 5. **Gemini AI batch scheduling** - Enable automatic CRON scheduling via Vercel
+
+6. **Automate DB migrations for production**
+   - The `topology_reports` table was missing in production; add a repeatable migration step (CI or `pnpm db:push` equivalent)
+
+7. **Add report deduplication / merge helpers**
+   - Detect identical selections and offer "update existing report" vs "create new"
+   - Optional: store a stable selection hash in report metadata
+
+8. **PDF export for reports**
+   - Currently JSON/CSV is supported; add PDF generation for executive briefings
 
 ### Gemini AI Enhancements (New)
 6. **Face recognition integration** - Link detected faces to POLE Person entities

@@ -14,10 +14,21 @@ import {
   incidents,
   systemConfig,
   topologyReports,
+  // Agent tables
+  agentRuns,
+  agentConfig,
+  agentRunLogs,
   type TopologyReport,
   type InsertTopologyReport,
   type Snapshot,
   type InsertSnapshot,
+  // Agent types
+  type AgentRun,
+  type InsertAgentRun,
+  type AgentConfig,
+  type InsertAgentConfig,
+  type AgentRunLog,
+  type InsertAgentRunLog,
 } from "../../drizzle/schema.js";
 
 // Cache the drizzle instance to reuse across requests
@@ -53,8 +64,12 @@ export { and, desc, eq, gte, lte, sql, count, inArray };
 // Re-export schema tables
 export { events, channels, webhookRequests, snapshots, incidents, systemConfig, topologyReports };
 
+// Re-export agent tables
+export { agentRuns, agentConfig, agentRunLogs };
+
 // Re-export types
 export type { Snapshot, InsertSnapshot, TopologyReport, InsertTopologyReport };
+export type { AgentRun, InsertAgentRun, AgentConfig, InsertAgentConfig, AgentRunLog, InsertAgentRunLog };
 
 // ========== Snapshots ==========
 

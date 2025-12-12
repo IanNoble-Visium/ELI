@@ -42,6 +42,37 @@ const CRON_JOBS = [
     enabled: true,
     dependencies: ["GEMINI_API_KEY", "DATABASE_URL"],
   },
+  // AI Agent CRON Jobs
+  {
+    id: "agent-timeline",
+    name: "Timeline Agent",
+    description: "Discovers temporal sequences of related events to build entity timelines across cameras",
+    path: "/api/cron/agent-timeline",
+    schedule: "0 * * * *",
+    scheduleDescription: "Every hour",
+    enabled: false,  // Disabled until implemented
+    dependencies: ["GEMINI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
+  },
+  {
+    id: "agent-correlation",
+    name: "Correlation Agent",
+    description: "Finds groups of related events based on property similarity (order-independent)",
+    path: "/api/cron/agent-correlation",
+    schedule: "0 * * * *",
+    scheduleDescription: "Every hour",
+    enabled: false,  // Disabled until implemented
+    dependencies: ["GEMINI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
+  },
+  {
+    id: "agent-anomaly",
+    name: "Anomaly Agent",
+    description: "Detects unusual events or patterns (fires, fights, crashes, unusual gatherings) within time/region windows",
+    path: "/api/cron/agent-anomaly",
+    schedule: "0 * * * *",
+    scheduleDescription: "Every hour",
+    enabled: false,  // Disabled until implemented
+    dependencies: ["GEMINI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
+  },
 ];
 
 interface CronJobStatus {
@@ -128,7 +159,7 @@ function calculateNextRun(schedule: string): string | undefined {
       const interval = parseInt(minute.substring(2), 10);
       const currentMinute = now.getMinutes();
       const nextMinute = Math.ceil((currentMinute + 1) / interval) * interval;
-      
+
       const nextRun = new Date(now);
       if (nextMinute >= 60) {
         nextRun.setHours(nextRun.getHours() + 1);
@@ -138,7 +169,7 @@ function calculateNextRun(schedule: string): string | undefined {
       }
       nextRun.setSeconds(0);
       nextRun.setMilliseconds(0);
-      
+
       return nextRun.toISOString();
     }
 
@@ -183,7 +214,7 @@ export default async function handler(
     // GET /api/cron/status - List all jobs with status
     if (req.method === "GET" && !action) {
       const jobs = CRON_JOBS.map(getJobStatus);
-      
+
       res.status(200).json({
         success: true,
         jobs,
@@ -196,7 +227,7 @@ export default async function handler(
     // GET /api/cron/status?action=history&jobId=xxx - Get job execution history
     if (req.method === "GET" && action === "history" && jobId) {
       const history = jobExecutionHistory.get(jobId as string) || [];
-      
+
       res.status(200).json({
         success: true,
         jobId,
@@ -209,7 +240,7 @@ export default async function handler(
     // POST /api/cron/status?action=trigger&jobId=xxx - Manually trigger a job
     if (req.method === "POST" && action === "trigger" && jobId) {
       const job = CRON_JOBS.find(j => j.id === jobId);
-      
+
       if (!job) {
         res.status(404).json({
           success: false,
@@ -294,7 +325,7 @@ export default async function handler(
       // Import and call the metrics recording
       const protocol = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers.host;
-      
+
       // Record multiple data points with slight time offsets to create history
       const results = [];
       const intervals = [0, 5, 10, 15, 20, 25, 30]; // Minutes ago

@@ -1,6 +1,6 @@
 # ELI Unified Dashboard
 
-> **Last Updated:** December 11, 2025 (Reverse Image Search Feature)
+> **Last Updated:** December 12, 2025 (Topology Graph Reporting)
 
 ## Executive Summary – ELI for Peru
 
@@ -610,6 +610,188 @@ The AI extracts the following from uploaded images:
 4. **Suspect Tracking** - Upload a suspect photo to trace their movements through camera network
 
 ---
+
+## Topology Graph Reporting *(New Dec 2025)*
+
+Topology Graph Reporting turns an ad-hoc graph selection into a durable, shareable, executive-grade report.
+
+It enables:
+
+- Multi-select (Shift + drag lasso) across nodes
+- AI-generated analysis using Google Gemini
+- Issue flagging linked back to selected nodes/edges
+- Reports table in Executive Dashboard
+- Exports (JSON/CSV) and share links
+
+### Step-by-step: How it works
+
+1. **Select nodes**
+   - On the Topology Graph page, hold **Shift** and drag to draw a selection box.
+   - Selected nodes are highlighted and a selection card shows counts.
+
+2. **Generate Summary**
+   - Click **Generate Summary**.
+   - The UI posts `nodeIds` (and optionally `edgeIds`) to `/api/data/topology-reports`.
+
+3. **Backend builds context**
+   - The API fetches full node + relationship properties from Neo4j for the selected IDs.
+   - A structured prompt is assembled from those properties.
+
+4. **Gemini generates the report**
+   - The API calls the Google Generative Language `:generateContent` endpoint using `GEMINI_API_KEY`.
+   - Response text is extracted as Markdown.
+
+5. **Persist the report**
+   - The report is stored in PostgreSQL (`topology_reports`), including selection IDs and a snapshot of the context in `metadata`.
+
+6. **View, export, and share**
+   - Reports appear in the Executive Dashboard “Reports” tab.
+   - Reports can be exported as JSON/CSV and shared via `/share/report/:token`.
+
+### End-to-end sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant UI as TopologyGraph.tsx
+    participant API as /api/data/topology-reports
+    participant NEO as Neo4j
+    participant GEM as Gemini API
+    participant PG as PostgreSQL
+
+    U->>UI: Shift + drag lasso select
+    U->>UI: Click Generate Summary
+    UI->>API: POST { nodeIds, edgeIds }
+    API->>NEO: Fetch nodes + edges context
+    API->>GEM: generateContent(prompt)
+    GEM-->>API: Markdown report text
+    API->>PG: INSERT topology_reports
+    PG-->>API: OK
+    API-->>UI: { success, report }
+    UI-->>U: Render report + actions
+
+    opt Flag as Issue
+        U->>UI: Click Flag as Issue
+        UI->>API: POST ?action=flag
+        API->>NEO: Set flaggedReportId on nodes/edges
+        API->>PG: UPDATE topology_reports.flagged
+        API-->>UI: OK
+    end
+
+    opt Share link
+        U->>UI: Create share link
+        UI->>API: POST ?action=share
+        API->>PG: UPDATE topology_reports.shareToken
+        API-->>UI: { shareToken }
+        UI-->>U: Copy URL /share/report/:token
+    end
+```
+
+### Backend flow (data and responsibilities)
+
+```mermaid
+flowchart TB
+    subgraph UI[Client]
+        A[Selection Box\nShift + Drag] --> B[Selected nodeIds/edgeIds]
+        B --> C["Generate Summary\nPOST /api/data/topology-reports"]
+        C --> D["Render report\n(Streamdown)"]
+        D --> E[Export/Share/Flag]
+    end
+
+    subgraph API[/api/data/topology-reports]
+        F[Validate input + auth] --> G["Fetch Neo4j context\n(getTopologyReportContextFromNeo4j)"]
+        G --> H["Build prompt\n(buildReportPrompt)"]
+        H --> I["Gemini generateContent\n(GEMINI_API_KEY)"]
+        I --> J["Persist report\n(PostgreSQL topology_reports)"]
+        J --> K[Return report payload]
+    end
+
+    B --> F
+    K --> D
+
+    style API fill:#111827,color:#fff
+    style UI fill:#0B1220,color:#fff
+```
+
+### PostgreSQL schema (reports)
+
+```mermaid
+erDiagram
+    topology_reports {
+        varchar id PK
+        varchar title
+        text content
+        timestamp createdAt
+        varchar createdByUserId
+        text createdByUserName
+        jsonb nodeIds
+        jsonb edgeIds
+        int nodeCount
+        int edgeCount
+        boolean flagged
+        timestamp flaggedAt
+        varchar shareToken
+        jsonb metadata
+    }
+```
+
+### Report lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Selected: Nodes selected
+    Selected --> Generating: Generate Summary
+    Generating --> Saved: Stored in PostgreSQL
+    Saved --> Shared: Share token created
+    Saved --> Flagged: Flag as Issue
+    Shared --> [*]
+    Flagged --> [*]
+```
+
+### Key files
+
+- **Frontend**
+  - `client/src/pages/TopologyGraph.tsx` (selection UI + report actions)
+  - `client/src/pages/ExecutiveDashboard.tsx` (reports list)
+  - `client/src/pages/SharedReport.tsx` (read-only public view)
+
+- **Backend**
+  - `api/data/topology-reports.ts` (generate/flag/share/list/export)
+  - `api/data/topology-neo4j.ts` (context fetch + flaggedReportId setter)
+  - `api/lib/gemini.ts` (Gemini text generation helper)
+
+- **Database**
+  - `drizzle/schema.ts` (`topology_reports` table definition)
+
+### API endpoints
+
+- **Generate report**
+  - `POST /api/data/topology-reports`
+  - Body: `{ nodeIds: string[], edgeIds?: string[] }`
+
+- **List reports**
+  - `GET /api/data/topology-reports`
+
+- **Get report**
+  - `GET /api/data/topology-reports?id=<reportId>`
+  - `GET /api/data/topology-reports?shareToken=<token>`
+
+- **Export**
+  - `GET /api/data/topology-reports?id=<reportId>&format=json`
+  - `GET /api/data/topology-reports?id=<reportId>&format=csv`
+
+- **Flag selection**
+  - `POST /api/data/topology-reports?action=flag`
+
+- **Create share link**
+  - `POST /api/data/topology-reports?action=share`
+
+### Environment variables
+
+- `GEMINI_API_KEY` (required for report generation)
+- `DATABASE_URL` (required for report persistence)
+- Neo4j connection variables (required for context fetch)
 
 ## 🚀 Quick Start
 

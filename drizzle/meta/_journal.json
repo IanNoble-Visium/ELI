@@ -22,6 +22,13 @@
       "when": 1765428249823,
       "tag": "0002_good_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1765523759680,
+      "tag": "0003_narrow_sinister_six",
+      "breakpoints": true
     }
   ]
 }

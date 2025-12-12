@@ -17,10 +17,10 @@ export const aiAnomalies = pgTable("ai_anomalies", {
 	context: jsonb(),
 	ts: bigint({ mode: "number" }).notNull(),
 },
-(table) => [
-	index("idx_ai_anomalies_entity_ts").on(table.entityType, table.entityId, table.ts),
-	index("idx_ai_anomalies_metric_ts").on(table.metric, table.ts),
-]);
+	(table) => [
+		index("idx_ai_anomalies_entity_ts").on(table.entityType, table.entityId, table.ts),
+		index("idx_ai_anomalies_metric_ts").on(table.metric, table.ts),
+	]);
 
 export const aiBaselines = pgTable("ai_baselines", {
 	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
@@ -42,10 +42,10 @@ export const aiDetections = pgTable("ai_detections", {
 	meta: jsonb(),
 	ts: bigint({ mode: "number" }).notNull(),
 },
-(table) => [
-	index("idx_ai_detections_channel_ts").on(table.channelId, table.ts),
-	index("idx_ai_detections_event").on(table.eventId),
-]);
+	(table) => [
+		index("idx_ai_detections_channel_ts").on(table.channelId, table.ts),
+		index("idx_ai_detections_event").on(table.eventId),
+	]);
 
 export const aiInferenceJobs = pgTable("ai_inference_jobs", {
 	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
@@ -57,10 +57,10 @@ export const aiInferenceJobs = pgTable("ai_inference_jobs", {
 	createdAt: bigint({ mode: "number" }).notNull(),
 	updatedAt: bigint({ mode: "number" }).notNull(),
 },
-(table) => [
-	index("idx_ai_jobs_status").on(table.status),
-	index("idx_ai_jobs_created").on(table.createdAt),
-]);
+	(table) => [
+		index("idx_ai_jobs_status").on(table.status),
+		index("idx_ai_jobs_created").on(table.createdAt),
+	]);
 
 export const aiInsights = pgTable("ai_insights", {
 	id: bigint({ mode: "number" }).notNull().generatedAlwaysAsIdentity(),
@@ -71,9 +71,9 @@ export const aiInsights = pgTable("ai_insights", {
 	context: jsonb(),
 	ts: bigint({ mode: "number" }).notNull(),
 },
-(table) => [
-	index("idx_ai_insights_scope_ts").on(table.scope, table.scopeId, table.ts),
-]);
+	(table) => [
+		index("idx_ai_insights_scope_ts").on(table.scope, table.scopeId, table.ts),
+	]);
 
 export const channels = pgTable("channels", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
@@ -89,10 +89,10 @@ export const channels = pgTable("channels", {
 	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
-(table) => [
-	index("idx_channels_region").on(table.region),
-	index("idx_channels_status").on(table.status),
-]);
+	(table) => [
+		index("idx_channels_region").on(table.region),
+		index("idx_channels_status").on(table.status),
+	]);
 
 export const events = pgTable("events", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
@@ -113,12 +113,12 @@ export const events = pgTable("events", {
 	tags: jsonb(),
 	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
-(table) => [
-	index("idx_events_start_time").on(table.startTime),
-	index("idx_events_topic").on(table.topic),
-	index("idx_events_channel").on(table.channelId),
-	index("idx_events_level").on(table.level),
-]);
+	(table) => [
+		index("idx_events_start_time").on(table.startTime),
+		index("idx_events_topic").on(table.topic),
+		index("idx_events_channel").on(table.channelId),
+		index("idx_events_level").on(table.level),
+	]);
 
 export const incidentNotes = pgTable("incident_notes", {
 	id: integer().notNull().generatedAlwaysAsIdentity(),
@@ -163,12 +163,12 @@ export const incidents = pgTable("incidents", {
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 	resolvedAt: timestamp({ mode: 'string' }),
 },
-(table) => [
-	index("idx_incidents_status").on(table.status),
-	index("idx_incidents_priority").on(table.priority),
-	index("idx_incidents_region").on(table.region),
-	index("idx_incidents_created").on(table.createdAt),
-]);
+	(table) => [
+		index("idx_incidents_status").on(table.status),
+		index("idx_incidents_priority").on(table.priority),
+		index("idx_incidents_region").on(table.region),
+		index("idx_incidents_created").on(table.createdAt),
+	]);
 
 export const poleEntities = pgTable("pole_entities", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
@@ -181,10 +181,10 @@ export const poleEntities = pgTable("pole_entities", {
 	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
-(table) => [
-	index("idx_pole_entities_type").on(table.entityType),
-	index("idx_pole_entities_threat").on(table.threatLevel),
-]);
+	(table) => [
+		index("idx_pole_entities_type").on(table.entityType),
+		index("idx_pole_entities_threat").on(table.threatLevel),
+	]);
 
 export const snapshots = pgTable("snapshots", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
@@ -200,11 +200,11 @@ export const snapshots = pgTable("snapshots", {
 	geminiModelUsed: varchar("gemini_model_used", { length: 100 }),
 	geminiError: text("gemini_error"),
 },
-(table) => [
-	index("idx_snapshots_event_id").on(table.eventId),
-	index("idx_snapshots_type").on(table.type),
-	index("idx_snapshots_gemini_processed").on(table.geminiProcessed),
-]);
+	(table) => [
+		index("idx_snapshots_event_id").on(table.eventId),
+		index("idx_snapshots_type").on(table.type),
+		index("idx_snapshots_gemini_processed").on(table.geminiProcessed),
+	]);
 
 export type Snapshot = typeof snapshots.$inferSelect;
 export type InsertSnapshot = typeof snapshots.$inferInsert;
@@ -245,11 +245,11 @@ export const webhookRequests = pgTable("webhook_requests", {
 	processingTime: integer(),
 	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 },
-(table) => [
-	index("idx_webhook_requests_created").on(table.createdAt),
-	index("idx_webhook_requests_level").on(table.level),
-	index("idx_webhook_requests_module").on(table.module),
-]);
+	(table) => [
+		index("idx_webhook_requests_created").on(table.createdAt),
+		index("idx_webhook_requests_level").on(table.level),
+		index("idx_webhook_requests_module").on(table.module),
+	]);
 
 export const topologyReports = pgTable("topology_reports", {
 	id: varchar({ length: 64 }).primaryKey().notNull(),
@@ -267,11 +267,121 @@ export const topologyReports = pgTable("topology_reports", {
 	shareToken: varchar({ length: 64 }),
 	metadata: jsonb(),
 },
-(table) => [
-	index("idx_topology_reports_created").on(table.createdAt),
-	index("idx_topology_reports_flagged").on(table.flagged),
-	index("idx_topology_reports_share_token").on(table.shareToken),
-]);
+	(table) => [
+		index("idx_topology_reports_created").on(table.createdAt),
+		index("idx_topology_reports_flagged").on(table.flagged),
+		index("idx_topology_reports_share_token").on(table.shareToken),
+	]);
 
 export type TopologyReport = typeof topologyReports.$inferSelect;
 export type InsertTopologyReport = typeof topologyReports.$inferInsert;
+
+// ============================================================================
+// AI Agent System Tables
+// ============================================================================
+
+// Enum for agent types
+export const agentTypeEnum = pgEnum('agent_type', ['timeline', 'correlation', 'anomaly']);
+export const agentRunModeEnum = pgEnum('agent_run_mode', ['cron', 'manual', 'context']);
+export const agentRunStatusEnum = pgEnum('agent_run_status', ['running', 'completed', 'failed', 'discarded']);
+export const agentLogLevelEnum = pgEnum('agent_log_level', ['debug', 'info', 'warn', 'error']);
+
+/**
+ * Agent Runs - Stores metadata for each agent execution
+ * Links to discovered groups via group_id (which is also used as Neo4j tag)
+ */
+export const agentRuns = pgTable("agent_runs", {
+	id: varchar({ length: 64 }).primaryKey().notNull(),  // e.g., "timeline_run_abc123"
+	agentType: agentTypeEnum("agent_type").notNull(),
+	runMode: agentRunModeEnum("run_mode").notNull(),
+	status: agentRunStatusEnum().default('running').notNull(),
+
+	// Context (for right-click triggers)
+	anchorNodeId: varchar("anchor_node_id", { length: 255 }),
+	anchorNodeType: varchar("anchor_node_type", { length: 50 }),
+
+	// Processing Metadata
+	nodesProcessed: integer("nodes_processed").default(0).notNull(),
+	nodesMatched: integer("nodes_matched").default(0).notNull(),
+	nodesTagged: integer("nodes_tagged").default(0).notNull(),
+	batchesCompleted: integer("batches_completed").default(0).notNull(),
+	processingTimeMs: integer("processing_time_ms"),
+
+	// Configuration Used
+	batchSize: integer("batch_size").default(100).notNull(),
+	confidenceThreshold: doublePrecision("confidence_threshold").default(0.90).notNull(),
+	minGroupSize: integer("min_group_size"),  // 5 for timeline/correlation, 10 for anomaly
+	maxExecutionMs: integer("max_execution_ms").default(7000).notNull(),  // 7s for Vercel
+
+	// Results
+	groupId: varchar("group_id", { length: 64 }),  // Unique tag applied to nodes (if any)
+	groupSize: integer("group_size"),
+	executiveSummary: text("executive_summary"),  // AI-generated summary
+
+	// Agent-Specific Metadata (JSONB for flexibility)
+	findings: jsonb(),  // Timeline: sequence[], Correlation: clusters[], Anomaly: events[]
+
+	// Timestamps
+	startedAt: timestamp("started_at", { mode: 'string' }).defaultNow().notNull(),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+},
+	(table) => [
+		index("idx_agent_runs_type_status").on(table.agentType, table.status),
+		index("idx_agent_runs_started").on(table.startedAt),
+		index("idx_agent_runs_group").on(table.groupId),
+	]);
+
+export type AgentRun = typeof agentRuns.$inferSelect;
+export type InsertAgentRun = typeof agentRuns.$inferInsert;
+
+/**
+ * Agent Configuration - Per-agent type configuration
+ * Stores settings for batch size, thresholds, and agent-specific options
+ */
+export const agentConfig = pgTable("agent_config", {
+	id: integer().notNull().generatedAlwaysAsIdentity(),
+	agentType: agentTypeEnum("agent_type").notNull().unique(),
+	enabled: boolean().default(false).notNull(),
+	scheduleCron: varchar("schedule_cron", { length: 50 }).default('0 * * * *').notNull(),  // Every hour
+	batchSize: integer("batch_size").default(100).notNull(),
+	confidenceThreshold: doublePrecision("confidence_threshold").default(0.90).notNull(),
+	minGroupSizeCron: integer("min_group_size_cron"),  // Size requirement for CRON mode
+	minGroupSizeContext: integer("min_group_size_context"),  // Size requirement for context mode
+	maxExecutionMs: integer("max_execution_ms").default(7000).notNull(),  // 7s for Vercel
+
+	// Duplicate Prevention
+	overlapThreshold: integer("overlap_threshold").default(10).notNull(),  // Max overlapping tags before discard
+
+	// Scan Strategy
+	scanNewEventsOnly: boolean("scan_new_events_only").default(true).notNull(),  // Only scan events since last run
+	lastProcessedTimestamp: bigint("last_processed_timestamp", { mode: "number" }),  // Track progress
+
+	// Agent-Specific Config (JSONB for flexibility)
+	config: jsonb(),  // E.g., anomaly window hours, region radius km
+
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
+});
+
+export type AgentConfig = typeof agentConfig.$inferSelect;
+export type InsertAgentConfig = typeof agentConfig.$inferInsert;
+
+/**
+ * Agent Run Logs - Detailed execution log entries
+ * Stores real-time log messages for each agent run
+ */
+export const agentRunLogs = pgTable("agent_run_logs", {
+	id: integer().notNull().generatedAlwaysAsIdentity(),
+	runId: varchar("run_id", { length: 64 }).notNull(),  // FK to agent_runs.id
+	timestamp: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	level: agentLogLevelEnum().default('info').notNull(),
+	message: text().notNull(),
+	metadata: jsonb(),
+},
+	(table) => [
+		index("idx_agent_logs_run").on(table.runId),
+		index("idx_agent_logs_timestamp").on(table.timestamp),
+	]);
+
+export type AgentRunLog = typeof agentRunLogs.$inferSelect;
+export type InsertAgentRunLog = typeof agentRunLogs.$inferInsert;

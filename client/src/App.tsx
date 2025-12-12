@@ -24,6 +24,9 @@ const TopologyGraph = lazy(() => import("./pages/TopologyGraph"));
 const POLEAnalytics = lazy(() => import("./pages/POLEAnalytics"));
 const SharedReport = lazy(() => import("./pages/SharedReport"));
 
+// Lazy load agent dashboards
+const TimelineAgentDashboard = lazy(() => import("./pages/TimelineAgentDashboard"));
+
 // Loading fallback component for lazy-loaded pages
 function PageLoadingFallback() {
   return (
@@ -155,6 +158,13 @@ function Router() {
         </Route>
         <Route path="/dashboard/analysis">
           {() => <AnimatedPage><ProtectedRoute component={ImageAnalysisDashboard} /></AnimatedPage>}
+        </Route>
+        <Route path="/dashboard/agents/timeline">
+          {() => (
+            <Suspense fallback={<PageLoadingFallback />}>
+              <AnimatedPage><ProtectedRoute component={TimelineAgentDashboard} /></AnimatedPage>
+            </Suspense>
+          )}
         </Route>
         <Route path="/share/report/:token">
           {() => (
