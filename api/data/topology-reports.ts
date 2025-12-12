@@ -393,7 +393,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error("[Topology Reports API] POST error:", error);
       const msg = error?.message || "Internal server error";
       // Helpful hint for missing migrations
-      if (typeof msg === "string" && (msg.includes("topology_reports") || msg.includes("42P01"))) {
+      const pgCode =
+        error?.code ||
+        error?.cause?.code ||
+        error?.cause?.cause?.code ||
+        error?.cause?.originalError?.code ||
+        error?.cause?.sourceError?.code;
+      const causeMsg =
+        error?.cause?.message ||
+        error?.cause?.cause?.message ||
+        error?.cause?.originalError?.message ||
+        error?.cause?.sourceError?.message;
+      if (
+        pgCode === "42P01" ||
+        (typeof msg === "string" && msg.includes("topology_reports")) ||
+        (typeof causeMsg === "string" && causeMsg.includes("topology_reports"))
+      ) {
         return res.status(500).json({
           success: false,
           error: "Database schema missing: topology_reports table not found. Run Drizzle migrations in the target database.",
