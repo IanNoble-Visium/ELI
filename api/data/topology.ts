@@ -54,10 +54,12 @@ interface GraphNode {
 }
 
 interface GraphLink {
+  id?: string;
   source: string;
   target: string;
   value: number;
   type: string;
+  properties?: Record<string, any>;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

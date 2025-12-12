@@ -13,6 +13,9 @@ import {
   snapshots,
   incidents,
   systemConfig,
+  topologyReports,
+  type TopologyReport,
+  type InsertTopologyReport,
   type Snapshot,
   type InsertSnapshot,
 } from "../../drizzle/schema.js";
@@ -48,10 +51,10 @@ export async function getDb(): Promise<NeonHttpDatabase | null> {
 export { and, desc, eq, gte, lte, sql, count, inArray };
 
 // Re-export schema tables
-export { events, channels, webhookRequests, snapshots, incidents, systemConfig };
+export { events, channels, webhookRequests, snapshots, incidents, systemConfig, topologyReports };
 
 // Re-export types
-export type { Snapshot, InsertSnapshot };
+export type { Snapshot, InsertSnapshot, TopologyReport, InsertTopologyReport };
 
 // ========== Snapshots ==========
 

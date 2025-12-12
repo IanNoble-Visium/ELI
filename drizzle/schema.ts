@@ -250,3 +250,28 @@ export const webhookRequests = pgTable("webhook_requests", {
 	index("idx_webhook_requests_level").on(table.level),
 	index("idx_webhook_requests_module").on(table.module),
 ]);
+
+export const topologyReports = pgTable("topology_reports", {
+	id: varchar({ length: 64 }).primaryKey().notNull(),
+	title: varchar({ length: 500 }),
+	content: text().notNull(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	createdByUserId: varchar({ length: 255 }),
+	createdByUserName: text(),
+	nodeIds: jsonb().notNull(),
+	edgeIds: jsonb().notNull(),
+	nodeCount: integer().notNull(),
+	edgeCount: integer().notNull(),
+	flagged: boolean().default(false).notNull(),
+	flaggedAt: timestamp({ mode: 'string' }),
+	shareToken: varchar({ length: 64 }),
+	metadata: jsonb(),
+},
+(table) => [
+	index("idx_topology_reports_created").on(table.createdAt),
+	index("idx_topology_reports_flagged").on(table.flagged),
+	index("idx_topology_reports_share_token").on(table.shareToken),
+]);
+
+export type TopologyReport = typeof topologyReports.$inferSelect;
+export type InsertTopologyReport = typeof topologyReports.$inferInsert;

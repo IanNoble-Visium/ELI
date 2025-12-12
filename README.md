@@ -1,6 +1,6 @@
 # ELI Unified Dashboard
 
-> **Last Updated:** December 11, 2025 (Gemini AI Image Analysis + Quick Filters)
+> **Last Updated:** December 11, 2025 (Reverse Image Search Feature)
 
 ## Executive Summary – ELI for Peru
 
@@ -72,6 +72,7 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
    - Node/edge filtering and search
    - **Image nodes** - Events display Cloudinary images as node thumbnails
    - **Right-click context menu** *(New Dec 2025)* - Context-aware actions on any node
+   - **Node Details Panel** *(New Dec 2025)* - Slide-out panel with comprehensive node properties
    - **Mark as High Risk** *(New Dec 2025)* - Flag nodes with pulsing red animation
    - **Fullscreen presentation mode** - Toggle button for clean presentations
    - **Memoized rendering** *(New Dec 2025)* - Optimized callbacks prevent unnecessary re-renders
@@ -141,9 +142,9 @@ A comprehensive, full-stack surveillance dashboard that unifies three separate s
 
 ---
 
-## 🖱️ Context Menu System *(New Dec 2025)*
+## 🖱️ Context Menu System *(Updated Dec 11)*
 
-The context menu feature enables rich right-click interactions across the Topology Graph and Geographic Map screens.
+The context menu feature enables rich right-click interactions across the Topology Graph and Geographic Map screens, now with **AI-powered auto-creation** of incidents and POLE entities.
 
 ### Flow Diagram
 
@@ -168,25 +169,35 @@ flowchart TB
         CM --> A6[Mark as High Risk]
     end
     
-    subgraph "Navigation Targets"
-        A2 --> |"URL params"| INC[Incident Management]
-        A3 --> |"URL params"| POLE[POLE Analytics]
-        A4 --> |"channelId"| WH[Webhooks Viewer]
-        A5 --> |"highlight"| TOP[Topology Graph]
+    subgraph "Backend API Processing"
+        A2 --> |"POST /api/data/create-incident"| API_INC[Create Incident API]
+        A3 --> |"POST /api/data/create-pole-entity"| API_POLE[Create POLE API]
+        
+        API_INC --> MOCK[Rich Mock Data Generator]
+        API_POLE --> MOCK
+        
+        MOCK --> |"Generating..."| STORIES[Crime Stories & Intelligence]
+        STORIES --> |"Persist"| DB[(PostgreSQL)]
+    end
+    
+    subgraph "User Experience"
+        DB --> |"Success + ID"| TOAST[Toast Notification]
+        TOAST --> |"Auto-Navigate"| VIEW[View New Record]
+        
+        A1 --> DETAILS[Node Details Panel]
+        A4 --> WH[Webhooks Viewer]
+        A5 --> TOP[Topology Graph]
     end
     
     subgraph "Visual Feedback"
         A6 --> VF1[Pulsing Red Animation]
         A6 --> VF2[HIGH RISK Badge]
-        A6 --> VF3[Toast Notification]
     end
     
-    INC --> B1[Show Context Banner]
-    POLE --> B2[Show Entity Banner]
-    
     style CM fill:#8B5CF6,color:#fff
-    style A6 fill:#EF4444,color:#fff
-    style VF1 fill:#EF4444,color:#fff
+    style MOCK fill:#10B981,color:#fff
+    style API_INC fill:#3B82F6,color:#fff
+    style API_POLE fill:#3B82F6,color:#fff
 ```
 
 ### Usage
@@ -198,6 +209,41 @@ flowchart TB
 | Geographic Map | Region boundaries | View Details, Create Incident, Add to POLE, View in Topology, Mark as High Risk (all cameras) |
 
 *View Events only available for cameras/locations
+
+### ⚡ Auto-Creation with Rich Mock Data
+
+Instead of just opening a form, the "Create Incident" and "Add to POLE" actions now **automatically generate rich, realistic data** based on the selected node type:
+
+1. **Crime Story Generation**: 
+   - Uses context-aware templates (e.g., "Suspicious Activity" for cameras, "Plate Match" for vehicles).
+   - Generates detailed descriptions with investigation notes.
+   - Assigns Peruvian police units (DIRANDRO, DINOES, etc.) and officers.
+   
+2. **POLE Entity Intelligence**:
+   - Creates detailed profiles with aliases (e.g., "El Lobo", "La Sombra").
+   - Generates physical attributes and connection notes.
+   - Assigns threat levels and relationship links back to the source node.
+
+### 📋 Node Details Panel *(Enhanced Dec 11)*
+
+Selecting **"View Details"** opens a comprehensive slide-out panel on the right side of the screen with:
+
+- **Image Preview**: Full event image with "Open Full" link to Cloudinary
+- **AI Scene Description**: Prominently displayed Gemini caption in gradient card
+- **Event Details**: ID, Event ID, Channel, Timestamp, Region, Location coordinates
+- **Vehicles Detected**: Styled badges with vehicle descriptions (e.g., "dark sedan", "white van")
+- **License Plates**: Mono-font display with copy-on-click (grayed out for "obscured")
+- **People & Clothing**: People count with clothing color badges
+- **Weapons Alert**: Red highlighted section when weapons are detected
+- **Extracted Text**: Any OCR text found in the image
+- **Scene Environment**: Time of day, weather, lighting, camera perspective in grid layout
+- **Dominant Colors**: Color swatches with click-to-copy
+- **Image Quality**: Quality and blur scores with color-coded indicators
+- **AI Tags & Objects**: Gemini-detected tags and objects as badges
+- **Cloudinary Analysis**: Tags, objects, and colors from Cloudinary (if available)
+- **All Properties**: Raw property dump for debugging/technical inspection
+- **Footer Actions**: Copy JSON button and Open Image button
+- **Framer Motion Animations**: Smooth slide-in/slide-out with spring physics
 
 ### Mark as High Risk Feature
 
@@ -216,23 +262,6 @@ stateDiagram-v2
         • Toast notification
     end note
 ```
-
-### Integration with Incident/POLE Screens
-
-When a user clicks "Create Incident" or "Add to POLE" from the context menu, they are navigated to the respective screen with URL parameters that prefill the form:
-
-| Parameter | Description | Example |
-|-----------|-------------|--------|
-| `from` | Source screen | `topology`, `map` |
-| `nodeId` | Entity identifier | `camera-123` |
-| `nodeType` | Entity type | `camera`, `person`, `vehicle` |
-| `nodeName` | Display name | `CAM-LIMA-001` |
-| `region` | Geographic region | `Lima` |
-| `location` | Coordinates | `-12.0464,-77.0428` |
-
-The target screen displays a context banner showing the source and suggesting appropriate incident type or POLE entity type.
-
----
 
 ## 🤖 Gemini AI Image Analysis *(New Dec 2025)*
 
@@ -384,6 +413,32 @@ Configure Gemini AI processing in the **Settings** page:
 | `/api/data/gemini-search` | GET | Search events by AI metadata |
 | `/api/data/gemini-models` | GET | List available models for API key |
 | `/api/cron/process-gemini-images` | GET | Trigger image processing CRON |
+| `/api/data/sync-gemini-neo4j` | POST | Backfill Gemini data from PostgreSQL to Neo4j |
+
+### Gemini Neo4j Sync *(Fixed Dec 11)*
+
+The Gemini AI analysis data is now properly synced to Neo4j Event nodes, enabling Cypher queries on the Topology screen. 
+
+**What was fixed:**
+- The `updateNeo4jEventWithGemini()` function was matching on the wrong field (`eventId` instead of `id`)
+- Neo4j Event nodes are created with `id = eventDbId` (e.g., `evt_1765448367183_ry79lkofi`)
+- The fix ensures Gemini properties are correctly saved to the matching Neo4j node
+
+**Backfill existing data:**
+```bash
+# Sync processed snapshots to Neo4j (no re-analysis)
+curl -X POST "https://eli.visiumtechnologies.com/api/data/sync-gemini-neo4j?limit=100"
+
+# Re-analyze images and sync to Neo4j
+curl -X POST "https://eli.visiumtechnologies.com/api/data/sync-gemini-neo4j?reanalyze=true&limit=50"
+```
+
+**Verify in Neo4j:**
+```cypher
+MATCH (e:Event) WHERE e.geminiProcessedAt IS NOT NULL
+RETURN e.id, e.geminiCaption, e.geminiVehicles, e.geminiLicensePlates
+LIMIT 10
+```
 
 ### Search Query Parameters
 
@@ -395,6 +450,164 @@ Configure Gemini AI processing in the **Settings** page:
 | `vehicleType` | string | Filter by vehicle type | `SUV` |
 | `clothingColor` | string | Filter by clothing color | `black` |
 | `limit` | number | Max results to return | `100` |
+
+---
+
+## 🔍 Reverse Image Search *(New Dec 2025)*
+
+The Reverse Image Search feature enables investigators to upload a tip image (screenshot, photo from witness, etc.) and find matching events across the entire surveillance system.
+
+### How It Works
+
+```mermaid
+flowchart TB
+    subgraph "User Upload"
+        UP[Upload Image] --> |"Drag & Drop or Click"| UI[TopologyGraph Sidebar]
+        UI --> |"Base64 + MIME Type"| API[/api/data/reverse-image-search]
+    end
+
+    subgraph "AI Analysis"
+        API --> GEMINI[Gemini 2.0 Flash]
+        GEMINI --> |"Extract Features"| FEATURES[Extracted Metadata]
+    end
+
+    subgraph "Feature Extraction"
+        FEATURES --> VEH[Vehicles: type, make, color]
+        FEATURES --> PLATES[License Plates]
+        FEATURES --> PEOPLE[People Count]
+        FEATURES --> CLOTHING[Clothing Colors]
+        FEATURES --> COLORS[Scene Colors]
+        FEATURES --> TEXT[Extracted Text]
+    end
+
+    subgraph "Matching Engine"
+        VEH --> MATCH[Neo4j Event Matching]
+        PLATES --> MATCH
+        PEOPLE --> MATCH
+        CLOTHING --> MATCH
+        COLORS --> MATCH
+        TEXT --> MATCH
+        MATCH --> |"Calculate Scores"| CONF[Confidence Scoring]
+    end
+
+    subgraph "Results"
+        CONF --> |"Ranked by Confidence"| RESULTS[Match Results]
+        RESULTS --> |"Apply Filter"| GRAPH[Filtered Topology Graph]
+    end
+
+    style GEMINI fill:#4285F4,color:#fff
+    style MATCH fill:#10B981,color:#fff
+    style CONF fill:#EAB308,color:#000
+```
+
+### Location in UI
+
+The Reverse Image Search panel is located in the **Topology Graph sidebar**, below the "Gemini AI Filters" section. Look for the cyan-colored card with a search icon.
+
+### How to Use
+
+1. **Navigate to Topology Graph** - Open the Topology Graph page from the dashboard
+2. **Find the Reverse Image Search panel** - Scroll down in the left sidebar
+3. **Upload an image** - Either:
+   - Drag and drop an image onto the upload zone
+   - Click the upload zone to browse for a file
+4. **Wait for analysis** - Gemini AI will analyze the image (usually 2-5 seconds)
+5. **Review extracted features** - See what the AI detected in your image
+6. **Browse matches** - Scroll through matching events, ranked by confidence
+7. **Click a match** - The graph will center on that node
+8. **Apply to Graph** - Filter the entire graph to show only matching events
+
+### Supported Image Formats
+
+| Format | Extension | Max Size |
+|--------|-----------|----------|
+| JPEG | `.jpg`, `.jpeg` | 10 MB |
+| PNG | `.png` | 10 MB |
+| WebP | `.webp` | 10 MB |
+
+### Confidence Scoring Algorithm
+
+The matching engine calculates a confidence score (0-100%) using weighted feature matching:
+
+| Feature | Weight | Description |
+|---------|--------|-------------|
+| **License Plates** | 40% | Exact or partial plate number match |
+| **Vehicle Attributes** | 25% | Matching type, make, or color |
+| **Clothing Colors** | 15% | Any matching clothing colors |
+| **People Count** | 10% | Exact or close match (±1 person) |
+| **Scene Colors** | 5% | Similar dominant color palette |
+| **Extracted Text** | 5% | Partial text/sign matches |
+
+**Confidence Thresholds:**
+- 🟢 **80%+** - High confidence match (green badge)
+- 🟡 **50-79%** - Medium confidence (yellow badge)
+- 🟠 **Below 50%** - Low confidence (orange badge)
+
+### Extracted Metadata
+
+The AI extracts the following from uploaded images:
+
+| Field | Example Values |
+|-------|---------------|
+| Caption | "Nighttime urban street with parked vehicles" |
+| Vehicles | SUV, sedan, pickup, motorcycle |
+| License Plates | "ABC-123", "XYZ-789" |
+| People Count | 3 |
+| Clothing Colors | black, white, blue, red |
+| Scene Colors | gray, dark blue, amber |
+| Extracted Text | "STOP", "Main St", store signs |
+
+### API Endpoint
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/data/reverse-image-search` | POST | Perform reverse image search |
+
+**Request Body:**
+```json
+{
+  "image": "base64-encoded-image-data",
+  "mimeType": "image/jpeg"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "analysis": {
+    "caption": "A busy street scene with multiple vehicles...",
+    "vehicles": [{"type": "SUV", "color": "gray", "make": "Mercedes"}],
+    "licensePlates": ["ABC-123"],
+    "peopleCount": 2,
+    "clothingColors": ["black", "blue"]
+  },
+  "matches": [
+    {
+      "id": "evt_123...",
+      "eventId": "4829655691653739",
+      "channelId": "CAM-001",
+      "timestamp": "2025-12-11T10:30:00Z",
+      "imageUrl": "https://res.cloudinary.com/...",
+      "confidence": 85,
+      "matchReasons": ["License plate partial match: ABC", "Vehicle type match: SUV"]
+    }
+  ],
+  "stats": {
+    "totalEventsSearched": 1500,
+    "matchesFound": 12,
+    "processingTimeMs": 2340,
+    "model": "gemini-2.0-flash"
+  }
+}
+```
+
+### Use Cases
+
+1. **Tip Follow-up** - Witness provides a phone photo; find where that vehicle/person appears in surveillance
+2. **Cross-Reference** - Upload a screenshot from one camera to find the same subject in other locations
+3. **Pattern Analysis** - Search for similar scenes or vehicles across the entire network
+4. **Suspect Tracking** - Upload a suspect photo to trace their movements through camera network
 
 ---
 
@@ -1052,6 +1265,7 @@ Edit `client/src/index.css` to change colors:
 - [x] **Gemini AI Image Analysis** - Automatic metadata extraction from surveillance images *(Dec 2025)*
 - [x] **Quick Filters** - Filter topology graph by AI-detected properties (weapons, plates, people, vehicles, colors) *(Dec 2025)*
 - [x] **Neo4j Gemini Sync** - AI metadata synced to Neo4j Event nodes for graph queries *(Dec 2025)*
+- [x] **Reverse Image Search** - Upload an image to find matching surveillance events using Gemini AI *(Dec 2025)*
 
 ### High Priority
 - [ ] Test webhook endpoint with real IREX surveillance data

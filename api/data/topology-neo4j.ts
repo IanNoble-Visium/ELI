@@ -62,11 +62,137 @@ export interface TopologyNode {
   geminiProcessedAt?: number;
 }
 
+export async function getTopologyReportContextFromNeo4j(params: {
+  nodeIds: string[];
+  edgeIds?: string[];
+}): Promise<{
+  nodes: Array<{ id: string; labels: string[]; properties: Record<string, any> }>;
+  edges: Array<{ id: string; type: string; source: string; target: string; properties: Record<string, any> }>;
+}> {
+  const { nodeIds, edgeIds } = params;
+  if (!isNeo4jConfigured()) return { nodes: [], edges: [] };
+  if (!Array.isArray(nodeIds) || nodeIds.length === 0) return { nodes: [], edges: [] };
+
+  const safeNodeIds = nodeIds.filter((id) => typeof id === "string" && id.length > 0);
+  const safeEdgeIds = (edgeIds || [])
+    .filter((id) => typeof id === "string" && id.length > 0)
+    .map((id) => Number.parseInt(id, 10))
+    .filter((n) => Number.isFinite(n));
+
+  return readTransaction(async (tx) => {
+    const nodesResult = await tx.run(
+      `
+      MATCH (n)
+      WHERE n.id IN $nodeIds
+      RETURN n, labels(n) as labels
+      `,
+      { nodeIds: safeNodeIds }
+    );
+
+    const nodeRows = nodesResult.records.map((record: any) => {
+      const node = record.get("n");
+      const labels = (record.get("labels") || []) as string[];
+      const props = nodeToObject<Record<string, any>>(node);
+      return {
+        id: props.id || "",
+        labels,
+        properties: props,
+      };
+    });
+
+    let edgesResult: any;
+    if (safeEdgeIds.length > 0) {
+      edgesResult = await tx.run(
+        `
+        MATCH (a)-[r]->(b)
+        WHERE id(r) IN $edgeIds
+        RETURN id(r) as id, type(r) as type, a.id as source, b.id as target, properties(r) as properties
+        `,
+        { edgeIds: safeEdgeIds.map((n) => neo4j.int(n)) }
+      );
+    } else {
+      // Fallback: compute edges connecting selected nodes
+      edgesResult = await tx.run(
+        `
+        MATCH (a)-[r]-(b)
+        WHERE a.id IN $nodeIds AND b.id IN $nodeIds
+        RETURN DISTINCT id(r) as id, type(r) as type, a.id as source, b.id as target, properties(r) as properties
+        `,
+        { nodeIds: safeNodeIds }
+      );
+    }
+
+    const edgeRows = edgesResult.records.map((record: any) => {
+      const id = toNumber(record.get("id"));
+      const type = record.get("type") as string;
+      const source = record.get("source") as string;
+      const target = record.get("target") as string;
+      const properties = (record.get("properties") || {}) as Record<string, any>;
+      return {
+        id: String(id),
+        type,
+        source,
+        target,
+        properties,
+      };
+    });
+
+    return {
+      nodes: nodeRows.filter((n: any) => n.id),
+      edges: edgeRows,
+    };
+  });
+}
+
+export async function setTopologyFlaggedReportId(params: {
+  reportId: string;
+  nodeIds: string[];
+  edgeIds?: string[];
+}): Promise<void> {
+  const { reportId, nodeIds, edgeIds } = params;
+  if (!isNeo4jConfigured()) return;
+  if (!reportId) return;
+
+  const safeNodeIds = (nodeIds || []).filter((id) => typeof id === "string" && id.length > 0);
+  const safeEdgeIds = (edgeIds || [])
+    .filter((id) => typeof id === "string" && id.length > 0)
+    .map((id) => Number.parseInt(id, 10))
+    .filter((n) => Number.isFinite(n));
+
+  await writeTransaction(async (tx) => {
+    if (safeNodeIds.length > 0) {
+      await tx.run(
+        `
+        MATCH (n)
+        WHERE n.id IN $nodeIds
+        SET n.flaggedReportId = $reportId,
+            n.flaggedAt = timestamp()
+        `,
+        { nodeIds: safeNodeIds, reportId }
+      );
+    }
+
+    if (safeEdgeIds.length > 0) {
+      await tx.run(
+        `
+        MATCH ()-[r]-()
+        WHERE id(r) IN $edgeIds
+        SET r.flaggedReportId = $reportId,
+            r.flaggedAt = timestamp()
+        `,
+        { edgeIds: safeEdgeIds.map((n) => neo4j.int(n)), reportId }
+      );
+    }
+  });
+}
+
 export interface TopologyLink {
+  id: string;
   source: string;
   target: string;
   value: number;
   type: string;
+  properties?: Record<string, any>;
 }
 
 export interface TopologyStats {
@@ -341,7 +467,7 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
         MATCH (a)-[r]->(b)
         WHERE (a:Camera OR a:Location OR a:Vehicle OR a:Person OR a:Event)
           AND (b:Camera OR b:Location OR b:Vehicle OR b:Person OR b:Event)
-        RETURN a.id as source, b.id as target, type(r) as type
+        RETURN id(r) as id, a.id as source, b.id as target, type(r) as type, properties(r) as properties
       `);
 
       return {
@@ -471,17 +597,21 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
 
     // Process relationships
     for (const record of result.relationships) {
+      const id = toNumber(record.get("id"));
       const source = record.get("source");
       const target = record.get("target");
       const type = record.get("type");
+      const properties = record.get("properties") || undefined;
 
       // Only add links where both nodes exist
       if (nodeIds.has(source) && nodeIds.has(target)) {
         links.push({
+          id: String(id),
           source,
           target,
           value: type === "LOCATED_AT" ? 2 : 3,
           type: type.toLowerCase(),
+          properties,
         });
       }
     }

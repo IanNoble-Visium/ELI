@@ -6,6 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnalyticsTab } from "@/components/analytics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ArrowLeft,
   Camera,
@@ -16,7 +19,12 @@ import {
   TrendingDown,
   RefreshCw,
   BarChart3,
-  LayoutDashboard
+  LayoutDashboard,
+  FileText,
+  Download,
+  Link as LinkIcon,
+  Copy,
+  Flag
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { motion } from "framer-motion";
@@ -24,6 +32,8 @@ import { format, formatDistanceToNow } from "date-fns";
 import EventTicker from "@/components/EventTicker";
 import LiveIndicator from "@/components/LiveIndicator";
 import Sparkline from "@/components/Sparkline";
+import { Streamdown } from "streamdown";
+import { toast } from "sonner";
 
 // Staggered animation variants for container and children
 const containerVariants = {
@@ -44,7 +54,7 @@ const itemVariants = {
     y: 0,
     transition: {
       duration: 0.4,
-      ease: [0.25, 0.46, 0.45, 0.94],
+      ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number],
     },
   },
 };
@@ -57,7 +67,7 @@ const chartVariants = {
     scale: 1,
     transition: {
       duration: 0.5,
-      ease: [0.25, 0.46, 0.45, 0.94],
+      ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number],
     },
   },
 };
@@ -163,6 +173,60 @@ export default function ExecutiveDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [activeTab, setActiveTab] = useState("overview");
+
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reports, setReports] = useState<any[]>([]);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [activeReport, setActiveReport] = useState<any | null>(null);
+  const [shareUrlByReportId, setShareUrlByReportId] = useState<Record<string, string>>({});
+
+  const fetchReports = useCallback(async () => {
+    try {
+      setReportsLoading(true);
+      const resp = await fetch("/api/data/topology-reports?limit=100", { credentials: "include" });
+      const data = await resp.json();
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || "Failed to fetch reports");
+      }
+      setReports(Array.isArray(data.reports) ? data.reports : []);
+    } catch (e) {
+      console.error("[ExecutiveDashboard] Failed to fetch reports:", e);
+    } finally {
+      setReportsLoading(false);
+    }
+  }, []);
+
+  const createShareLink = useCallback(async (reportId: string) => {
+    try {
+      const resp = await fetch("/api/data/topology-reports?action=share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reportId }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || "Failed to create share link");
+      }
+      const url = `${window.location.origin}/share/report/${data.shareToken}`;
+      setShareUrlByReportId((prev) => ({ ...prev, [reportId]: url }));
+      toast.success("Share link created");
+      return url;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      toast.error("Share link failed", { description: msg });
+      return null;
+    }
+  }, []);
+
+  const copyToClipboard = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied");
+    } catch {
+      toast.error("Copy failed");
+    }
+  }, []);
 
   // Fetch real statistics
   const fetchStats = useCallback(async () => {
@@ -308,7 +372,7 @@ export default function ExecutiveDashboard() {
       {/* Tab Navigation */}
       <div className="container pt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-xl grid-cols-3">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <LayoutDashboard className="w-4 h-4" />
               Overview
@@ -317,11 +381,156 @@ export default function ExecutiveDashboard() {
               <BarChart3 className="w-4 h-4" />
               Trends & Predictions
             </TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-2" onClick={fetchReports}>
+              <FileText className="w-4 h-4" />
+              Reports
+            </TabsTrigger>
           </TabsList>
 
           {/* Analytics Tab Content */}
           <TabsContent value="analytics" className="mt-6">
             <AnalyticsTab />
+          </TabsContent>
+
+          <TabsContent value="reports" className="mt-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle>Generated Reports</CardTitle>
+                  <CardDescription>AI summaries and flagged issue reports</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchReports} disabled={reportsLoading}>
+                  <RefreshCw className={`w-4 h-4 ${reportsLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Report ID</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Nodes</TableHead>
+                      <TableHead>Edges</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Preview</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {reports.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-muted-foreground">
+                          {reportsLoading ? "Loading reports..." : "No reports yet. Generate one from the Topology Graph selection."}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      reports.map((r) => {
+                        const created = r.createdAt ? new Date(r.createdAt).toLocaleString() : "";
+                        const user = r.createdByUserName || r.createdByUserId || "";
+                        const preview = (r.title || r.content || "").toString().slice(0, 60);
+                        const shareUrl = shareUrlByReportId[r.id] || (r.shareToken ? `${window.location.origin}/share/report/${r.shareToken}` : "");
+
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-mono text-xs">{r.id}</TableCell>
+                            <TableCell className="text-xs">{created}</TableCell>
+                            <TableCell className="text-xs">{user}</TableCell>
+                            <TableCell>{r.nodeCount ?? ""}</TableCell>
+                            <TableCell>{r.edgeCount ?? ""}</TableCell>
+                            <TableCell>
+                              {r.flagged ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-orange-500">
+                                  <Flag className="w-3 h-3" />
+                                  Flagged
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Unflagged</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{preview}{preview.length === 60 ? "..." : ""}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setActiveReport(r);
+                                    setReportDialogOpen(true);
+                                  }}
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => window.open(`/api/data/topology-reports?id=${r.id}&format=json`, "_blank")}
+                                >
+                                  <Download className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={async () => {
+                                    const url = shareUrl || (await createShareLink(r.id));
+                                    if (url) {
+                                      copyToClipboard(url);
+                                    }
+                                  }}
+                                >
+                                  <LinkIcon className="w-4 h-4" />
+                                </Button>
+                                {shareUrl ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => copyToClipboard(shareUrl)}
+                                  >
+                                    <Copy className="w-4 h-4" />
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Report</DialogTitle>
+                  <DialogDescription>{activeReport?.title || activeReport?.id || ""}</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="h-[60vh] pr-4">
+                  {activeReport?.content ? <Streamdown>{activeReport.content}</Streamdown> : <div className="text-sm text-muted-foreground">No content</div>}
+                </ScrollArea>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (!activeReport?.id) return;
+                      window.open(`/api/data/topology-reports?id=${activeReport.id}&format=csv`, "_blank");
+                    }}
+                  >
+                    CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (activeReport?.content) copyToClipboard(activeReport.content);
+                    }}
+                  >
+                    Copy
+                  </Button>
+                  <Button onClick={() => setReportDialogOpen(false)}>Close</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Overview Tab Content */}

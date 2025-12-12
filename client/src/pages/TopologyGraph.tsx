@@ -6,12 +6,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2, Upload, X, Target, Clock, MapPin } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2, Upload, X, Target, Clock, MapPin, Flag, Link as LinkIcon, Copy } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import NodeContextMenu, { type ContextMenuNode, type ContextMenuPosition } from "@/components/NodeContextMenu";
 import NodeDetailsPanel from "@/components/NodeDetailsPanel";
+import { Streamdown } from "streamdown";
 
 // Staggered animation variants
 const containerVariants = {
@@ -32,7 +35,7 @@ const cardVariants = {
     y: 0,
     transition: {
       duration: 0.4,
-      ease: [0.25, 0.46, 0.45, 0.94],
+      ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number],
     },
   },
 };
@@ -77,8 +80,8 @@ interface GraphNode {
   geminiProcessedAt?: number;
   x?: number;
   y?: number;
-  fx?: number | null; // Fixed x position for custom layouts
-  fy?: number | null; // Fixed y position for custom layouts
+  fx?: number; // Fixed x position for custom layouts
+  fy?: number; // Fixed y position for custom layouts
 }
 
 interface GeminiStats {
@@ -94,11 +97,14 @@ interface GeminiStats {
 interface GraphLink {
   source: string | GraphNode;
   target: string | GraphNode;
+  id?: string;
   value: number;
   type: string;
+  properties?: Record<string, any>;
 }
 
 interface TopologyData {
+  success?: boolean;
   nodes: GraphNode[];
   links: GraphLink[];
   stats: {
@@ -143,6 +149,12 @@ export default function TopologyGraph() {
   const [stats, setStats] = useState({ cameras: 0, locations: 0, vehicles: 0, persons: 0, events: 0, edges: 0 });
   const [layout, setLayout] = useState<LayoutType>("force");
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  const [selectedLinkIds, setSelectedLinkIds] = useState<Set<string>>(new Set());
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [activeReport, setActiveReport] = useState<any | null>(null);
+  const [activeShareUrl, setActiveShareUrl] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -153,6 +165,14 @@ export default function TopologyGraph() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const [selectionBox, setSelectionBox] = useState<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null>(null);
 
   // Gemini AI filter state
   const [geminiStats, setGeminiStats] = useState<GeminiStats | null>(null);
@@ -251,7 +271,11 @@ export default function TopologyGraph() {
       if (node.imageUrl && !loadedImages.has(node.imageUrl)) {
         preloadImage(node.imageUrl)
           .then(() => {
-            setLoadedImages((prev) => new Set([...prev, node.imageUrl!]));
+            setLoadedImages((prev) => {
+              const next = new Set(prev);
+              next.add(node.imageUrl!);
+              return next;
+            });
           })
           .catch((err) => {
             console.warn(`[TopologyGraph] Failed to preload image for ${node.id}:`, err);
@@ -657,8 +681,8 @@ export default function TopologyGraph() {
       switch (layoutType) {
         case "force":
           // Clear fixed positions for force-directed layout
-          node.fx = null;
-          node.fy = null;
+          node.fx = undefined;
+          node.fy = undefined;
           break;
 
         case "hierarchical": {
@@ -734,7 +758,183 @@ export default function TopologyGraph() {
     }));
   }, []);
 
-  const handleNodeClick = useCallback((node: any) => {
+  const clearMultiSelection = useCallback(() => {
+    setSelectedNodeIds(new Set());
+    setSelectedLinkIds(new Set());
+  }, []);
+
+  const selectedNodeIdList = useMemo(() => Array.from(selectedNodeIds), [selectedNodeIds]);
+  const selectedLinkIdList = useMemo(() => Array.from(selectedLinkIds), [selectedLinkIds]);
+
+  const handleCopyToClipboard = useCallback(async (text: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(successMessage);
+    } catch {
+      toast.error("Failed to copy to clipboard");
+    }
+  }, []);
+
+  const generateTopologyReport = useCallback(async (options?: { openDialog?: boolean }) => {
+    if (selectedNodeIdList.length === 0) {
+      toast.info("Select nodes first (Shift + drag)");
+      return null;
+    }
+
+    try {
+      setReportLoading(true);
+      setActiveShareUrl(null);
+      const response = await fetch("/api/data/topology-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          nodeIds: selectedNodeIdList,
+          edgeIds: selectedLinkIdList,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to generate report");
+      }
+
+      setActiveReport(data.report);
+      if (options?.openDialog !== false) {
+        setReportDialogOpen(true);
+      }
+      toast.success("Report generated");
+      return data.report as any;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast.error("Report generation failed", { description: msg });
+      return null;
+    } finally {
+      setReportLoading(false);
+    }
+  }, [selectedLinkIdList, selectedNodeIdList]);
+
+  const flagSelectionAsIssue = useCallback(async () => {
+    if (selectedNodeIdList.length === 0) {
+      toast.info("Select nodes first (Shift + drag)");
+      return;
+    }
+
+    try {
+      setReportLoading(true);
+      const report = activeReport || (await generateTopologyReport({ openDialog: false }));
+      const reportId = report?.id;
+      if (!reportId) {
+        throw new Error("No reportId available");
+      }
+
+      const response = await fetch("/api/data/topology-reports?action=flag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          reportId,
+          nodeIds: selectedNodeIdList,
+          edgeIds: selectedLinkIdList,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to flag selection");
+      }
+
+      setActiveReport((prev: any) => (prev ? { ...prev, flagged: true } : prev));
+      toast.success("Flagged as issue");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast.error("Flagging failed", { description: msg });
+    } finally {
+      setReportLoading(false);
+    }
+  }, [activeReport, generateTopologyReport, selectedLinkIdList, selectedNodeIdList]);
+
+  const createShareLink = useCallback(async () => {
+    if (!activeReport?.id) {
+      toast.info("Generate a report first");
+      return;
+    }
+    try {
+      const response = await fetch("/api/data/topology-reports?action=share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reportId: activeReport.id }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to create share link");
+      }
+      const url = `${window.location.origin}/share/report/${data.shareToken}`;
+      setActiveShareUrl(url);
+      toast.success("Share link created");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast.error("Share link failed", { description: msg });
+    }
+  }, [activeReport?.id]);
+
+  const getContainerRelativePoint = useCallback((event: MouseEvent | globalThis.MouseEvent) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  }, []);
+
+  const finalizeSelectionBox = useCallback(() => {
+    if (!selectionBox || !selectionBox.active) return;
+    if (!graphRef.current || !containerRef.current) {
+      setSelectionBox(null);
+      return;
+    }
+
+    const minX = Math.min(selectionBox.startX, selectionBox.endX);
+    const maxX = Math.max(selectionBox.startX, selectionBox.endX);
+    const minY = Math.min(selectionBox.startY, selectionBox.endY);
+    const maxY = Math.max(selectionBox.startY, selectionBox.endY);
+
+    const nextSelectedNodeIds = new Set<string>();
+    for (const node of graphData.nodes) {
+      const x = node.x;
+      const y = node.y;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      const p = graphRef.current.graph2ScreenCoords(x as number, y as number);
+      if (!p) continue;
+      if (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) {
+        nextSelectedNodeIds.add(node.id);
+      }
+    }
+
+    const nextSelectedLinkIds = new Set<string>();
+    for (const link of graphData.links as any[]) {
+      const sourceId = typeof link.source === "string" ? link.source : link.source?.id;
+      const targetId = typeof link.target === "string" ? link.target : link.target?.id;
+      if (!sourceId || !targetId) continue;
+      if (!nextSelectedNodeIds.has(sourceId) || !nextSelectedNodeIds.has(targetId)) continue;
+      if (link.id != null) {
+        nextSelectedLinkIds.add(String(link.id));
+      }
+    }
+
+    setSelectedNode(null);
+    setSelectedNodeIds(nextSelectedNodeIds);
+    setSelectedLinkIds(nextSelectedLinkIds);
+    setSelectionBox(null);
+
+    setGraphData(prev => ({ ...prev, nodes: [...prev.nodes] }));
+  }, [graphData.links, graphData.nodes, selectionBox]);
+
+  const handleNodeClick = useCallback((node: any, event?: MouseEvent) => {
+    if (selectionBox?.active) return;
+    if (event?.shiftKey) return;
+
+    clearMultiSelection();
     setSelectedNode(node);
     // Close context menu on regular click
     setContextMenuNode(null);
@@ -745,7 +945,49 @@ export default function TopologyGraph() {
         graphRef.current.zoom(2, 1000);
       }
     }
-  }, []);
+  }, [clearMultiSelection, selectionBox?.active]);
+
+  const handleBackgroundClick = useCallback((event: MouseEvent) => {
+    if (selectionBox?.active) return;
+    if (event.shiftKey) return;
+    clearMultiSelection();
+    setSelectedNode(null);
+    setContextMenuNode(null);
+    setContextMenuPosition(null);
+  }, [clearMultiSelection, selectionBox?.active]);
+
+  const handleSelectionMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if (!event.shiftKey) return;
+    const p = getContainerRelativePoint(event.nativeEvent);
+    if (!p) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setSelectionBox({
+      active: true,
+      startX: p.x,
+      startY: p.y,
+      endX: p.x,
+      endY: p.y,
+    });
+  }, [getContainerRelativePoint]);
+
+  const handleSelectionMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!selectionBox?.active) return;
+    const p = getContainerRelativePoint(event.nativeEvent);
+    if (!p) return;
+    event.preventDefault();
+    setSelectionBox(prev => prev ? ({ ...prev, endX: p.x, endY: p.y }) : prev);
+  }, [getContainerRelativePoint, selectionBox?.active]);
+
+  const handleSelectionMouseUp = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!selectionBox?.active) return;
+    event.preventDefault();
+    event.stopPropagation();
+    finalizeSelectionBox();
+  }, [finalizeSelectionBox, selectionBox?.active]);
 
   // Handle right-click on node for context menu
   const handleNodeRightClick = useCallback((node: any, event: MouseEvent) => {
@@ -921,11 +1163,16 @@ export default function TopologyGraph() {
   // DAG mode for hierarchical layout (used by ForceGraph2D)
   const dagMode = useMemo(() => {
     if (layout === "hierarchical") return "td"; // top-down
-    return null;
+    return undefined;
   }, [layout]);
 
-  // Memoized callbacks for ForceGraph2D to prevent unnecessary re-renders
-  const linkColor = useCallback(() => "#4B556380", []);
+  const linkColor = useCallback((link: any) => {
+    const linkId = link?.id != null ? String(link.id) : null;
+    if (linkId && selectedLinkIds.has(linkId)) {
+      return "#22C55E";
+    }
+    return "#4B556380";
+  }, [selectedLinkIds]);
 
   const linkDirectionalParticleColor = useCallback(() => {
     const colors = ["#D91023", "#10B981", "#3B82F6", "#F59E0B"];
@@ -957,6 +1204,8 @@ export default function TopologyGraph() {
     locations: stats.locations,
     events: stats.events,
     withImages: graphData.nodes.filter((n) => n.imageUrl).length,
+    selectedNodes: selectedNodeIds.size,
+    selectedEdges: selectedLinkIds.size,
   };
 
   // Custom node rendering with image support
@@ -972,6 +1221,7 @@ export default function TopologyGraph() {
     const fontSize = 12 / globalScale;
     const nodeRadius = Math.max(1, node.val || 5);
     const isHighRisk = highRiskNodes.has(node.id);
+    const isMultiSelected = selectedNodeIds.has(node.id);
     // Override color to red if marked as high risk
     const nodeColor = isHighRisk ? "#EF4444" : (node.color || "#888888");
     const hasImage = node.imageUrl && imageCache.has(node.imageUrl);
@@ -1005,6 +1255,20 @@ export default function TopologyGraph() {
       ctx.beginPath();
       ctx.arc(x, y, pulseRadius, 0, 2 * Math.PI, false);
       ctx.strokeStyle = `${nodeColor}60`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    if (isMultiSelected) {
+      ctx.beginPath();
+      ctx.arc(x, y, nodeRadius + 5, 0, 2 * Math.PI, false);
+      ctx.fillStyle = "rgba(34, 197, 94, 0.20)";
+      ctx.fill();
+
+      const pulseRadius = nodeRadius + 10 + Math.sin(Date.now() / 220) * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, pulseRadius, 0, 2 * Math.PI, false);
+      ctx.strokeStyle = "rgba(34, 197, 94, 0.65)";
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -1131,7 +1395,7 @@ export default function TopologyGraph() {
       ctx.fillStyle = "#F9FAFB";
       ctx.fillText(label, x, textY);
     }
-  }, [selectedNode, loadedImages, highRiskNodes]);
+  }, [selectedNode, loadedImages, highRiskNodes, selectedNodeIds]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -1221,6 +1485,54 @@ export default function TopologyGraph() {
             />
           </motion.div>
 
+        <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Topology Report</DialogTitle>
+              <DialogDescription>
+                {activeReport?.title || ""}
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="h-[60vh] pr-4">
+              {activeReport?.content ? (
+                <Streamdown>
+                  {activeReport.content}
+                </Streamdown>
+              ) : (
+                <div className="text-sm text-muted-foreground">No report content available.</div>
+              )}
+            </ScrollArea>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const html = `<!doctype html><html><head><meta charset=\"utf-8\" /><title>${activeReport?.id || "report"}</title></head><body><pre style=\"white-space:pre-wrap;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;\">${(activeReport?.content || "").replace(/</g, "&lt;")}</pre></body></html>`;
+                  const w = window.open("", "_blank");
+                  if (!w) return;
+                  w.document.open();
+                  w.document.write(html);
+                  w.document.close();
+                  w.focus();
+                  w.print();
+                }}
+              >
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (activeReport?.content) {
+                    handleCopyToClipboard(activeReport.content, "Report copied");
+                  }
+                }}
+              >
+                Copy
+              </Button>
+              <Button onClick={() => setReportDialogOpen(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
           {/* Error display */}
           {error && (
             <motion.div
@@ -1266,6 +1578,28 @@ export default function TopologyGraph() {
                   <span className="text-sm text-muted-foreground">Total Edges</span>
                   <Badge variant="outline">{displayStats.edges}</Badge>
                 </motion.div>
+                {displayStats.selectedNodes > 0 && (
+                  <motion.div
+                    className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                    whileHover={{ x: 4 }}
+                  >
+                    <span className="text-sm text-muted-foreground">Selected Nodes</span>
+                    <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
+                      {displayStats.selectedNodes}
+                    </Badge>
+                  </motion.div>
+                )}
+                {displayStats.selectedEdges > 0 && (
+                  <motion.div
+                    className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
+                    whileHover={{ x: 4 }}
+                  >
+                    <span className="text-sm text-muted-foreground">Selected Edges</span>
+                    <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
+                      {displayStats.selectedEdges}
+                    </Badge>
+                  </motion.div>
+                )}
                 <motion.div
                   className="flex items-center justify-between hover:bg-muted/30 p-1 rounded transition-colors"
                   whileHover={{ x: 4 }}
@@ -1320,13 +1654,112 @@ export default function TopologyGraph() {
             </Card>
           </motion.div>
 
+          {displayStats.selectedNodes > 0 && (
+            <motion.div variants={cardVariants}>
+              <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300 border-green-500/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-green-500" />
+                      Selection
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        clearMultiSelection();
+                        setActiveReport(null);
+                        setActiveShareUrl(null);
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {displayStats.selectedNodes} nodes • {displayStats.selectedEdges} edges
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => generateTopologyReport({ openDialog: true })}
+                    disabled={reportLoading}
+                  >
+                    {reportLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+                    Generate Summary
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={flagSelectionAsIssue}
+                    disabled={reportLoading}
+                  >
+                    {reportLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Flag className="w-4 h-4 mr-2" />}
+                    Flag as Issue
+                  </Button>
+
+                  {activeReport?.id && (
+                    <div className="pt-2 space-y-2">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setReportDialogOpen(true)}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(`/api/data/topology-reports?id=${activeReport.id}&format=json`, "_blank")}
+                        >
+                          JSON
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(`/api/data/topology-reports?id=${activeReport.id}&format=csv`, "_blank")}
+                        >
+                          CSV
+                        </Button>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={createShareLink}
+                      >
+                        <LinkIcon className="w-4 h-4 mr-2" />
+                        Create Share Link
+                      </Button>
+                      {activeShareUrl && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full justify-between"
+                          onClick={() => handleCopyToClipboard(activeShareUrl, "Link copied")}
+                        >
+                          <span className="truncate max-w-[200px]">{activeShareUrl}</span>
+                          <Copy className="w-4 h-4 ml-2" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
           {/* Selected Node Details */}
           {selectedNode && (
             <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+              transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] }}
             >
               <Card className="border-primary/30 shadow-lg shadow-primary/10">
                 <CardHeader>
@@ -1417,7 +1850,7 @@ export default function TopologyGraph() {
                       )}
 
                       {/* Objects */}
-                      {selectedNode.objects && selectedNode.objects.length > 0 && (
+                      {((selectedNode.objects?.length ?? 0) > 0) && (
                         <div className="space-y-1">
                           <span className="text-xs text-muted-foreground">Detected Objects</span>
                           <div className="flex flex-wrap gap-1">
@@ -1426,9 +1859,9 @@ export default function TopologyGraph() {
                                 {obj}
                               </Badge>
                             ))}
-                            {selectedNode.objects.length > 10 && (
+                            {(selectedNode.objects?.length ?? 0) > 10 && (
                               <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                                +{selectedNode.objects.length - 10}
+                                +{(selectedNode.objects?.length ?? 0) - 10}
                               </Badge>
                             )}
                           </div>
@@ -1436,7 +1869,7 @@ export default function TopologyGraph() {
                       )}
 
                       {/* Tags */}
-                      {selectedNode.tags && selectedNode.tags.length > 0 && (
+                      {((selectedNode.tags?.length ?? 0) > 0) && (
                         <div className="space-y-1">
                           <span className="text-xs text-muted-foreground">Tags</span>
                           <div className="flex flex-wrap gap-1">
@@ -1445,9 +1878,9 @@ export default function TopologyGraph() {
                                 {tag}
                               </Badge>
                             ))}
-                            {selectedNode.tags.length > 10 && (
+                            {(selectedNode.tags?.length ?? 0) > 10 && (
                               <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                                +{selectedNode.tags.length - 10}
+                                +{(selectedNode.tags?.length ?? 0) - 10}
                               </Badge>
                             )}
                           </div>
@@ -1886,6 +2319,9 @@ export default function TopologyGraph() {
           ref={containerRef}
           className="flex-1 relative bg-card/30 overflow-hidden"
           style={{ isolation: "isolate" }}
+          onMouseDown={handleSelectionMouseDown}
+          onMouseMove={handleSelectionMouseMove}
+          onMouseUp={handleSelectionMouseUp}
         >
           {isLoading ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur z-10">
@@ -1948,6 +2384,7 @@ export default function TopologyGraph() {
             linkDirectionalParticleColor={linkDirectionalParticleColor}
             onNodeClick={handleNodeClick}
             onNodeRightClick={handleNodeRightClick}
+            onBackgroundClick={handleBackgroundClick}
             backgroundColor="#1F2937"
             linkColor={linkColor}
             linkWidth={1.5}
@@ -1956,7 +2393,21 @@ export default function TopologyGraph() {
             onEngineStop={onEngineStop}
             nodeCanvasObject={nodeCanvasObject}
             nodePointerAreaPaint={nodePointerAreaPaint}
+            enablePanInteraction={(event: any) => !(selectionBox?.active || event?.shiftKey)}
+            enableZoomInteraction={(event: any) => !(selectionBox?.active || event?.shiftKey)}
           />
+
+          {selectionBox?.active && (
+            <div
+              className="absolute z-30 border border-cyan-400/80 bg-cyan-400/10 pointer-events-none"
+              style={{
+                left: Math.min(selectionBox.startX, selectionBox.endX),
+                top: Math.min(selectionBox.startY, selectionBox.endY),
+                width: Math.abs(selectionBox.endX - selectionBox.startX),
+                height: Math.abs(selectionBox.endY - selectionBox.startY),
+              }}
+            />
+          )}
 
           {/* Context Menu */}
           <NodeContextMenu

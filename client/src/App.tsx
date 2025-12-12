@@ -22,6 +22,7 @@ import { useEffect, useState, lazy, Suspense } from "react";
 const GeographicMap = lazy(() => import("./pages/GeographicMap"));
 const TopologyGraph = lazy(() => import("./pages/TopologyGraph"));
 const POLEAnalytics = lazy(() => import("./pages/POLEAnalytics"));
+const SharedReport = lazy(() => import("./pages/SharedReport"));
 
 // Loading fallback component for lazy-loaded pages
 function PageLoadingFallback() {
@@ -46,7 +47,7 @@ const pageVariants = {
     y: 0,
     transition: {
       duration: 0.3,
-      ease: [0.25, 0.46, 0.45, 0.94], // ease-out-quad
+      ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number], // ease-out-quad
     },
   },
   exit: {
@@ -54,7 +55,7 @@ const pageVariants = {
     y: -10,
     transition: {
       duration: 0.2,
-      ease: [0.55, 0.06, 0.68, 0.19], // ease-in-quad
+      ease: [0.55, 0.06, 0.68, 0.19] as [number, number, number, number], // ease-in-quad
     },
   },
 };
@@ -154,6 +155,13 @@ function Router() {
         </Route>
         <Route path="/dashboard/analysis">
           {() => <AnimatedPage><ProtectedRoute component={ImageAnalysisDashboard} /></AnimatedPage>}
+        </Route>
+        <Route path="/share/report/:token">
+          {() => (
+            <Suspense fallback={<PageLoadingFallback />}>
+              <AnimatedPage><SharedReport /></AnimatedPage>
+            </Suspense>
+          )}
         </Route>
         <Route path="/404">
           {() => <AnimatedPage><NotFound /></AnimatedPage>}

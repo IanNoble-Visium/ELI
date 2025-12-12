@@ -1,6 +1,6 @@
 # ELI Dashboard - Pending Tasks
 
-> **Last Updated:** December 11, 2025 (Gemini AI Image Analysis + Quick Filters)
+> **Last Updated:** December 11, 2025 (Reverse Image Search Feature)
 
 ---
 
@@ -36,6 +36,9 @@
 - [x] POLE tabs switch correctly ✅ (Redesigned Dec 10)
 - [x] Context menu on Topology Graph ✅ (Completed Dec 11)
 - [x] Context menu on Geographic Map ✅ (Completed Dec 11)
+- [x] Node Details Panel with Gemini AI data ✅ (Completed Dec 11)
+- [x] Gemini Neo4j Sync Fix ✅ (Completed Dec 11)
+- [x] Reverse Image Search ✅ (Completed Dec 11)
 - [ ] Real-time feed updates
 - [ ] Settings page functional
 
@@ -278,16 +281,28 @@
 | **Relative Timestamps** | `ExecutiveDashboard.tsx` | "Updated X seconds ago" using date-fns |
 | **Region Tooltip Styling** | `index.css` | Glassmorphism tooltip for region boundaries |
 
-### Context Menu Feature (December 11, 2025 - Early Morning Session)
+### Context Menu & Auto-Creation (December 11, 2025 - Afternoon Session)
 | Feature | File(s) Modified | Notes |
 |---------|-----------------|-------|
-| **NodeContextMenu Component** | `NodeContextMenu.tsx` (new) | Reusable floating context menu with context-aware options |
-| **Topology Graph Right-Click** | `TopologyGraph.tsx` | `onNodeRightClick` handler with menu options |
-| **Geographic Map Right-Click** | `GeographicMap.tsx` | Context menu on camera markers AND region boundaries |
-| **Mark as High Risk** | `TopologyGraph.tsx`, `GeographicMap.tsx` | Pulsing red animation for flagged nodes/cameras |
-| **Incident Integration** | `IncidentManagement.tsx` | Reads URL params from context menu, shows prefilled banner |
-| **POLE Integration** | `POLEAnalytics.tsx` | Reads URL params from context menu, shows entity suggestion banner |
-| **Toast Notifications** | All pages | Sonner toasts for action feedback |
+| **Auto-Create Incident API** | `api/data/create-incident.ts` | Generates rich crime stories, assigns officers/units |
+| **Auto-Create POLE API** | `api/data/create-pole-entity.ts` | Generates elaborate criminal profiles and intel notes |
+| **API Schema Fix** | `api/data/create-incident.ts` | Fixed 500 error by matching Drizzle schema (camelCase columns) |
+| **Node Details Panel** | `NodeDetailsPanel.tsx`, `TopologyGraph.tsx` | Slide-over panel with raw data inspector and quick actions |
+| **Rich Mock Data** | API Endpoints | "El Lobo", "Operation Shadow" - realistic Peru-themed data |
+| **Topology Integration** | `TopologyGraph.tsx` | Context menu now calls APIs + handles navigation |
+| **Map Integration** | `GeographicMap.tsx` | Context menu now calls APIs + handles navigation |
+
+### Node Details Panel & Gemini Neo4j Sync (December 11, 2025 - Afternoon Session)
+| Feature | File(s) Modified | Notes |
+|---------|-----------------|-------|
+| **Node Details Panel Enhancement** | `NodeDetailsPanel.tsx`, `TopologyGraph.tsx` | Comprehensive slide-out panel with all node properties |
+| **Gemini AI Data Display** | `NodeDetailsPanel.tsx` | Shows AI caption, vehicles, plates, people, clothing, environment |
+| **Image Preview** | `NodeDetailsPanel.tsx` | Full image with "Open Full" link |
+| **Copy to Clipboard** | `NodeDetailsPanel.tsx` | Copy JSON, IDs, license plates with one click |
+| **Gemini Neo4j Sync Fix** | `api/cron/process-gemini-images.ts` | Fixed matching on `id` instead of `eventId` |
+| **Topology API Gemini Props** | `api/data/topology-neo4j.ts`, `api/data/topology.ts` | Added all Gemini properties to TopologyNode interface |
+| **Neo4j Sync Endpoint** | `api/data/sync-gemini-neo4j.ts` (new) | Backfill Gemini data from PostgreSQL to Neo4j |
+| **Neo4jEvent Interface** | `api/lib/neo4j.ts` | Added missing Gemini properties |
 
 ### Gemini AI Image Analysis (December 11, 2025 - Morning Session)
 | Feature | File(s) Modified | Notes |
@@ -310,14 +325,34 @@
 | `Sparkline` | `components/Sparkline.tsx` | Minimal 7-day trend chart |
 | `peruRegions` | `data/peruRegions.ts` | GeoJSON for Peru 25 departments |
 | `NodeContextMenu` | `components/NodeContextMenu.tsx` | Right-click context menu for graph/map nodes |
+| `NodeDetailsPanel` | `components/NodeDetailsPanel.tsx` | Comprehensive slide-out panel with Gemini AI data, image preview, and all node properties |
 
 ### New API Endpoints Added (Dec 11)
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
+| `/api/data/create-incident` | POST | Auto-generate incident with rich mock data |
+| `/api/data/create-pole-entity` | POST | Auto-generate POLE entity with rich mock data |
 | `/api/data/gemini-config` | GET/POST | Gemini configuration management |
 | `/api/data/gemini-search` | GET | Search events by AI metadata |
 | `/api/data/gemini-models` | GET | List available Gemini models |
 | `/api/cron/process-gemini-images` | GET | Trigger AI image processing |
+| `/api/data/sync-gemini-neo4j` | POST | Backfill Gemini data from PostgreSQL to Neo4j |
+| `/api/data/reverse-image-search` | POST | Upload image to find matching surveillance events |
+
+### Reverse Image Search Feature (December 11, 2025 - Evening Session)
+| Feature | File(s) Modified | Notes |
+|---------|-----------------|-------|
+| **Reverse Image Search API** | `api/data/reverse-image-search.ts` (new) | Accepts base64 image, analyzes with Gemini, searches Neo4j, returns confidence-scored matches |
+| **UI Panel** | `client/src/pages/TopologyGraph.tsx` | Drag-and-drop upload zone, image preview, extracted features, match results list |
+| **Confidence Scoring** | `api/data/reverse-image-search.ts` | Weighted algorithm: License Plates (40%), Vehicles (25%), Clothing (15%), People (10%), Colors (5%), Text (5%) |
+| **Match Results Display** | `TopologyGraph.tsx` | Thumbnails, confidence badges, channel/timestamp info, match reasons |
+| **Apply to Graph** | `TopologyGraph.tsx` | Filter topology to show only matching event nodes |
+
+**Implementation Notes:**
+- Cline AI had created the API endpoint and handler functions but did not add the UI panel
+- The missing UI panel was added to the Topology Graph sidebar below the "Gemini AI Filters" section
+- The feature reuses the existing Gemini AI analysis pipeline for consistency
+- Supports JPEG, PNG, and WebP images up to 10MB
 
 ---
 
@@ -339,8 +374,18 @@
 11. **Night vision enhancement** - Pre-process low-light images before analysis
 12. **Confidence thresholds** - Filter results by AI confidence score
 
+### Reverse Image Search Enhancements (New)
+13. **Batch image upload** - Allow multiple images to be uploaded for bulk search
+14. **Search history** - Save recent searches for quick re-access
+15. **Export match results** - Download matches as CSV/PDF with thumbnails
+16. **Advanced filtering** - Filter matches by date range, camera, region, or confidence threshold
+17. **Performance optimization** - Cache frequently matched features for faster searches on large datasets
+18. **Video frame extraction** - Upload a video and search across extracted frames
+19. **Similarity clustering** - Group similar matches together in the results
+20. **Alert on match** - Notify when a reverse search finds a high-confidence match in real-time
+
 ### Context Menu Enhancements
-13. **Add "Copy ID to Clipboard"** - Quick action to copy entity ID
+13. ~~**Add "Copy ID to Clipboard"** - Quick action to copy entity ID~~ ✅ (Available in Node Details Panel)
 14. **Add "Show on Map"** - Navigate from Topology to Map centered on location
 15. **Add "View Related Entities"** - Show connected nodes in a filtered view
 16. **Add "Add Note"** - Quick note attachment from context menu
@@ -426,3 +471,6 @@ These items from the Gemini AI suggestions were **not implemented** in this sess
 - [x] Update README.md with Gemini AI documentation ✅ (Dec 11)
 - [x] Add Mermaid diagrams for Gemini AI flow ✅ (Dec 11)
 - [x] Document Quick Filters behavior ✅ (Dec 11)
+- [x] Document Node Details Panel enhancements ✅ (Dec 11)
+- [x] Document Gemini Neo4j Sync fix ✅ (Dec 11)
+- [x] Document Reverse Image Search feature ✅ (Dec 11)
