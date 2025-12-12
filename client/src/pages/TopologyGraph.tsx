@@ -6,9 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2, Upload, X, Target, Clock, MapPin, Flag, Link as LinkIcon, Copy, Play, Pause, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2, Upload, X, Target, Clock, MapPin, Flag, Link as LinkIcon, Copy, Play, Pause, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -56,7 +57,7 @@ const itemVariants = {
 interface GraphNode {
   id: string;
   name: string;
-  type: "camera" | "location" | "vehicle" | "person" | "event";
+  type: "camera" | "location" | "vehicle" | "person" | "event" | "tag";
   color: string;
   val: number;
   latitude?: number;
@@ -155,6 +156,7 @@ function preloadImage(url: string): Promise<HTMLImageElement> {
 export default function TopologyGraph() {
   const [, setLocation] = useLocation();
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>({ nodes: [], links: [] });
+  const [rawGraphData, setRawGraphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>({ nodes: [], links: [] });
   const [stats, setStats] = useState({ cameras: 0, locations: 0, vehicles: 0, persons: 0, events: 0, edges: 0 });
   const [layout, setLayout] = useState<LayoutType>("force");
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
@@ -165,6 +167,14 @@ export default function TopologyGraph() {
   const [activeReport, setActiveReport] = useState<any | null>(null);
   const [activeShareUrl, setActiveShareUrl] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cameraFilterQuery, setCameraFilterQuery] = useState("");
+  const [locationFilterQuery, setLocationFilterQuery] = useState("");
+  const [selectedCameraIds, setSelectedCameraIds] = useState<Set<string>>(new Set());
+  const [selectedLocationIds, setSelectedLocationIds] = useState<Set<string>>(new Set());
+  const [showEventImages, setShowEventImages] = useState(true);
+  const [groupByTags, setGroupByTags] = useState(false);
+  const [expandedTag, setExpandedTag] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dbConnected, setDbConnected] = useState(false);
@@ -347,6 +357,186 @@ export default function TopologyGraph() {
     return { startTs, endTs };
   }, [dateRange?.from, dateRange?.to, timeBounds?.maxTs, timeBounds?.minTs, timeCursorTs, timeMode, timeWindowMs]);
 
+  const selectedCameraIdsArray = useMemo(() => Array.from(selectedCameraIds), [selectedCameraIds]);
+  const selectedLocationIdsArray = useMemo(() => Array.from(selectedLocationIds), [selectedLocationIds]);
+
+  const getNodeId = useCallback((v: any) => {
+    if (v == null) return null;
+    if (typeof v === "string") return v;
+    if (typeof v === "object" && v.id != null) return String(v.id);
+    return null;
+  }, []);
+
+  const buildTagAggregate = useCallback(
+    (input: { nodes: GraphNode[]; links: GraphLink[] }, tagName?: string | null) => {
+      const byId = new Map(input.nodes.map((n) => [n.id, n]));
+
+      const eventToCameras = new Map<string, string[]>();
+      const eventToLocations = new Map<string, string[]>();
+
+      for (const l of input.links) {
+        const s = getNodeId((l as any).source);
+        const t = getNodeId((l as any).target);
+        if (!s || !t) continue;
+        const type = String((l as any).type || "");
+        if (type === "TRIGGERED") {
+          if (!eventToCameras.has(s)) eventToCameras.set(s, []);
+          eventToCameras.get(s)!.push(t);
+        }
+        if (type === "LOCATED_AT") {
+          const sourceNode = byId.get(s);
+          if (sourceNode?.type === "event") {
+            if (!eventToLocations.has(s)) eventToLocations.set(s, []);
+            eventToLocations.get(s)!.push(t);
+          }
+        }
+      }
+
+      const events = input.nodes.filter((n) => n.type === "event");
+      const tagsForEvent = (e: GraphNode) => {
+        const raw = (e.tags && e.tags.length > 0 ? e.tags : e.geminiTags) ?? [];
+        const normalized = raw.map((x) => String(x).trim()).filter(Boolean);
+        if (normalized.length === 0) return ["untagged"];
+        return normalized;
+      };
+
+      const allNonEvents = input.nodes.filter((n) => n.type !== "event");
+
+      if (tagName) {
+        const targetTag = String(tagName);
+        const includedEventIds = new Set(
+          events
+            .filter((e) => tagsForEvent(e).includes(targetTag))
+            .map((e) => e.id)
+        );
+
+        const includeIds = new Set<string>(includedEventIds);
+        const links = input.links.filter((l) => {
+          const s = getNodeId((l as any).source);
+          const t = getNodeId((l as any).target);
+          if (!s || !t) return false;
+          if (includedEventIds.has(s) || includedEventIds.has(t)) {
+            includeIds.add(s);
+            includeIds.add(t);
+            return true;
+          }
+          return false;
+        });
+
+        const tagId = `tag:${targetTag}`;
+        includeIds.add(tagId);
+        const nodes: GraphNode[] = [
+          {
+            id: tagId,
+            name: targetTag,
+            type: "tag",
+            color: "#F59E0B",
+            val: Math.max(6, Math.sqrt(includedEventIds.size) + 6),
+          },
+          ...input.nodes.filter((n) => includeIds.has(n.id)),
+        ];
+
+        const tagLinks: GraphLink[] = Array.from(includedEventIds).map((eid) => ({
+          id: `tagged:${targetTag}:${eid}`,
+          source: tagId,
+          target: eid,
+          value: 1,
+          type: "TAGGED",
+        }));
+
+        return {
+          nodes,
+          links: [...links, ...tagLinks],
+        };
+      }
+
+      const tagCameraCounts = new Map<string, Map<string, number>>();
+      const tagLocationCounts = new Map<string, Map<string, number>>();
+
+      for (const e of events) {
+        const tags = tagsForEvent(e);
+        const cameraIds = eventToCameras.get(e.id) ?? [];
+        const locationIds = eventToLocations.get(e.id) ?? [];
+
+        for (const tag of tags) {
+          if (!tagCameraCounts.has(tag)) tagCameraCounts.set(tag, new Map());
+          const camCounts = tagCameraCounts.get(tag)!;
+          for (const cid of cameraIds) {
+            camCounts.set(cid, (camCounts.get(cid) ?? 0) + 1);
+          }
+
+          if (!tagLocationCounts.has(tag)) tagLocationCounts.set(tag, new Map());
+          const locCounts = tagLocationCounts.get(tag)!;
+          for (const lid of locationIds) {
+            locCounts.set(lid, (locCounts.get(lid) ?? 0) + 1);
+          }
+        }
+      }
+
+      const tagNodes: GraphNode[] = Array.from(tagCameraCounts.keys())
+        .sort((a, b) => a.localeCompare(b))
+        .slice(0, 200)
+        .map((tag) => {
+          const total = Array.from(tagCameraCounts.get(tag)!.values()).reduce((a, b) => a + b, 0);
+          return {
+            id: `tag:${tag}`,
+            name: tag,
+            type: "tag",
+            color: "#F59E0B",
+            val: Math.max(5, Math.sqrt(total) + 4),
+            tags: [tag],
+          };
+        });
+
+      const tagLinks: GraphLink[] = [];
+      for (const [tag, camCounts] of tagCameraCounts.entries()) {
+        const tagId = `tag:${tag}`;
+        for (const [cameraId, count] of camCounts.entries()) {
+          tagLinks.push({
+            id: `tagcam:${tag}:${cameraId}`,
+            source: tagId,
+            target: cameraId,
+            value: Math.max(1, count),
+            type: "TAGGED",
+            properties: { count },
+          });
+        }
+      }
+
+      for (const [tag, locCounts] of tagLocationCounts.entries()) {
+        const tagId = `tag:${tag}`;
+        for (const [locationId, count] of locCounts.entries()) {
+          tagLinks.push({
+            id: `tagloc:${tag}:${locationId}`,
+            source: tagId,
+            target: locationId,
+            value: Math.max(1, count),
+            type: "TAGGED_AT",
+            properties: { count },
+          });
+        }
+      }
+
+      const nodes: GraphNode[] = [...allNonEvents, ...tagNodes];
+      const nodeIds = new Set(nodes.map((n) => n.id));
+      const links: GraphLink[] = [
+        ...input.links.filter((l) => {
+          const s = getNodeId((l as any).source);
+          const t = getNodeId((l as any).target);
+          if (!s || !t) return false;
+          const sNode = byId.get(s);
+          const tNode = byId.get(t);
+          if (sNode?.type === "event" || tNode?.type === "event") return false;
+          return nodeIds.has(s) && nodeIds.has(t);
+        }),
+        ...tagLinks.filter((l) => nodeIds.has(String(l.source)) && nodeIds.has(String(l.target))),
+      ];
+
+      return { nodes, links };
+    },
+    [getNodeId]
+  );
+
   const windowLabel = useMemo(() => {
     const startTs = effectiveTimeRange.startTs;
     const endTs = effectiveTimeRange.endTs;
@@ -355,12 +545,16 @@ export default function TopologyGraph() {
   }, [effectiveTimeRange.endTs, effectiveTimeRange.startTs, formatTs]);
 
   // Fetch real topology data from API
-  const fetchTopologyData = useCallback(async (params?: { startTs?: number; endTs?: number }) => {
+  const fetchTopologyData = useCallback(async (params?: { startTs?: number; endTs?: number; cameraIds?: string[]; locationIds?: string[] }) => {
     try {
       setIsLoading(true);
       const sp = new URLSearchParams();
       if (params?.startTs != null && Number.isFinite(params.startTs)) sp.set("startTs", String(params.startTs));
       if (params?.endTs != null && Number.isFinite(params.endTs)) sp.set("endTs", String(params.endTs));
+      const cameraIds = params?.cameraIds ?? selectedCameraIdsArray;
+      const locationIds = params?.locationIds ?? selectedLocationIdsArray;
+      if (cameraIds.length > 0) sp.set("cameraIds", cameraIds.join(","));
+      if (locationIds.length > 0) sp.set("locationIds", locationIds.join(","));
       const url = sp.toString() ? `/api/data/topology?${sp.toString()}` : "/api/data/topology";
       const response = await fetch(url, { credentials: "include" });
 
@@ -371,7 +565,7 @@ export default function TopologyGraph() {
       const data: TopologyData = await response.json();
 
       if (data.success) {
-        setGraphData({ nodes: data.nodes, links: data.links });
+        setRawGraphData({ nodes: data.nodes, links: data.links });
         setStats(data.stats);
         setDbConnected(data.dbConnected);
         setNeo4jConnected(data.neo4jConnected || false);
@@ -388,17 +582,17 @@ export default function TopologyGraph() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedCameraIdsArray, selectedLocationIdsArray]);
 
   const refreshTopologyData = useCallback(() => {
     const startTs = effectiveTimeRange.startTs;
     const endTs = effectiveTimeRange.endTs;
     if (startTs == null || endTs == null) {
-      fetchTopologyData();
+      fetchTopologyData({ cameraIds: selectedCameraIdsArray, locationIds: selectedLocationIdsArray });
       return;
     }
-    fetchTopologyData({ startTs, endTs });
-  }, [effectiveTimeRange.endTs, effectiveTimeRange.startTs, fetchTopologyData]);
+    fetchTopologyData({ startTs, endTs, cameraIds: selectedCameraIdsArray, locationIds: selectedLocationIdsArray });
+  }, [effectiveTimeRange.endTs, effectiveTimeRange.startTs, fetchTopologyData, selectedCameraIdsArray, selectedLocationIdsArray]);
 
   // Gemini config status
   const [geminiConfig, setGeminiConfig] = useState<{ apiKeyConfigured: boolean; enabled: boolean; message?: string } | null>(null);
@@ -548,6 +742,7 @@ export default function TopologyGraph() {
       "Vehicles": "vehicle",
       "Locations": "location",
       "Events": "event",
+      "Tags": "tag",
     };
     const nodeType = typeMap[type] || type.toLowerCase();
 
@@ -573,6 +768,12 @@ export default function TopologyGraph() {
       }
     }, 100);
   }, [activeTypeFilter, graphData, originalGraphData]);
+
+  useEffect(() => {
+    // Tag-grouping changes the shape of the graph; ensure type filter isn't holding stale snapshots.
+    setActiveTypeFilter(null);
+    setOriginalGraphData(null);
+  }, [groupByTags]);
 
   // Clear all filters
   const clearAllFilters = useCallback(() => {
@@ -743,8 +944,48 @@ export default function TopologyGraph() {
     const startTs = effectiveTimeRange.startTs;
     const endTs = effectiveTimeRange.endTs;
     if (startTs == null || endTs == null) return;
-    fetchTopologyData({ startTs, endTs });
+    fetchTopologyData({ startTs, endTs, cameraIds: selectedCameraIdsArray, locationIds: selectedLocationIdsArray });
   }, [effectiveTimeRange.endTs, effectiveTimeRange.startTs, fetchTopologyData]);
+
+  useEffect(() => {
+    if (!groupByTags) {
+      setExpandedTag(null);
+    }
+  }, [groupByTags]);
+
+  useEffect(() => {
+    if (!groupByTags) {
+      setGraphData(rawGraphData);
+      return;
+    }
+    setGraphData(buildTagAggregate(rawGraphData, expandedTag));
+  }, [buildTagAggregate, expandedTag, groupByTags, rawGraphData]);
+
+  const availableCameras = useMemo(() => {
+    return graphData.nodes
+      .filter((n) => n.type === "camera")
+      .map((n) => ({ id: n.id, name: n.name || n.id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [graphData.nodes]);
+
+  const availableLocations = useMemo(() => {
+    return graphData.nodes
+      .filter((n) => n.type === "location")
+      .map((n) => ({ id: n.id, name: n.name || n.id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [graphData.nodes]);
+
+  const filteredCameras = useMemo(() => {
+    const q = cameraFilterQuery.trim().toLowerCase();
+    const base = q ? availableCameras.filter((c) => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)) : availableCameras;
+    return base.slice(0, 50);
+  }, [availableCameras, cameraFilterQuery]);
+
+  const filteredLocations = useMemo(() => {
+    const q = locationFilterQuery.trim().toLowerCase();
+    const base = q ? availableLocations.filter((l) => l.name.toLowerCase().includes(q) || l.id.toLowerCase().includes(q)) : availableLocations;
+    return base.slice(0, 50);
+  }, [availableLocations, locationFilterQuery]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -1117,6 +1358,18 @@ export default function TopologyGraph() {
     if (selectionBox?.active) return;
     if (event?.shiftKey) return;
 
+    if (groupByTags && node?.type === "tag") {
+      const tagName = typeof node?.name === "string" && node.name.trim().length > 0 ? node.name.trim() : null;
+      if (tagName) {
+        setExpandedTag(tagName);
+        setSelectedNode(null);
+        if (graphRef.current && graphRef.current.zoomToFit) {
+          setTimeout(() => graphRef.current?.zoomToFit(500, 50), 50);
+        }
+      }
+      return;
+    }
+
     clearMultiSelection();
     setSelectedNode(node);
     // Close context menu on regular click
@@ -1128,7 +1381,7 @@ export default function TopologyGraph() {
         graphRef.current.zoom(2, 1000);
       }
     }
-  }, [clearMultiSelection, selectionBox?.active]);
+  }, [clearMultiSelection, groupByTags, selectionBox?.active]);
 
   const handleBackgroundClick = useCallback((event: MouseEvent) => {
     if (selectionBox?.active) return;
@@ -1378,18 +1631,30 @@ export default function TopologyGraph() {
   }, []);
 
   // Computed stats from real data
-  const displayStats = {
-    nodes: graphData.nodes.length,
-    edges: graphData.links.length,
-    cameras: stats.cameras,
-    persons: stats.persons,
-    vehicles: stats.vehicles,
-    locations: stats.locations,
-    events: stats.events,
-    withImages: graphData.nodes.filter((n) => n.imageUrl).length,
-    selectedNodes: selectedNodeIds.size,
-    selectedEdges: selectedLinkIds.size,
-  };
+  const displayStats = useMemo(() => {
+    const counts = { cameras: 0, locations: 0, vehicles: 0, persons: 0, events: 0, tags: 0 };
+    for (const n of graphData.nodes) {
+      if (n.type === "camera") counts.cameras += 1;
+      else if (n.type === "location") counts.locations += 1;
+      else if (n.type === "vehicle") counts.vehicles += 1;
+      else if (n.type === "person") counts.persons += 1;
+      else if (n.type === "event") counts.events += 1;
+      else if (n.type === "tag") counts.tags += 1;
+    }
+    return {
+      nodes: graphData.nodes.length,
+      edges: graphData.links.length,
+      cameras: counts.cameras,
+      persons: counts.persons,
+      vehicles: counts.vehicles,
+      locations: counts.locations,
+      events: counts.events,
+      tags: counts.tags,
+      withImages: graphData.nodes.filter((n) => n.imageUrl).length,
+      selectedNodes: selectedNodeIds.size,
+      selectedEdges: selectedLinkIds.size,
+    };
+  }, [graphData.links.length, graphData.nodes, selectedLinkIds.size, selectedNodeIds.size]);
 
   // Custom node rendering with image support
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -1407,7 +1672,7 @@ export default function TopologyGraph() {
     const isMultiSelected = selectedNodeIds.has(node.id);
     // Override color to red if marked as high risk
     const nodeColor = isHighRisk ? "#EF4444" : (node.color || "#888888");
-    const hasImage = node.imageUrl && imageCache.has(node.imageUrl);
+    const hasImage = showEventImages && node.imageUrl && imageCache.has(node.imageUrl);
 
     // Draw high-risk pulsing animation
     if (isHighRisk) {
@@ -1578,7 +1843,7 @@ export default function TopologyGraph() {
       ctx.fillStyle = "#F9FAFB";
       ctx.fillText(label, x, textY);
     }
-  }, [selectedNode, loadedImages, highRiskNodes, selectedNodeIds]);
+  }, [selectedNode, loadedImages, highRiskNodes, selectedNodeIds, showEventImages]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -1914,6 +2179,7 @@ export default function TopologyGraph() {
                   { color: "bg-orange-500", label: "Vehicles", value: displayStats.vehicles, type: "vehicle" },
                   { color: "bg-purple-500", label: "Locations", value: displayStats.locations, type: "location" },
                   { color: "bg-primary", label: "Events", value: displayStats.events, type: "event" },
+                  ...(displayStats.tags > 0 ? [{ color: "bg-yellow-500", label: "Tags", value: displayStats.tags, type: "tag" }] : []),
                 ].map((stat, index) => (
                   <motion.div
                     key={stat.label}
@@ -1938,6 +2204,143 @@ export default function TopologyGraph() {
                     <Badge variant={activeTypeFilter === stat.label ? "default" : "outline"}>{stat.value}</Badge>
                   </motion.div>
                 ))}
+
+                <div className="h-px bg-border my-2" />
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Filters</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => setFiltersOpen((p) => !p)}
+                  >
+                    {filtersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                </div>
+
+                {filtersOpen && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={groupByTags}
+                          onCheckedChange={(c) => {
+                            setGroupByTags(!!c);
+                          }}
+                        />
+                        Group by tags
+                      </label>
+                      {groupByTags && expandedTag && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-3"
+                          onClick={() => setExpandedTag(null)}
+                        >
+                          Back
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Selected cameras: {selectedCameraIds.size}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setSelectedCameraIds(new Set())}
+                        disabled={selectedCameraIds.size === 0}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                    <Input
+                      value={cameraFilterQuery}
+                      onChange={(e) => setCameraFilterQuery(e.target.value)}
+                      placeholder="Filter cameras..."
+                      className="h-8"
+                    />
+                    <ScrollArea className="h-32 rounded-md border border-border">
+                      <div className="p-2 space-y-1">
+                        {filteredCameras.map((c) => (
+                          <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/30 rounded px-2 py-1">
+                            <Checkbox
+                              checked={selectedCameraIds.has(c.id)}
+                              onCheckedChange={(checked) => {
+                                setSelectedCameraIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (checked) next.add(c.id);
+                                  else next.delete(c.id);
+                                  return next;
+                                });
+                              }}
+                            />
+                            <span className="truncate" title={c.name}>{c.name}</span>
+                          </label>
+                        ))}
+                        {filteredCameras.length === 0 && (
+                          <div className="text-xs text-muted-foreground px-2 py-1">No cameras</div>
+                        )}
+                      </div>
+                    </ScrollArea>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Selected locations: {selectedLocationIds.size}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setSelectedLocationIds(new Set())}
+                        disabled={selectedLocationIds.size === 0}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                    <Input
+                      value={locationFilterQuery}
+                      onChange={(e) => setLocationFilterQuery(e.target.value)}
+                      placeholder="Filter locations..."
+                      className="h-8"
+                    />
+                    <ScrollArea className="h-32 rounded-md border border-border">
+                      <div className="p-2 space-y-1">
+                        {filteredLocations.map((l) => (
+                          <label key={l.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/30 rounded px-2 py-1">
+                            <Checkbox
+                              checked={selectedLocationIds.has(l.id)}
+                              onCheckedChange={(checked) => {
+                                setSelectedLocationIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (checked) next.add(l.id);
+                                  else next.delete(l.id);
+                                  return next;
+                                });
+                              }}
+                            />
+                            <span className="truncate" title={l.name}>{l.name}</span>
+                          </label>
+                        ))}
+                        {filteredLocations.length === 0 && (
+                          <div className="text-xs text-muted-foreground px-2 py-1">No locations</div>
+                        )}
+                      </div>
+                    </ScrollArea>
+
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox checked={showEventImages} onCheckedChange={(c) => setShowEventImages(!!c)} />
+                        Show event images
+                      </label>
+                      <Button size="sm" className="h-7 px-3" onClick={refreshTopologyData} disabled={isLoading}>
+                        Apply
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -2666,7 +3069,7 @@ export default function TopologyGraph() {
             nodeVal="val"
             dagMode={dagMode}
             dagLevelDistance={layout === "hierarchical" ? 80 : undefined}
-            linkDirectionalParticles={3}
+            linkDirectionalParticles={graphData.links.length > 5000 ? 0 : 3}
             linkDirectionalParticleSpeed={0.004}
             linkDirectionalParticleWidth={2}
             linkDirectionalParticleColor={linkDirectionalParticleColor}
@@ -2675,7 +3078,7 @@ export default function TopologyGraph() {
             onBackgroundClick={handleBackgroundClick}
             backgroundColor="#1F2937"
             linkColor={linkColor}
-            linkWidth={1.5}
+            linkWidth={graphData.links.length > 5000 ? 0.6 : 1.5}
             cooldownTicks={layout === "force" ? 100 : 0}
             warmupTicks={layout === "force" ? 100 : 0}
             onEngineStop={onEngineStop}

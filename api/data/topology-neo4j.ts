@@ -541,7 +541,7 @@ export async function getTopologyFromNeo4j(params?: {
           )
         RETURN e
         ORDER BY e.timestamp DESC
-        ${maxEvents ? "LIMIT $maxEvents" : ""}
+        ${maxEvents ? "LIMIT toInteger($maxEvents)" : ""}
         `,
         {
           startTs: startTs ?? null,
