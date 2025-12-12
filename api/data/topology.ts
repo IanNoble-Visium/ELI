@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { isNeo4jConfigured } from "../lib/neo4j.js";
-import { getTopologyFromNeo4j } from "./topology-neo4j.js";
+import { getEventTimestampBoundsFromNeo4j, getTopologyFromNeo4j } from "./topology-neo4j.js";
 
 /**
  * API endpoint to retrieve topology graph data from Neo4j
@@ -76,6 +76,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const actionRaw = Array.isArray(req.query.action) ? req.query.action[0] : req.query.action;
+  const action = actionRaw != null ? String(actionRaw) : null;
+
   const neo4jAvailable = isNeo4jConfigured();
 
   // Neo4j is required for topology data
@@ -93,8 +96,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    if (action === "bounds") {
+      const bounds = await getEventTimestampBoundsFromNeo4j();
+      return res.status(200).json({
+        success: true,
+        bounds: bounds ?? { minTs: null, maxTs: null, count: 0 },
+        dbConnected: true,
+        neo4jConnected: true,
+        dataSource: "neo4j",
+        lastUpdated: new Date().toISOString(),
+      });
+    }
+
+    const startTsRaw = Array.isArray(req.query.startTs) ? req.query.startTs[0] : req.query.startTs;
+    const endTsRaw = Array.isArray(req.query.endTs) ? req.query.endTs[0] : req.query.endTs;
+    const cameraIdsRaw = Array.isArray(req.query.cameraIds) ? req.query.cameraIds[0] : req.query.cameraIds;
+    const locationIdsRaw = Array.isArray(req.query.locationIds) ? req.query.locationIds[0] : req.query.locationIds;
+    const maxEventsRaw = Array.isArray(req.query.maxEvents) ? req.query.maxEvents[0] : req.query.maxEvents;
+
+    const startTs = startTsRaw != null ? Number.parseInt(String(startTsRaw), 10) : undefined;
+    const endTs = endTsRaw != null ? Number.parseInt(String(endTsRaw), 10) : undefined;
+    const cameraIds =
+      cameraIdsRaw != null
+        ? String(cameraIdsRaw)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+    const locationIds =
+      locationIdsRaw != null
+        ? String(locationIdsRaw)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+    const maxEventsParsed = maxEventsRaw != null ? Number.parseInt(String(maxEventsRaw), 10) : undefined;
+    const maxEvents =
+      maxEventsParsed != null && Number.isFinite(maxEventsParsed)
+        ? Math.max(1, Math.min(20000, maxEventsParsed))
+        : undefined;
+
     // Query topology data exclusively from Neo4j
-    const neo4jData = await getTopologyFromNeo4j();
+    const neo4jData = await getTopologyFromNeo4j({
+      startTs: Number.isFinite(startTs as number) ? (startTs as number) : undefined,
+      endTs: Number.isFinite(endTs as number) ? (endTs as number) : undefined,
+      cameraIds: cameraIds && cameraIds.length > 0 ? cameraIds : undefined,
+      locationIds: locationIds && locationIds.length > 0 ? locationIds : undefined,
+      maxEvents,
+    });
     
     if (neo4jData && neo4jData.nodes.length > 0) {
       console.log(`[Topology API] Neo4j data: ${neo4jData.nodes.length} nodes, ${neo4jData.links.length} links`);

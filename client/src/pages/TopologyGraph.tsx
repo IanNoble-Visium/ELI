@@ -8,13 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2, Upload, X, Target, Clock, MapPin, Flag, Link as LinkIcon, Copy } from "lucide-react";
+import { ArrowLeft, Network, Search, ZoomIn, ZoomOut, Maximize2, Minimize2, RefreshCw, Database, AlertCircle, Image as ImageIcon, Sparkles, Car, Users, Shield, FileText, Loader2, Upload, X, Target, Clock, MapPin, Flag, Link as LinkIcon, Copy, Play, Pause, Calendar as CalendarIcon } from "lucide-react";
 import ForceGraph2D from "react-force-graph-2d";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import NodeContextMenu, { type ContextMenuNode, type ContextMenuPosition } from "@/components/NodeContextMenu";
 import NodeDetailsPanel from "@/components/NodeDetailsPanel";
 import { Streamdown } from "streamdown";
+import { Slider } from "@/components/ui/slider";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { addDays, startOfDay } from "date-fns";
 
 // Staggered animation variants
 const containerVariants = {
@@ -120,6 +124,11 @@ interface TopologyData {
   lastUpdated?: string;
 }
 
+interface TopologyBoundsResponse {
+  success?: boolean;
+  bounds?: { minTs: number | null; maxTs: number | null; count: number };
+}
+
 type LayoutType = "force" | "hierarchical" | "radial" | "grid" | "circular";
 
 // Image cache for preloading and reusing images
@@ -165,6 +174,24 @@ export default function TopologyGraph() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const [timeBounds, setTimeBounds] = useState<{ minTs: number | null; maxTs: number | null; count: number } | null>(null);
+  const [timeMode, setTimeMode] = useState<"window" | "range">("window");
+  const [timeWindowMs, setTimeWindowMs] = useState<number>(60 * 60 * 1000);
+  const [timeCursorTs, setTimeCursorTs] = useState<number | null>(null);
+  const [scrubCursorTs, setScrubCursorTs] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date } | undefined>(undefined);
+
+  const clamp = useCallback((v: number, min: number, max: number) => Math.max(min, Math.min(max, v)), []);
+
+  const formatTs = useCallback((ts: number) => {
+    try {
+      return new Date(ts).toLocaleString();
+    } catch {
+      return String(ts);
+    }
+  }, []);
 
   const [selectionBox, setSelectionBox] = useState<{
     active: boolean;
@@ -284,11 +311,59 @@ export default function TopologyGraph() {
     });
   }, [graphData.nodes, loadedImages]);
 
+  const fetchBounds = useCallback(async () => {
+    try {
+      const response = await fetch("/api/data/topology?action=bounds", { credentials: "include" });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data: TopologyBoundsResponse = await response.json();
+      if (data.success && data.bounds) {
+        setTimeBounds(data.bounds);
+        if (data.bounds.maxTs != null) {
+          setTimeCursorTs((prev) => (prev == null ? data.bounds!.maxTs : prev));
+        }
+      }
+    } catch (err) {
+      console.error("[TopologyGraph] Failed to fetch bounds:", err);
+    }
+  }, []);
+
+  const effectiveTimeRange = useMemo(() => {
+    if (timeMode === "range") {
+      if (dateRange?.from && dateRange?.to) {
+        const start = startOfDay(dateRange.from).getTime();
+        const end = addDays(startOfDay(dateRange.to), 1).getTime();
+        return { startTs: start, endTs: end };
+      }
+      if (timeBounds?.minTs != null && timeBounds?.maxTs != null) {
+        return { startTs: timeBounds.minTs, endTs: timeBounds.maxTs };
+      }
+      return { startTs: undefined, endTs: undefined };
+    }
+
+    const endTs = timeCursorTs ?? (timeBounds?.maxTs ?? Date.now());
+    const startTs = endTs - timeWindowMs;
+    return { startTs, endTs };
+  }, [dateRange?.from, dateRange?.to, timeBounds?.maxTs, timeBounds?.minTs, timeCursorTs, timeMode, timeWindowMs]);
+
+  const windowLabel = useMemo(() => {
+    const startTs = effectiveTimeRange.startTs;
+    const endTs = effectiveTimeRange.endTs;
+    if (startTs == null || endTs == null) return "";
+    return `${formatTs(startTs)} – ${formatTs(endTs)}`;
+  }, [effectiveTimeRange.endTs, effectiveTimeRange.startTs, formatTs]);
+
   // Fetch real topology data from API
-  const fetchTopologyData = useCallback(async () => {
+  const fetchTopologyData = useCallback(async (params?: { startTs?: number; endTs?: number }) => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/data/topology", { credentials: "include" });
+      const sp = new URLSearchParams();
+      if (params?.startTs != null && Number.isFinite(params.startTs)) sp.set("startTs", String(params.startTs));
+      if (params?.endTs != null && Number.isFinite(params.endTs)) sp.set("endTs", String(params.endTs));
+      sp.set("maxEvents", "20000");
+      const url = sp.toString() ? `/api/data/topology?${sp.toString()}` : "/api/data/topology";
+      const response = await fetch(url, { credentials: "include" });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -301,6 +376,8 @@ export default function TopologyGraph() {
         setStats(data.stats);
         setDbConnected(data.dbConnected);
         setNeo4jConnected(data.neo4jConnected || false);
+        setOriginalGraphData(null);
+        setActiveTypeFilter(null);
         // Neo4j is required for topology graph - show specific message
         setError(data.neo4jConnected ? null : "Neo4j not configured - Topology graph requires Neo4j database");
       } else {
@@ -313,6 +390,16 @@ export default function TopologyGraph() {
       setIsLoading(false);
     }
   }, []);
+
+  const refreshTopologyData = useCallback(() => {
+    const startTs = effectiveTimeRange.startTs;
+    const endTs = effectiveTimeRange.endTs;
+    if (startTs == null || endTs == null) {
+      fetchTopologyData();
+      return;
+    }
+    fetchTopologyData({ startTs, endTs });
+  }, [effectiveTimeRange.endTs, effectiveTimeRange.startTs, fetchTopologyData]);
 
   // Gemini config status
   const [geminiConfig, setGeminiConfig] = useState<{ apiKeyConfigured: boolean; enabled: boolean; message?: string } | null>(null);
@@ -428,8 +515,8 @@ export default function TopologyGraph() {
       clothingColor: "",
     });
     // Refresh topology data to reset node colors/sizes
-    fetchTopologyData();
-  }, [fetchTopologyData]);
+    refreshTopologyData();
+  }, [refreshTopologyData]);
 
   // Filter graph by node type
   const filterByType = useCallback((type: string | null) => {
@@ -649,9 +736,86 @@ export default function TopologyGraph() {
 
   // Initial fetch
   useEffect(() => {
-    fetchTopologyData();
+    fetchBounds();
     fetchGeminiStats();
-  }, [fetchTopologyData, fetchGeminiStats]);
+  }, [fetchBounds, fetchGeminiStats]);
+
+  useEffect(() => {
+    const startTs = effectiveTimeRange.startTs;
+    const endTs = effectiveTimeRange.endTs;
+    if (startTs == null || endTs == null) return;
+    fetchTopologyData({ startTs, endTs });
+  }, [effectiveTimeRange.endTs, effectiveTimeRange.startTs, fetchTopologyData]);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    const maxTs = timeBounds?.maxTs ?? null;
+    if (maxTs == null) return;
+    const step = Math.max(60 * 1000, Math.min(15 * 60 * 1000, Math.floor(timeWindowMs / 10)));
+    const id = window.setInterval(() => {
+      setTimeCursorTs((prev) => {
+        const next = (prev ?? maxTs) + step;
+        if (next >= maxTs) {
+          setIsPlaying(false);
+          return maxTs;
+        }
+        return next;
+      });
+    }, 900);
+    return () => window.clearInterval(id);
+  }, [isPlaying, timeBounds?.maxTs, timeWindowMs]);
+
+  const setPreset = useCallback((preset: "1h" | "24h" | "7d" | "30d" | "all") => {
+    setIsPlaying(false);
+    if (preset === "all") {
+      setTimeMode("range");
+      if (timeBounds?.minTs != null && timeBounds?.maxTs != null) {
+        setDateRange({ from: new Date(timeBounds.minTs), to: new Date(timeBounds.maxTs) });
+      } else {
+        setDateRange(undefined);
+      }
+      return;
+    }
+    setTimeMode("window");
+    const now = timeBounds?.maxTs ?? Date.now();
+    setTimeCursorTs(now);
+    if (preset === "1h") setTimeWindowMs(60 * 60 * 1000);
+    if (preset === "24h") setTimeWindowMs(24 * 60 * 60 * 1000);
+    if (preset === "7d") setTimeWindowMs(7 * 24 * 60 * 60 * 1000);
+    if (preset === "30d") setTimeWindowMs(30 * 24 * 60 * 60 * 1000);
+  }, [timeBounds?.maxTs, timeBounds?.minTs]);
+
+  const canUseSlider = timeMode === "window" && timeBounds?.minTs != null && timeBounds?.maxTs != null;
+  const sliderMin = timeBounds?.minTs ?? 0;
+  const sliderMax = timeBounds?.maxTs ?? 0;
+  const sliderValue = useMemo(() => {
+    if (!canUseSlider) return [0];
+    const v = scrubCursorTs ?? timeCursorTs ?? sliderMax;
+    return [clamp(v, sliderMin, sliderMax)];
+  }, [canUseSlider, clamp, scrubCursorTs, sliderMax, sliderMin, timeCursorTs]);
+
+  const handleSliderChange = useCallback(
+    (value: number[]) => {
+      if (!canUseSlider) return;
+      setIsPlaying(false);
+      const v = value?.[0];
+      if (v == null) return;
+      setScrubCursorTs(clamp(v, sliderMin, sliderMax));
+    },
+    [canUseSlider, clamp, sliderMax, sliderMin]
+  );
+
+  const handleSliderCommit = useCallback(
+    (value: number[]) => {
+      if (!canUseSlider) return;
+      setIsPlaying(false);
+      const v = value?.[0];
+      if (v == null) return;
+      setScrubCursorTs(null);
+      setTimeCursorTs(clamp(v, sliderMin, sliderMax));
+    },
+    [canUseSlider, clamp, sliderMax, sliderMin]
+  );
 
   // Apply layout algorithm when layout changes
   useEffect(() => {
@@ -1505,6 +1669,111 @@ export default function TopologyGraph() {
             />
           </motion.div>
 
+          <motion.div variants={cardVariants}>
+            <Card className="hover:shadow-lg hover:shadow-primary/5 transition-shadow duration-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>Time Controls</span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {timeBounds?.count ?? 0}
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-xs">{windowLabel || ""}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant={timeMode === "window" && timeWindowMs === 60 * 60 * 1000 ? "default" : "outline"} onClick={() => setPreset("1h")}>
+                    Last 1h
+                  </Button>
+                  <Button size="sm" variant={timeMode === "window" && timeWindowMs === 24 * 60 * 60 * 1000 ? "default" : "outline"} onClick={() => setPreset("24h")}>
+                    Last 24h
+                  </Button>
+                  <Button size="sm" variant={timeMode === "window" && timeWindowMs === 7 * 24 * 60 * 60 * 1000 ? "default" : "outline"} onClick={() => setPreset("7d")}>
+                    Last 7d
+                  </Button>
+                  <Button size="sm" variant={timeMode === "window" && timeWindowMs === 30 * 24 * 60 * 60 * 1000 ? "default" : "outline"} onClick={() => setPreset("30d")}>
+                    Last 30d
+                  </Button>
+                  <Button size="sm" variant={timeMode === "range" ? "default" : "outline"} onClick={() => setPreset("all")}>
+                    All
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={String(timeWindowMs)}
+                    onValueChange={(v) => {
+                      setIsPlaying(false);
+                      setTimeMode("window");
+                      setTimeWindowMs(Number.parseInt(v, 10));
+                    }}
+                    disabled={timeMode !== "window"}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Window" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={String(15 * 60 * 1000)}>15m window</SelectItem>
+                      <SelectItem value={String(30 * 60 * 1000)}>30m window</SelectItem>
+                      <SelectItem value={String(60 * 60 * 1000)}>1h window</SelectItem>
+                      <SelectItem value={String(6 * 60 * 60 * 1000)}>6h window</SelectItem>
+                      <SelectItem value={String(24 * 60 * 60 * 1000)}>24h window</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 justify-start"
+                        onClick={() => {
+                          setIsPlaying(false);
+                          setTimeMode("range");
+                        }}
+                      >
+                        <CalendarIcon className="w-4 h-4 mr-2" />
+                        Date Range
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-auto p-0">
+                      <Calendar
+                        mode="range"
+                        selected={dateRange as any}
+                        onSelect={(range: any) => {
+                          setIsPlaying(false);
+                          setTimeMode("range");
+                          setDateRange(range);
+                        }}
+                        numberOfMonths={2}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    disabled={!canUseSlider}
+                    onClick={() => {
+                      if (!canUseSlider) return;
+                      setIsPlaying((prev) => !prev);
+                    }}
+                  >
+                    {isPlaying ? <Pause className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                    {isPlaying ? "Pause" : "Play"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1" onClick={refreshTopologyData}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
         <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
           <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -1578,7 +1847,7 @@ export default function TopologyGraph() {
                       transition={{ duration: 2, repeat: Infinity }}
                     />
                   </CardTitle>
-                  <Button variant="ghost" size="sm" onClick={fetchTopologyData} disabled={isLoading}>
+                  <Button variant="ghost" size="sm" onClick={refreshTopologyData} disabled={isLoading}>
                     <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
                   </Button>
                 </div>
@@ -2416,6 +2685,37 @@ export default function TopologyGraph() {
             enablePanInteraction={(event: any) => !(selectionBox?.active || event?.shiftKey)}
             enableZoomInteraction={(event: any) => !(selectionBox?.active || event?.shiftKey)}
           />
+
+          <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-border bg-card/80 backdrop-blur px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canUseSlider}
+                onClick={() => {
+                  if (!canUseSlider) return;
+                  setIsPlaying((prev) => !prev);
+                }}
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </Button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-muted-foreground truncate">{windowLabel}</div>
+                  <div className="text-xs text-muted-foreground">Events: {displayStats.events}</div>
+                </div>
+                <Slider
+                  value={sliderValue}
+                  min={sliderMin}
+                  max={sliderMax}
+                  step={60 * 1000}
+                  disabled={!canUseSlider}
+                  onValueChange={handleSliderChange}
+                  onValueCommit={handleSliderCommit}
+                />
+              </div>
+            </div>
+          </div>
 
           {selectionBox?.active && (
             <div

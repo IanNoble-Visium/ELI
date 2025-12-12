@@ -210,6 +210,34 @@ export interface TopologyData {
   stats: TopologyStats;
 }
 
+export async function getEventTimestampBoundsFromNeo4j(): Promise<
+  { minTs: number | null; maxTs: number | null; count: number } | null
+> {
+  if (!isNeo4jConfigured()) return null;
+
+  try {
+    const result = await runQuery<any>(
+      `
+      MATCH (e:Event)
+      WHERE e.timestamp IS NOT NULL
+      RETURN min(e.timestamp) as minTs, max(e.timestamp) as maxTs, count(e) as count
+      `
+    );
+
+    const row = result?.[0];
+    if (!row) return { minTs: null, maxTs: null, count: 0 };
+
+    return {
+      minTs: row.minTs != null ? toNumber(row.minTs) : null,
+      maxTs: row.maxTs != null ? toNumber(row.maxTs) : null,
+      count: row.count != null ? toNumber(row.count) : 0,
+    };
+  } catch (error) {
+    console.error("[Neo4j Topology] Error fetching timestamp bounds:", error);
+    return null;
+  }
+}
+
 // ========== Node Colors ==========
 
 const NODE_COLORS = {
@@ -419,56 +447,168 @@ export async function updateEventImage(eventId: string, imageUrl: string): Promi
 /**
  * Get all topology data from Neo4j for graph visualization
  */
-export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
+export async function getTopologyFromNeo4j(params?: {
+  startTs?: number;
+  endTs?: number;
+  cameraIds?: string[];
+  locationIds?: string[];
+  maxEvents?: number;
+}): Promise<TopologyData | null> {
   if (!isNeo4jConfigured()) return null;
 
   try {
+    const startTs = params?.startTs;
+    const endTs = params?.endTs;
+    const cameraIdsFilter = params?.cameraIds && params.cameraIds.length > 0 ? params.cameraIds : null;
+    const locationIdsFilter = params?.locationIds && params.locationIds.length > 0 ? params.locationIds : null;
+    const maxEvents = params?.maxEvents != null ? Math.max(1, Math.min(20000, params.maxEvents)) : null;
+
     const nodes: TopologyNode[] = [];
     const links: TopologyLink[] = [];
     const nodeIds = new Set<string>();
 
+    const inWindowPredicate = `
+      e.timestamp IS NOT NULL
+      AND ($startTs IS NULL OR e.timestamp >= $startTs)
+      AND ($endTs IS NULL OR e.timestamp < $endTs)
+    `;
+
+    const relInWindowPredicate = `
+      r.timestamp IS NOT NULL
+      AND ($startTs IS NULL OR r.timestamp >= $startTs)
+      AND ($endTs IS NULL OR r.timestamp < $endTs)
+    `;
+
     // Fetch all nodes with their relationships
     const result = await readTransaction(async (tx) => {
       // Get cameras
-      const camerasResult = await tx.run(`
+      const camerasResult = await tx.run(
+        `
         MATCH (c:Camera)
+        WHERE ($cameraIds IS NULL OR c.id IN $cameraIds)
         OPTIONAL MATCH (c)<-[:TRIGGERED]-(e:Event)
+        WHERE ${inWindowPredicate}
         RETURN c, count(e) as eventCount
-      `);
+        `,
+        { startTs: startTs ?? null, endTs: endTs ?? null, cameraIds: cameraIdsFilter }
+      );
 
       // Get locations
-      const locationsResult = await tx.run(`
+      const locationsResult = await tx.run(
+        `
         MATCH (l:Location)
+        WHERE ($locationIds IS NULL OR l.id IN $locationIds)
         RETURN l
-      `);
+        `,
+        { locationIds: locationIdsFilter }
+      );
 
       // Get vehicles
-      const vehiclesResult = await tx.run(`
-        MATCH (v:Vehicle)
-        RETURN v
-      `);
+      const vehiclesResult = await tx.run(
+        `
+        MATCH (v:Vehicle)-[r:DETECTED]->(c:Camera)
+        WHERE ($cameraIds IS NULL OR c.id IN $cameraIds)
+          AND ${relInWindowPredicate}
+        RETURN DISTINCT v
+        `,
+        { startTs: startTs ?? null, endTs: endTs ?? null, cameraIds: cameraIdsFilter }
+      );
 
       // Get persons
-      const personsResult = await tx.run(`
-        MATCH (p:Person)
-        RETURN p
-      `);
+      const personsResult = await tx.run(
+        `
+        MATCH (p:Person)-[r:OBSERVED]->(c:Camera)
+        WHERE ($cameraIds IS NULL OR c.id IN $cameraIds)
+          AND ${relInWindowPredicate}
+        RETURN DISTINCT p
+        `,
+        { startTs: startTs ?? null, endTs: endTs ?? null, cameraIds: cameraIdsFilter }
+      );
 
-      // Get events with images
-      const eventsResult = await tx.run(`
-        MATCH (e:Event)
-        WHERE e.imageUrl IS NOT NULL
+      // Get events within window, optionally filtered by cameraIds/locationIds.
+      // Location filtering: prefer camera->LOCATED_AT if present, otherwise fall back to (e)-[:LOCATED_AT]->(l).
+      const eventsResult = await tx.run(
+        `
+        MATCH (e:Event)-[:TRIGGERED]->(c:Camera)
+        OPTIONAL MATCH (c)-[:LOCATED_AT]->(cl:Location)
+        OPTIONAL MATCH (e)-[:LOCATED_AT]->(el:Location)
+        WITH e, c, coalesce(cl, el) as loc
+        WHERE ${inWindowPredicate}
+          AND ($cameraIds IS NULL OR c.id IN $cameraIds)
+          AND (
+            $locationIds IS NULL
+            OR (loc IS NOT NULL AND loc.id IN $locationIds)
+          )
         RETURN e
-        LIMIT 100
-      `);
+        ORDER BY e.timestamp DESC
+        ${maxEvents ? "LIMIT $maxEvents" : ""}
+        `,
+        {
+          startTs: startTs ?? null,
+          endTs: endTs ?? null,
+          cameraIds: cameraIdsFilter,
+          locationIds: locationIdsFilter,
+          maxEvents: maxEvents ?? undefined,
+        }
+      );
 
-      // Get all relationships
-      const relationshipsResult = await tx.run(`
-        MATCH (a)-[r]->(b)
-        WHERE (a:Camera OR a:Location OR a:Vehicle OR a:Person OR a:Event)
-          AND (b:Camera OR b:Location OR b:Vehicle OR b:Person OR b:Event)
-        RETURN id(r) as id, a.id as source, b.id as target, type(r) as type, properties(r) as properties
-      `);
+      const eventIds = eventsResult.records.map((r: any) => nodeToObject<Neo4jEvent>(r.get("e")).id).filter(Boolean);
+
+      const triggeredResult =
+        eventIds.length > 0
+          ? await tx.run(
+              `
+              MATCH (e:Event)-[r:TRIGGERED]->(c:Camera)
+              WHERE e.id IN $eventIds
+              RETURN id(r) as id, e.id as source, c.id as target, type(r) as type, properties(r) as properties
+              `,
+              { eventIds }
+            )
+          : { records: [] };
+
+      const cameraIdsForEdges = (cameraIdsFilter ?? []).length > 0 ? (cameraIdsFilter as string[]) : null;
+      const locatedAtResult = await tx.run(
+        `
+        MATCH (c:Camera)-[r:LOCATED_AT]->(l:Location)
+        WHERE ($cameraIdsForEdges IS NULL OR c.id IN $cameraIdsForEdges)
+          AND ($locationIds IS NULL OR l.id IN $locationIds)
+        RETURN id(r) as id, c.id as source, l.id as target, type(r) as type, properties(r) as properties
+        `,
+        { cameraIdsForEdges, locationIds: locationIdsFilter }
+      );
+
+      const eventLocatedAtResult =
+        eventIds.length > 0
+          ? await tx.run(
+              `
+              MATCH (e:Event)-[r:LOCATED_AT]->(l:Location)
+              WHERE e.id IN $eventIds
+                AND ($locationIds IS NULL OR l.id IN $locationIds)
+              RETURN id(r) as id, e.id as source, l.id as target, type(r) as type, properties(r) as properties
+              `,
+              { eventIds, locationIds: locationIdsFilter }
+            )
+          : { records: [] };
+
+      const detectedResult = await tx.run(
+        `
+        MATCH (v:Vehicle)-[r:DETECTED]->(c:Camera)
+        WHERE ($cameraIds IS NULL OR c.id IN $cameraIds)
+          AND ${relInWindowPredicate}
+        RETURN id(r) as id, v.id as source, c.id as target, type(r) as type, properties(r) as properties
+        `,
+        { startTs: startTs ?? null, endTs: endTs ?? null, cameraIds: cameraIdsFilter }
+      );
+
+      const observedResult = await tx.run(
+        `
+        MATCH (p:Person)-[r:OBSERVED]->(c:Camera)
+        WHERE ($cameraIds IS NULL OR c.id IN $cameraIds)
+          AND ${relInWindowPredicate}
+        RETURN id(r) as id, p.id as source, c.id as target, type(r) as type, properties(r) as properties
+        `,
+        { startTs: startTs ?? null, endTs: endTs ?? null, cameraIds: cameraIdsFilter }
+      );
 
       return {
         cameras: camerasResult.records,
@@ -476,7 +616,13 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
         vehicles: vehiclesResult.records,
         persons: personsResult.records,
         events: eventsResult.records,
-        relationships: relationshipsResult.records,
+        relationships: [
+          ...triggeredResult.records,
+          ...locatedAtResult.records,
+          ...eventLocatedAtResult.records,
+          ...detectedResult.records,
+          ...observedResult.records,
+        ],
       };
     });
 
@@ -550,9 +696,11 @@ export async function getTopologyFromNeo4j(): Promise<TopologyData | null> {
       }
     }
 
-    // Process events with images
+    // Process events
     for (const record of result.events) {
       const event = nodeToObject<Neo4jEvent>(record.get("e"));
+
+      if (event.timestamp == null) continue;
 
       if (!nodeIds.has(event.id)) {
         nodeIds.add(event.id);
