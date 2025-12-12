@@ -222,6 +222,7 @@ export default function TopologyGraph() {
     clothingColor: "",
   });
   const [geminiSearching, setGeminiSearching] = useState(false);
+  const [geminiOriginalGraphData, setGeminiOriginalGraphData] = useState<{ nodes: GraphNode[]; links: GraphLink[] } | null>(null);
 
   // Node type filter state
   const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
@@ -544,6 +545,77 @@ export default function TopologyGraph() {
     return `${formatTs(startTs)} – ${formatTs(endTs)}`;
   }, [effectiveTimeRange.endTs, effectiveTimeRange.startTs, formatTs]);
 
+  const visibleGeminiStats = useMemo<GeminiStats>(() => {
+    const events = graphData.nodes.filter((n) => n.type === "event");
+    const analyzed = events.filter((e) => e.geminiProcessedAt != null);
+
+    const withWeapons = analyzed.filter((e) => (e.geminiWeapons?.length ?? 0) > 0).length;
+    const withLicensePlates = analyzed.filter((e) => (e.geminiLicensePlates?.length ?? 0) > 0).length;
+    const withMultiplePeople = analyzed.filter((e) => (e.geminiPeopleCount ?? 0) >= 2).length;
+
+    const vehicleCounts = new Map<string, number>();
+    const clothingCounts = new Map<string, number>();
+
+    for (const e of analyzed) {
+      for (const v of e.geminiVehicles ?? []) {
+        const key = String(v).trim().toLowerCase();
+        if (!key) continue;
+        vehicleCounts.set(key, (vehicleCounts.get(key) ?? 0) + 1);
+      }
+      for (const c of e.geminiClothingColors ?? []) {
+        const key = String(c).trim().toLowerCase();
+        if (!key) continue;
+        clothingCounts.set(key, (clothingCounts.get(key) ?? 0) + 1);
+      }
+    }
+
+    const topVehicleTypes = Array.from(vehicleCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([type, count]) => ({ type, count }));
+
+    const topClothingColors = Array.from(clothingCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 30)
+      .map(([color, count]) => ({ color, count }));
+
+    return {
+      totalProcessed: analyzed.length,
+      withWeapons,
+      withLicensePlates,
+      withMultiplePeople,
+      avgQualityScore: 0,
+      topVehicleTypes,
+      topClothingColors,
+    };
+  }, [graphData.nodes]);
+
+  useEffect(() => {
+    // If current selection becomes invalid for the visible window, clear it so users don't end up with zero-result options.
+    const availableVehicleTypes = new Set(visibleGeminiStats.topVehicleTypes.map((v) => v.type));
+    const availableClothingColors = new Set(visibleGeminiStats.topClothingColors.map((c) => c.color));
+
+    setGeminiFilters((prev) => {
+      const next = { ...prev };
+
+      if (prev.hasWeapons && visibleGeminiStats.withWeapons === 0) next.hasWeapons = false;
+      if (prev.hasLicensePlates && visibleGeminiStats.withLicensePlates === 0) next.hasLicensePlates = false;
+      if (prev.hasMultiplePeople && visibleGeminiStats.withMultiplePeople === 0) next.hasMultiplePeople = false;
+
+      if (prev.vehicleType && !availableVehicleTypes.has(prev.vehicleType.trim().toLowerCase())) next.vehicleType = "";
+      if (prev.clothingColor && !availableClothingColors.has(prev.clothingColor.trim().toLowerCase())) next.clothingColor = "";
+
+      const changed =
+        next.hasWeapons !== prev.hasWeapons ||
+        next.hasLicensePlates !== prev.hasLicensePlates ||
+        next.hasMultiplePeople !== prev.hasMultiplePeople ||
+        next.vehicleType !== prev.vehicleType ||
+        next.clothingColor !== prev.clothingColor;
+
+      return changed ? next : prev;
+    });
+  }, [visibleGeminiStats]);
+
   // Fetch real topology data from API
   const fetchTopologyData = useCallback(async (params?: { startTs?: number; endTs?: number; cameraIds?: string[]; locationIds?: string[] }) => {
     try {
@@ -623,72 +695,89 @@ export default function TopologyGraph() {
   const searchByGemini = useCallback(async () => {
     try {
       setGeminiSearching(true);
-      const params = new URLSearchParams();
+      const active =
+        geminiFilters.hasWeapons ||
+        geminiFilters.hasLicensePlates ||
+        geminiFilters.hasMultiplePeople ||
+        !!geminiFilters.vehicleType ||
+        !!geminiFilters.clothingColor;
 
-      if (geminiFilters.hasWeapons) params.append("hasWeapons", "true");
-      if (geminiFilters.hasLicensePlates) params.append("licensePlate", "*");
-      if (geminiFilters.hasMultiplePeople) params.append("minPeopleCount", "2");
-      if (geminiFilters.vehicleType) params.append("vehicleType", geminiFilters.vehicleType);
-      if (geminiFilters.clothingColor) params.append("clothingColor", geminiFilters.clothingColor);
-      params.append("limit", "100");
+      if (!active) return;
 
-      const response = await fetch(`/api/data/gemini-search?${params.toString()}`, { credentials: "include" });
-      const data = await response.json();
+      const baseData = geminiOriginalGraphData ?? graphData;
+      const baseEvents = baseData.nodes.filter((n) => n.type === "event");
+      if (baseEvents.length === 0) {
+        toast.info("No events visible in the current view");
+        return;
+      }
 
-      if (data.events && data.events.length > 0) {
-        // Save original data if not already saved
-        if (!originalGraphData) {
-          setOriginalGraphData({ ...graphData });
+      if (!geminiOriginalGraphData) {
+        setGeminiOriginalGraphData({ nodes: [...graphData.nodes], links: [...graphData.links] });
+      }
+
+      const matchVehicleType = geminiFilters.vehicleType.trim().toLowerCase();
+      const matchClothingColor = geminiFilters.clothingColor.trim().toLowerCase();
+
+      const eventMatches = (e: GraphNode) => {
+        if (e.geminiProcessedAt == null) return false;
+        if (geminiFilters.hasWeapons && (e.geminiWeapons?.length ?? 0) === 0) return false;
+        if (geminiFilters.hasLicensePlates && (e.geminiLicensePlates?.length ?? 0) === 0) return false;
+        if (geminiFilters.hasMultiplePeople && (e.geminiPeopleCount ?? 0) < 2) return false;
+
+        if (matchVehicleType) {
+          const vehicles = (e.geminiVehicles ?? []).map((v) => String(v).trim().toLowerCase());
+          if (!vehicles.includes(matchVehicleType)) return false;
         }
 
-        const sourceData = originalGraphData || graphData;
-        const matchingIds = new Set(data.events.map((e: any) => e.id));
-
-        // Filter to only show matching nodes (and their connected cameras/locations)
-        const matchingNodes = sourceData.nodes.filter(node => {
-          // Always show matching event nodes
-          if (matchingIds.has(node.id)) return true;
-          // Show cameras and locations that are connected to matching events
-          if (node.type === 'camera' || node.type === 'location') {
-            // Check if this node is connected to any matching event
-            return sourceData.links.some(link => {
-              const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-              const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-              return (sourceId === node.id && matchingIds.has(targetId)) ||
-                (targetId === node.id && matchingIds.has(sourceId));
-            });
-          }
-          return false;
-        });
-
-        const matchingNodeIds = new Set(matchingNodes.map(n => n.id));
-
-        // Filter links to only include those between visible nodes
-        const matchingLinks = sourceData.links.filter(link => {
-          const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-          const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-          return matchingNodeIds.has(sourceId) && matchingNodeIds.has(targetId);
-        });
-
-        // Update graph with filtered data and highlight matching events
-        setGraphData({
-          nodes: matchingNodes.map(node => ({
-            ...node,
-            // Highlight matching event nodes with gold color
-            color: matchingIds.has(node.id) ? "#FFD700" : node.color,
-            val: matchingIds.has(node.id) ? (node.val || 5) * 1.5 : node.val,
-          })),
-          links: matchingLinks,
-        });
-
-        toast.success(`Found ${data.events.length} matching events`);
-
-        // Zoom to fit the matching nodes
-        if (graphRef.current) {
-          setTimeout(() => graphRef.current?.zoomToFit(500, 50), 100);
+        if (matchClothingColor) {
+          const colors = (e.geminiClothingColors ?? []).map((c) => String(c).trim().toLowerCase());
+          if (!colors.includes(matchClothingColor)) return false;
         }
-      } else {
+
+        return true;
+      };
+
+      const matchingIds = new Set(baseEvents.filter(eventMatches).map((e) => e.id));
+      if (matchingIds.size === 0) {
         toast.info("No matching events found");
+        return;
+      }
+
+      // Filter to only show matching nodes (and their connected cameras/locations)
+      const matchingNodes = baseData.nodes.filter((node) => {
+        if (matchingIds.has(node.id)) return true;
+        if (node.type === "camera" || node.type === "location") {
+          return baseData.links.some((link) => {
+            const sourceId = typeof link.source === "string" ? link.source : link.source.id;
+            const targetId = typeof link.target === "string" ? link.target : link.target.id;
+            return (
+              (sourceId === node.id && matchingIds.has(targetId)) ||
+              (targetId === node.id && matchingIds.has(sourceId))
+            );
+          });
+        }
+        return false;
+      });
+
+      const matchingNodeIds = new Set(matchingNodes.map((n) => n.id));
+      const matchingLinks = baseData.links.filter((link) => {
+        const sourceId = typeof link.source === "string" ? link.source : link.source.id;
+        const targetId = typeof link.target === "string" ? link.target : link.target.id;
+        return matchingNodeIds.has(sourceId) && matchingNodeIds.has(targetId);
+      });
+
+      setGraphData({
+        nodes: matchingNodes.map((node) => ({
+          ...node,
+          color: matchingIds.has(node.id) ? "#FFD700" : node.color,
+          val: matchingIds.has(node.id) ? (node.val || 5) * 1.5 : node.val,
+        })),
+        links: matchingLinks,
+      });
+
+      toast.success(`Found ${matchingIds.size} matching events`);
+      if (graphRef.current) {
+        setTimeout(() => graphRef.current?.zoomToFit(500, 50), 100);
       }
     } catch (err) {
       console.error("[TopologyGraph] Gemini search failed:", err);
@@ -696,7 +785,7 @@ export default function TopologyGraph() {
     } finally {
       setGeminiSearching(false);
     }
-  }, [geminiFilters, graphData, originalGraphData]);
+  }, [geminiFilters, geminiOriginalGraphData, graphData]);
 
   // Clear Gemini filters and reset graph
   const clearGeminiFilters = useCallback(() => {
@@ -707,9 +796,13 @@ export default function TopologyGraph() {
       vehicleType: "",
       clothingColor: "",
     });
-    // Refresh topology data to reset node colors/sizes
+    if (geminiOriginalGraphData) {
+      setGraphData(geminiOriginalGraphData);
+      setGeminiOriginalGraphData(null);
+      return;
+    }
     refreshTopologyData();
-  }, [refreshTopologyData]);
+  }, [geminiOriginalGraphData, refreshTopologyData]);
 
   // Filter graph by node type
   const filterByType = useCallback((type: string | null) => {
@@ -2648,22 +2741,22 @@ export default function TopologyGraph() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {/* Stats Summary */}
-                {geminiStats && (
+                {visibleGeminiStats.totalProcessed > 0 && (
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                     <div className="p-2 bg-yellow-500/10 rounded-lg text-center">
-                      <div className="font-bold text-yellow-400">{geminiStats.totalProcessed}</div>
+                      <div className="font-bold text-yellow-400">{visibleGeminiStats.totalProcessed}</div>
                       <div className="text-muted-foreground">Analyzed</div>
                     </div>
                     <div className="p-2 bg-red-500/10 rounded-lg text-center">
-                      <div className="font-bold text-red-400">{geminiStats.withWeapons}</div>
+                      <div className="font-bold text-red-400">{visibleGeminiStats.withWeapons}</div>
                       <div className="text-muted-foreground">With Weapons</div>
                     </div>
                     <div className="p-2 bg-blue-500/10 rounded-lg text-center">
-                      <div className="font-bold text-blue-400">{geminiStats.withLicensePlates}</div>
+                      <div className="font-bold text-blue-400">{visibleGeminiStats.withLicensePlates}</div>
                       <div className="text-muted-foreground">License Plates</div>
                     </div>
                     <div className="p-2 bg-green-500/10 rounded-lg text-center">
-                      <div className="font-bold text-green-400">{geminiStats.withMultiplePeople}</div>
+                      <div className="font-bold text-green-400">{visibleGeminiStats.withMultiplePeople}</div>
                       <div className="text-muted-foreground">Multi-Person</div>
                     </div>
                   </div>
@@ -2673,39 +2766,57 @@ export default function TopologyGraph() {
                 <div className="space-y-2">
                   <span className="text-xs font-medium text-muted-foreground">Quick Filters</span>
                   <div className="flex flex-wrap gap-1">
+                    {(() => {
+                      const weaponsDisabled = visibleGeminiStats.withWeapons === 0;
+                      const platesDisabled = visibleGeminiStats.withLicensePlates === 0;
+                      const multiDisabled = visibleGeminiStats.withMultiplePeople === 0;
+                      return (
+                        <>
                     <Badge
                       variant={geminiFilters.hasWeapons ? "default" : "outline"}
-                      className={`cursor-pointer text-[10px] ${geminiFilters.hasWeapons ? "bg-red-500 hover:bg-red-600" : "hover:bg-red-500/20"}`}
-                      onClick={() => setGeminiFilters(prev => ({ ...prev, hasWeapons: !prev.hasWeapons }))}
+                      className={`text-[10px] ${weaponsDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} ${geminiFilters.hasWeapons ? "bg-red-500 hover:bg-red-600" : "hover:bg-red-500/20"}`}
+                      onClick={() => {
+                        if (weaponsDisabled) return;
+                        setGeminiFilters(prev => ({ ...prev, hasWeapons: !prev.hasWeapons }));
+                      }}
                     >
                       <Shield className="w-3 h-3 mr-1" />
                       Weapons
                     </Badge>
                     <Badge
                       variant={geminiFilters.hasLicensePlates ? "default" : "outline"}
-                      className={`cursor-pointer text-[10px] ${geminiFilters.hasLicensePlates ? "bg-blue-500 hover:bg-blue-600" : "hover:bg-blue-500/20"}`}
-                      onClick={() => setGeminiFilters(prev => ({ ...prev, hasLicensePlates: !prev.hasLicensePlates }))}
+                      className={`text-[10px] ${platesDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} ${geminiFilters.hasLicensePlates ? "bg-blue-500 hover:bg-blue-600" : "hover:bg-blue-500/20"}`}
+                      onClick={() => {
+                        if (platesDisabled) return;
+                        setGeminiFilters(prev => ({ ...prev, hasLicensePlates: !prev.hasLicensePlates }));
+                      }}
                     >
                       <Car className="w-3 h-3 mr-1" />
                       License Plates
                     </Badge>
                     <Badge
                       variant={geminiFilters.hasMultiplePeople ? "default" : "outline"}
-                      className={`cursor-pointer text-[10px] ${geminiFilters.hasMultiplePeople ? "bg-green-500 hover:bg-green-600" : "hover:bg-green-500/20"}`}
-                      onClick={() => setGeminiFilters(prev => ({ ...prev, hasMultiplePeople: !prev.hasMultiplePeople }))}
+                      className={`text-[10px] ${multiDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} ${geminiFilters.hasMultiplePeople ? "bg-green-500 hover:bg-green-600" : "hover:bg-green-500/20"}`}
+                      onClick={() => {
+                        if (multiDisabled) return;
+                        setGeminiFilters(prev => ({ ...prev, hasMultiplePeople: !prev.hasMultiplePeople }));
+                      }}
                     >
                       <Users className="w-3 h-3 mr-1" />
                       2+ People
                     </Badge>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
                 {/* Vehicle Type Filter */}
-                {geminiStats?.topVehicleTypes && geminiStats.topVehicleTypes.length > 0 && (
+                {visibleGeminiStats.topVehicleTypes && visibleGeminiStats.topVehicleTypes.length > 0 && (
                   <div className="space-y-1">
                     <span className="text-xs font-medium text-muted-foreground">Vehicle Types</span>
                     <div className="flex flex-wrap gap-1">
-                      {geminiStats.topVehicleTypes.slice(0, 5).map((v, i) => (
+                      {visibleGeminiStats.topVehicleTypes.slice(0, 5).map((v, i) => (
                         <Badge
                           key={i}
                           variant={geminiFilters.vehicleType === v.type ? "default" : "outline"}
@@ -2723,11 +2834,11 @@ export default function TopologyGraph() {
                 )}
 
                 {/* Clothing Colors Filter */}
-                {geminiStats?.topClothingColors && geminiStats.topClothingColors.length > 0 && (
+                {visibleGeminiStats.topClothingColors && visibleGeminiStats.topClothingColors.length > 0 && (
                   <div className="space-y-1">
                     <span className="text-xs font-medium text-muted-foreground">Clothing Colors</span>
                     <div className="flex flex-wrap gap-1">
-                      {geminiStats.topClothingColors.slice(0, 6).map((c, i) => (
+                      {visibleGeminiStats.topClothingColors.slice(0, 6).map((c, i) => (
                         <Badge
                           key={i}
                           variant={geminiFilters.clothingColor === c.color ? "default" : "outline"}
@@ -2777,7 +2888,7 @@ export default function TopologyGraph() {
                 )}
 
                 {/* No data message */}
-                {!geminiStats?.totalProcessed && !geminiLoading && !geminiConfig?.message && (
+                {visibleGeminiStats.totalProcessed === 0 && !geminiLoading && !geminiConfig?.message && (
                   <div className="text-center py-2 text-xs text-muted-foreground">
                     <Sparkles className="w-4 h-4 mx-auto mb-1 opacity-50" />
                     No Gemini analysis data yet.
