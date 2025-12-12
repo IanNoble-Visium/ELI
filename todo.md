@@ -1,6 +1,6 @@
 # ELI Dashboard - Pending Tasks
 
-> **Last Updated:** December 12, 2025 (AI Agent System Planning)
+> **Last Updated:** December 12, 2025 (AI Agent System Complete)
 
 ---
 
@@ -138,6 +138,7 @@
 - [x] Export report as JSON/CSV ✅
 - [x] Flag selection as issue + write back to Neo4j (`flaggedReportId`) ✅
 - [x] Production fix: missing `topology_reports` table created in DB ✅
+- [x] **Topology Graph Limits** - Max events slider in Settings (1k-20k) ✅
 
 ### AI Agent System *(All Phases Complete Dec 12, 2025)* ✅
 
@@ -217,7 +218,29 @@
 - [ ] **Temporal partitioning** - Only scan recent data, archive older events
 - [ ] **Pre-computed similarity hashes** - LSH for fast nearest-neighbor at scale
 
----
+#### Suggested Next Steps (Post AI Agents)
+
+**High Priority (Testing & Verification):**
+- [ ] Test agent handlers locally with `?manual=true` parameter
+- [ ] Verify Neo4j tagging: `MATCH (e:Event) WHERE e.timelineTags IS NOT NULL RETURN e LIMIT 10`
+- [ ] Test context menu integration in TopologyGraph (implement handlers)
+- [ ] Verify Settings page AI Agents section renders correctly
+- [ ] Push schema to production: `npx drizzle-kit push`
+
+**Enhancement Ideas:**
+- [ ] **Agent Run History UI** - Add timeline view of agent runs to Executive Dashboard
+- [ ] **Tag Visualization** - Color-code nodes by agent tags in Topology Graph
+- [ ] **Agent Toggle in Settings** - Quick enable/disable switches per agent
+- [ ] **Notification System** - Toast notifications when agents discover patterns
+- [ ] **Export Agent Findings** - PDF/CSV export of discovered patterns
+- [ ] **Dashboard Navigation** - Add agents to main sidebar navigation
+
+**TopologyGraph Integration:**
+- [ ] Implement `onFindTimeline` handler to call `/api/cron/agent-timeline?anchorNodeId=<id>`
+- [ ] Implement `onFindCorrelations` handler to call `/api/cron/agent-correlation?anchorNodeId=<id>`
+- [ ] Add loading state while agent runs
+- [ ] Navigate to agent dashboard after run completes
+- [ ] Highlight tagged nodes after agent run
 
 ## P3 - Future Enhancements
 

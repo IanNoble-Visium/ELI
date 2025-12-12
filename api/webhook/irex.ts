@@ -17,6 +17,9 @@ import {
   recordThrottleMetrics,
   getThrottleConfig,
   loadThrottleConfigFromDb,
+  loadMaintenanceModeFromDb,
+  isMaintenanceModeActive,
+  getMaintenanceMode,
 } from "../cloudinary/throttle.js";
 import { isNeo4jConfigured } from "../lib/neo4j.js";
 import { syncCamera, syncEvent } from "../data/topology-neo4j.js";
@@ -50,6 +53,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only accept POST requests
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Check maintenance mode BEFORE processing any webhooks
+  // This prevents new data from being inserted during database purge operations
+  try {
+    await loadMaintenanceModeFromDb();
+    if (isMaintenanceModeActive()) {
+      const mode = getMaintenanceMode();
+      console.log(`[Webhook IREX] REJECTED: Maintenance mode active - ${mode.reason}`);
+      return res.status(503).json({
+        status: "maintenance",
+        error: "Service temporarily unavailable - maintenance in progress",
+        reason: mode.reason,
+        enabledAt: mode.enabledAt,
+        retryAfter: 60, // Suggest retry after 60 seconds
+      });
+    }
+  } catch (maintenanceError) {
+    // If we can't check maintenance mode, log and continue
+    // This ensures webhooks aren't blocked by DB connectivity issues
+    console.warn("[Webhook IREX] Could not check maintenance mode:", maintenanceError);
   }
 
   const startTime = Date.now();

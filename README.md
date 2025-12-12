@@ -1,6 +1,6 @@
 # ELI Unified Dashboard
 
-> **Last Updated:** December 12, 2025 (Topology Graph Reporting)
+> **Last Updated:** December 12, 2025 (AI Pattern Discovery Agents)
 
 ## Executive Summary – ELI for Peru
 
@@ -608,6 +608,284 @@ The AI extracts the following from uploaded images:
 2. **Cross-Reference** - Upload a screenshot from one camera to find the same subject in other locations
 3. **Pattern Analysis** - Search for similar scenes or vehicles across the entire network
 4. **Suspect Tracking** - Upload a suspect photo to trace their movements through camera network
+
+---
+
+## 🧠 AI Pattern Discovery Agents *(New Dec 2025)*
+
+ELI includes three autonomous AI agents that continuously scan surveillance data to discover patterns ("needles in the haystack") that would be impossible for human operators to detect manually across thousands of cameras.
+
+### System Architecture
+
+```mermaid
+flowchart TB
+    subgraph "Trigger Sources"
+        CRON[⏰ CRON Schedule\n7-second runs]
+        CTX[🖱️ Context Menu\nRight-click → Find Timeline/Correlations]
+        MAN[👆 Manual Trigger\nDashboard → Run Now]
+    end
+
+    subgraph "AI Agent Handlers"
+        CRON --> TL[Timeline Agent]
+        CRON --> CR[Correlation Agent]
+        CRON --> AN[Anomaly Agent]
+        CTX --> TL
+        CTX --> CR
+        MAN --> TL
+        MAN --> CR
+        MAN --> AN
+    end
+
+    subgraph "Core Processing"
+        TL --> FETCH[Fetch Events\nfrom Neo4j]
+        CR --> FETCH
+        AN --> FETCH
+        FETCH --> SIM[Similarity Matching\nJaccard Index 90%+]
+        SIM --> DUP[Duplicate Detection\n10-node threshold]
+        DUP --> TAG[Apply Neo4j Tags\nArray properties]
+    end
+
+    subgraph "Persistence"
+        TAG --> NEO[(Neo4j\ntimelineTags\ncorrelationTags\nanomalyTags)]
+        TAG --> PG[(PostgreSQL\nagent_runs\nagent_run_logs)]
+    end
+
+    subgraph "Dashboards"
+        PG --> TLD[Timeline Dashboard\n/dashboard/agents/timeline]
+        PG --> CRD[Correlation Dashboard\n/dashboard/agents/correlation]
+        PG --> AND[Anomaly Dashboard\n/dashboard/agents/anomaly]
+    end
+
+    style TL fill:#8B5CF6,color:#fff
+    style CR fill:#3B82F6,color:#fff
+    style AN fill:#F97316,color:#fff
+    style NEO fill:#00A86B,color:#fff
+    style PG fill:#336791,color:#fff
+```
+
+### The Three Agents
+
+| Agent | Purpose | Output | Dashboard Route |
+|-------|---------|--------|-----------------|
+| **Timeline** | Discovers temporal sequences of related events | Ordered sequence with timestamps | `/dashboard/agents/timeline` |
+| **Correlation** | Finds clusters of similar events (order-independent) | Unordered cluster with centroid | `/dashboard/agents/correlation` |
+| **Anomaly** | Detects unusual events (fires, violence, weapons) | Severity-coded group | `/dashboard/agents/anomaly` |
+
+### Timeline Agent
+
+Discovers events that are temporally and semantically related — like the same vehicle appearing at different locations over time.
+
+```mermaid
+flowchart LR
+    subgraph "Input"
+        E1[Event 10:00 AM\nVehicle: Gray SUV]
+        E2[Event 10:15 AM\nVehicle: Gray SUV]
+        E3[Event 10:45 AM\nVehicle: Gray SUV]
+        E4[Event 11:00 AM\nUnrelated]
+    end
+
+    subgraph "Similarity Matching"
+        E1 --> |"90% match"| G[Group]
+        E2 --> |"92% match"| G
+        E3 --> |"88% match"| G
+        E4 -.-> |"15% match"| X[❌ Excluded]
+    end
+
+    subgraph "Output"
+        G --> TL[📅 Timeline\n3 events\nGray SUV tracked\nacross 3 cameras]
+    end
+
+    style G fill:#8B5CF6,color:#fff
+    style TL fill:#22C55E,color:#fff
+    style X fill:#EF4444,color:#fff
+```
+
+**Key Features:**
+- Chronological ordering of discovered events
+- Jaccard similarity matching (90% threshold)
+- Weighted properties: license plates (40%), vehicles (25%), clothing (15%)
+- Executive summary auto-generation
+- Neo4j tagging with `timelineTags` array
+
+### Correlation Agent
+
+Finds groups of events that share similar properties, regardless of when they occurred.
+
+```mermaid
+flowchart TB
+    subgraph "Similarity Graph"
+        N1((Event A)) --> |"92%"| N2((Event B))
+        N2 --> |"88%"| N3((Event C))
+        N1 --> |"90%"| N3
+        N4((Event D)) --> |"85%"| N5((Event E))
+        N6((Event F))
+    end
+
+    subgraph "Union-Find Clustering"
+        C1[Cluster 1\n3 nodes\nCentroid: Event B]
+        C2[Cluster 2\n2 nodes\nCentroid: Event D]
+        C3[Isolated\nEvent F]
+    end
+
+    N1 --> C1
+    N2 --> C1
+    N3 --> C1
+    N4 --> C2
+    N5 --> C2
+    N6 --> C3
+
+    style C1 fill:#3B82F6,color:#fff
+    style C2 fill:#3B82F6,color:#fff
+    style N2 fill:#14B8A6,color:#fff
+```
+
+**Key Features:**
+- Union-find algorithm for efficient cluster detection
+- Centroid identification (most connected node)
+- Order-independent grouping
+- Neo4j tagging with `correlationTags` array
+
+### Anomaly Agent
+
+Detects unusual or dangerous events by matching against anomaly keywords in Gemini AI tags.
+
+```mermaid
+flowchart TB
+    subgraph "Anomaly Detection"
+        TAGS[Gemini AI Tags] --> CHECK{Keyword Match?}
+        CHECK --> |"fire, smoke, flames"| FIRE[🔥 Fire]
+        CHECK --> |"fight, violence, attack"| VIOLENCE[⚔️ Violence]
+        CHECK --> |"crash, accident"| ACCIDENT[🚗 Accident]
+        CHECK --> |"weapon, gun, knife"| WEAPON[🔫 Weapon]
+        CHECK --> |"crowd, gathering"| CROWD[👥 Gathering]
+    end
+
+    subgraph "Severity Classification"
+        FIRE --> CRIT[🔴 CRITICAL]
+        VIOLENCE --> CRIT
+        WEAPON --> CRIT
+        ACCIDENT --> HIGH[🟠 HIGH]
+        CROWD --> HIGH
+    end
+
+    subgraph "Grouping"
+        CRIT --> |"1-hour window"| GROUP[Anomaly Group\nby Region]
+        HIGH --> |"1-hour window"| GROUP
+    end
+
+    style CRIT fill:#DC2626,color:#fff
+    style HIGH fill:#F97316,color:#fff
+```
+
+**Severity Levels:**
+| Level | Triggers | Color |
+|-------|----------|-------|
+| 🔴 **Critical** | fire, weapon, violence | Red |
+| 🟠 **High** | accident, emergency, gathering | Orange |
+| 🟡 **Medium** | suspicious, unusual, alert | Yellow |
+
+**Key Features:**
+- Keyword-based detection from Gemini tags
+- Time windowing (1-hour default)
+- Geographic segregation by region
+- Neo4j tagging with `anomalyTags` array
+
+### Context Menu Integration
+
+Right-click on events, vehicles, or persons in the Topology Graph or Geographic Map to trigger agent discovery:
+
+| Action | Description | Available For |
+|--------|-------------|---------------|
+| **Find Timeline** | Discover temporal sequence from this event | Events, Vehicles, Persons |
+| **Find Correlations** | Find related events with similar properties | Events, Vehicles, Persons |
+
+### Database Schema
+
+```mermaid
+erDiagram
+    agent_runs {
+        uuid id PK
+        enum agent_type "timeline, correlation, anomaly"
+        enum run_mode "cron, manual, context"
+        enum status "pending, running, completed, failed, discarded"
+        int nodes_processed
+        int nodes_matched
+        int nodes_tagged
+        int batches_completed
+        int processing_time_ms
+        string group_id
+        int group_size
+        text executive_summary
+        jsonb findings
+        timestamp started_at
+        timestamp completed_at
+    }
+
+    agent_config {
+        enum agent_type PK
+        boolean enabled
+        int batch_size
+        float confidence_threshold
+        int min_group_size_cron
+        int min_group_size_context
+        int max_execution_ms
+        int overlap_threshold
+        boolean scan_new_events_only
+        timestamp last_processed_timestamp
+    }
+
+    agent_run_logs {
+        uuid id PK
+        uuid run_id FK
+        enum level "debug, info, warn, error"
+        text message
+        jsonb data
+        timestamp created_at
+    }
+
+    agent_runs ||--o{ agent_run_logs : "has logs"
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/data/agent-config` | GET | Get agent configuration (all or by type) |
+| `/api/data/agent-config` | POST | Update agent configuration |
+| `/api/data/agent-runs` | GET | Get agent run history (with filters) |
+| `/api/cron/agent-timeline` | GET | Trigger Timeline Agent |
+| `/api/cron/agent-correlation` | GET | Trigger Correlation Agent |
+| `/api/cron/agent-anomaly` | GET | Trigger Anomaly Agent |
+
+**Query Parameters:**
+- `?manual=true` - Trigger manual run (bypasses enabled check)
+- `?anchorNodeId=<id>` - Context mode: start from specific node
+
+### Settings Configuration
+
+The Settings page includes an "AI Pattern Discovery Agents" section with:
+
+- Agent overview cards for Timeline, Correlation, and Anomaly
+- Quick navigation buttons to each agent dashboard
+- Configuration documentation
+
+### Execution Constraints
+
+| Constraint | Value | Reason |
+|------------|-------|--------|
+| Max execution time | 7 seconds | Vercel serverless limit |
+| Batch size | 100 events | Balance speed vs. coverage |
+| Confidence threshold | 90% | High precision matching |
+| Overlap threshold | 10 nodes | Prevent over-tagging |
+| Scan mode | New events only | Incremental processing |
+
+### Future Scalability
+
+For billions of images, the architecture is designed to migrate to:
+- **Inngest** - Step-based workflows, each step under 10s
+- **Trigger.dev** - Durable workflows with job UI
+- **Upstash QStash** - Message queue with retries
+- **LSH (Locality-Sensitive Hashing)** - Pre-computed similarity for O(1) lookups
 
 ---
 

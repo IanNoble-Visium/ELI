@@ -1,13 +1,15 @@
 /**
  * Cloudinary Throttle Configuration API
- * 
+ *
  * Manages image processing throttle settings to prevent exceeding
  * Cloudinary usage limits during demo/development phases.
- * 
+ *
  * Endpoints:
  * - GET: Retrieve current throttle configuration
  * - POST: Update throttle configuration
  * - GET ?action=stats: Get processing statistics
+ * - GET ?action=maintenance: Get maintenance mode status
+ * - POST ?action=maintenance: Toggle maintenance mode (body: { enabled: boolean })
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getDb, events, snapshots, sql, count, gte, desc, getSystemConfig, setSystemConfig } from "../lib/db.js";
@@ -15,6 +17,7 @@ import { isInfluxDBConfigured, writeMetricPoint } from "../lib/influxdb.js";
 
 // Config key for database storage
 const THROTTLE_CONFIG_KEY = "cloudinary_throttle_config";
+const MAINTENANCE_MODE_KEY = "maintenance_mode";
 
 // Throttle configuration interface
 export interface ThrottleConfig {
@@ -32,15 +35,126 @@ export interface ThrottleConfig {
   description: string;
 }
 
-// Default configuration - throttle enabled by default for demo safety
+// Default configuration - throttle enabled with 5% processing ratio
+// This balances API costs with useful AI analysis coverage:
+// - 5% = 500 images per 10,000 incoming events
+// - With ~1000 events/hour, this means ~50 Gemini API calls/hour
+// - At $0.0001875 per image (Gemini 2.0 Flash), this costs ~$0.01/hour
 const DEFAULT_CONFIG: ThrottleConfig = {
   enabled: true,
-  processRatio: 0.0025, // 25 per 10,000 = 0.25%
-  maxPerHour: 100,
+  processRatio: 0.05, // 500 per 10,000 = 5% (increased from 0.25% for better AI coverage)
+  maxPerHour: 200, // Increased limit to match higher ratio
   samplingMethod: 'random',
   lastUpdated: new Date().toISOString(),
-  description: 'Demo mode: Processing ~25 images per 10,000 incoming',
+  description: 'Processing ~500 images per 10,000 incoming (5%)',
 };
+
+// ========== Maintenance Mode ==========
+// Used to pause webhook processing during database purge operations
+
+interface MaintenanceMode {
+  enabled: boolean;
+  reason: string;
+  enabledAt: string | null;
+  enabledBy: string;
+}
+
+const DEFAULT_MAINTENANCE_MODE: MaintenanceMode = {
+  enabled: false,
+  reason: '',
+  enabledAt: null,
+  enabledBy: '',
+};
+
+// In-memory maintenance mode state
+let maintenanceMode: MaintenanceMode = { ...DEFAULT_MAINTENANCE_MODE };
+let maintenanceModeLoadedFromDb = false;
+
+/**
+ * Load maintenance mode state from database
+ */
+export async function loadMaintenanceModeFromDb(): Promise<MaintenanceMode> {
+  try {
+    const modeJson = await getSystemConfig(MAINTENANCE_MODE_KEY);
+    if (modeJson) {
+      const dbMode = JSON.parse(modeJson) as MaintenanceMode;
+      maintenanceMode = { ...DEFAULT_MAINTENANCE_MODE, ...dbMode };
+      maintenanceModeLoadedFromDb = true;
+      console.log(`[Maintenance] Loaded from DB: enabled=${maintenanceMode.enabled}, reason=${maintenanceMode.reason}`);
+    } else {
+      console.log(`[Maintenance] No config in DB, maintenance mode disabled`);
+    }
+  } catch (error) {
+    console.error("[Maintenance] Error loading from DB:", error);
+  }
+  return { ...maintenanceMode };
+}
+
+/**
+ * Enable maintenance mode (used by purge-all)
+ */
+export async function enableMaintenanceMode(reason: string, enabledBy: string = 'system'): Promise<boolean> {
+  try {
+    maintenanceMode = {
+      enabled: true,
+      reason,
+      enabledAt: new Date().toISOString(),
+      enabledBy,
+    };
+    const success = await setSystemConfig(
+      MAINTENANCE_MODE_KEY,
+      JSON.stringify(maintenanceMode),
+      "Maintenance mode configuration"
+    );
+    if (success) {
+      console.log(`[Maintenance] ENABLED: ${reason} (by ${enabledBy})`);
+    }
+    return success;
+  } catch (error) {
+    console.error("[Maintenance] Failed to enable:", error);
+    return false;
+  }
+}
+
+/**
+ * Disable maintenance mode (used by purge-all)
+ */
+export async function disableMaintenanceMode(disabledBy: string = 'system'): Promise<boolean> {
+  try {
+    const previousReason = maintenanceMode.reason;
+    maintenanceMode = { ...DEFAULT_MAINTENANCE_MODE };
+    const success = await setSystemConfig(
+      MAINTENANCE_MODE_KEY,
+      JSON.stringify(maintenanceMode),
+      "Maintenance mode configuration"
+    );
+    if (success) {
+      console.log(`[Maintenance] DISABLED (was: ${previousReason}, by ${disabledBy})`);
+    }
+    return success;
+  } catch (error) {
+    console.error("[Maintenance] Failed to disable:", error);
+    return false;
+  }
+}
+
+/**
+ * Check if maintenance mode is active
+ * MUST call loadMaintenanceModeFromDb() first in webhook handlers!
+ */
+export function isMaintenanceModeActive(): boolean {
+  if (!maintenanceModeLoadedFromDb) {
+    console.warn(`[Maintenance] WARNING: State not loaded from DB! Using in-memory: enabled=${maintenanceMode.enabled}`);
+  }
+  return maintenanceMode.enabled;
+}
+
+/**
+ * Get current maintenance mode state
+ */
+export function getMaintenanceMode(): MaintenanceMode {
+  return { ...maintenanceMode };
+}
 
 // In-memory storage (in production, use database)
 // This persists across function invocations in the same instance
@@ -491,6 +605,59 @@ export default async function handler(
       stats: processingStats,
     });
     return;
+  }
+
+  // GET with action=maintenance: Get maintenance mode status
+  if (req.method === "GET" && action === "maintenance") {
+    await loadMaintenanceModeFromDb();
+    res.status(200).json({
+      success: true,
+      maintenance: getMaintenanceMode(),
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // POST with action=maintenance: Toggle maintenance mode
+  if (req.method === "POST" && action === "maintenance") {
+    try {
+      const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+      const { enabled, reason } = body;
+
+      if (typeof enabled !== "boolean") {
+        res.status(400).json({
+          success: false,
+          error: "Missing required field: enabled (boolean)",
+        });
+        return;
+      }
+
+      let success: boolean;
+      if (enabled) {
+        success = await enableMaintenanceMode(
+          reason || "Manual maintenance mode",
+          "api"
+        );
+      } else {
+        success = await disableMaintenanceMode("api");
+      }
+
+      res.status(200).json({
+        success,
+        maintenance: getMaintenanceMode(),
+        message: success
+          ? `Maintenance mode ${enabled ? "enabled" : "disabled"}`
+          : "Failed to update maintenance mode",
+      });
+      return;
+    } catch (error) {
+      console.error("[Maintenance] Toggle error:", error);
+      res.status(400).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Invalid request",
+      });
+      return;
+    }
   }
 
   res.status(405).json({ error: "Method not allowed" });

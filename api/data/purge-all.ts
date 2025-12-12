@@ -1,21 +1,31 @@
 /**
  * Purge All Data API Endpoint
- * 
+ *
  * Deletes ALL data from the application for testing/reset purposes:
  * - All events and snapshots from PostgreSQL
  * - All graph data from Neo4j
  * - All images from Cloudinary (batch delete)
  * - All webhook request logs
- * 
+ *
+ * MAINTENANCE MODE:
+ * - Automatically enables maintenance mode before purging
+ * - Webhooks are rejected with 503 during purge
+ * - Automatically disables maintenance mode after completion
+ *
  * WARNING: This is a destructive operation that cannot be undone!
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { neon } from "@neondatabase/serverless";
 import { getDriver, isNeo4jConfigured } from "../lib/neo4j.js";
+import { enableMaintenanceMode, disableMaintenanceMode } from "../cloudinary/throttle.js";
 
 interface PurgeResult {
   success: boolean;
   phase?: string;
+  maintenanceMode?: {
+    enabledBefore: boolean;
+    disabledAfter: boolean;
+  };
   database?: {
     eventsDeleted: number;
     snapshotsDeleted: number;
@@ -343,6 +353,28 @@ export default async function handler(
     console.log("[Purge] Confirmation phrase valid, starting purge...");
     console.log("[Purge] Options: includeCloudinary=", includeCloudinary, ", includeNeo4j=", includeNeo4j);
 
+    // Phase 0: Enable Maintenance Mode
+    // This prevents new webhook data from being inserted during purge
+    result.phase = "maintenance";
+    result.maintenanceMode = { enabledBefore: false, disabledAfter: false };
+    console.log("[Purge] ========== PHASE 0: ENABLING MAINTENANCE MODE ==========");
+
+    try {
+      const maintenanceEnabled = await enableMaintenanceMode(
+        "Database purge in progress",
+        "purge-all"
+      );
+      result.maintenanceMode.enabledBefore = maintenanceEnabled;
+      if (maintenanceEnabled) {
+        console.log("[Purge] ✓ Maintenance mode ENABLED - webhooks will be rejected with 503");
+      } else {
+        console.warn("[Purge] ⚠ Could not enable maintenance mode - purge may be affected by new data");
+      }
+    } catch (maintenanceErr) {
+      console.error("[Purge] Failed to enable maintenance mode:", maintenanceErr);
+      // Continue with purge anyway - better to try than fail completely
+    }
+
     // Phase 1: Purge Database
     result.phase = "database";
     console.log("[Purge] ========== PHASE 1: DATABASE PURGE ==========");
@@ -541,6 +573,22 @@ export default async function handler(
     result.phase = "complete";
     result.duration_ms = Date.now() - startTime;
 
+    // Phase 4: Disable Maintenance Mode
+    console.log("[Purge] ========== PHASE 4: DISABLING MAINTENANCE MODE ==========");
+    try {
+      const maintenanceDisabled = await disableMaintenanceMode("purge-all");
+      if (result.maintenanceMode) {
+        result.maintenanceMode.disabledAfter = maintenanceDisabled;
+      }
+      if (maintenanceDisabled) {
+        console.log("[Purge] ✓ Maintenance mode DISABLED - webhooks will be accepted again");
+      } else {
+        console.warn("[Purge] ⚠ Could not disable maintenance mode - may need manual intervention");
+      }
+    } catch (maintenanceErr) {
+      console.error("[Purge] Failed to disable maintenance mode:", maintenanceErr);
+    }
+
     console.log(`[Purge] Complete in ${result.duration_ms}ms`);
     res.status(200).json(result);
 
@@ -548,6 +596,21 @@ export default async function handler(
     console.error("[Purge] Error:", error);
     result.error = error instanceof Error ? error.message : "Unknown error";
     result.duration_ms = Date.now() - startTime;
+
+    // CRITICAL: Always try to disable maintenance mode, even on error
+    console.log("[Purge] ========== CLEANUP: DISABLING MAINTENANCE MODE (after error) ==========");
+    try {
+      const maintenanceDisabled = await disableMaintenanceMode("purge-all-error");
+      if (result.maintenanceMode) {
+        result.maintenanceMode.disabledAfter = maintenanceDisabled;
+      }
+      if (maintenanceDisabled) {
+        console.log("[Purge] ✓ Maintenance mode DISABLED after error");
+      }
+    } catch (maintenanceErr) {
+      console.error("[Purge] CRITICAL: Failed to disable maintenance mode after error:", maintenanceErr);
+    }
+
     res.status(500).json(result);
   }
 }
