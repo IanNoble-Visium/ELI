@@ -25,7 +25,9 @@ import {
     FileText,
     ShieldAlert,
     Network,
-    X
+    X,
+    Clock,
+    GitBranch,
 } from "lucide-react";
 
 export interface ContextMenuNode {
@@ -63,6 +65,9 @@ interface NodeContextMenuProps {
     onViewRelatedEvents?: (node: ContextMenuNode) => void;
     onMarkAsHighRisk?: (node: ContextMenuNode) => void;
     onViewInTopology?: (node: ContextMenuNode) => void;
+    // AI Agent triggers
+    onFindTimeline?: (node: ContextMenuNode) => void;
+    onFindCorrelations?: (node: ContextMenuNode) => void;
     customActions?: ContextMenuAction[];
 }
 
@@ -96,6 +101,8 @@ export default function NodeContextMenu({
     onViewRelatedEvents,
     onMarkAsHighRisk,
     onViewInTopology,
+    onFindTimeline,
+    onFindCorrelations,
     customActions = [],
 }: NodeContextMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
@@ -222,6 +229,33 @@ export default function NodeContextMenu({
             });
         }
 
+        // --- AI Agent Actions ---
+        // Find Timeline - for events, vehicles, and persons
+        if (onFindTimeline && (node.type === "event" || node.type === "vehicle" || node.type === "person")) {
+            actions.push({
+                id: "find-timeline",
+                label: "Find Timeline",
+                icon: <Clock className="w-4 h-4" />,
+                onClick: () => {
+                    onFindTimeline(node);
+                    onClose();
+                },
+            });
+        }
+
+        // Find Correlations - for events, vehicles, and persons
+        if (onFindCorrelations && (node.type === "event" || node.type === "vehicle" || node.type === "person")) {
+            actions.push({
+                id: "find-correlations",
+                label: "Find Correlations",
+                icon: <GitBranch className="w-4 h-4" />,
+                onClick: () => {
+                    onFindCorrelations(node);
+                    onClose();
+                },
+            });
+        }
+
         // Add custom actions
         customActions.forEach((action) => {
             actions.push({
@@ -234,7 +268,7 @@ export default function NodeContextMenu({
         });
 
         return actions;
-    }, [node, onClose, onViewDetails, onCreateIncident, onAddToPole, onViewRelatedEvents, onMarkAsHighRisk, onViewInTopology, customActions]);
+    }, [node, onClose, onViewDetails, onCreateIncident, onAddToPole, onViewRelatedEvents, onMarkAsHighRisk, onViewInTopology, onFindTimeline, onFindCorrelations, customActions]);
 
     if (!node || !position) return null;
 

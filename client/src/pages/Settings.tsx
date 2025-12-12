@@ -6,9 +6,9 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  ArrowLeft, 
-  Database, 
+import {
+  ArrowLeft,
+  Database,
   Trash2,
   AlertTriangle,
   CheckCircle,
@@ -124,14 +124,14 @@ export default function Settings() {
   const [cronJobsLoading, setCronJobsLoading] = useState(true);
   const [triggeringJob, setTriggeringJob] = useState<string | null>(null);
   const [seedingData, setSeedingData] = useState(false);
-  
+
   // Purge All Data state
   const [isPurgingAll, setIsPurgingAll] = useState(false);
   const [purgeAllProgress, setPurgeAllProgress] = useState<string | null>(null);
   const [showPurgeAllDialog, setShowPurgeAllDialog] = useState(false);
   const [includeCloudinary, setIncludeCloudinary] = useState(true);
   const [includeNeo4j, setIncludeNeo4j] = useState(true);
-  
+
   // Gemini AI config state
   const [geminiConfig, setGeminiConfig] = useState<{
     enabled: boolean;
@@ -145,7 +145,7 @@ export default function Settings() {
   const [geminiToggling, setGeminiToggling] = useState(false);
   const [geminiModelChanging, setGeminiModelChanging] = useState(false);
   const [geminiRetrying, setGeminiRetrying] = useState(false);
-  
+
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
 
   // Fetch Cloudinary usage data
@@ -202,7 +202,7 @@ export default function Settings() {
         credentials: "include",
       });
       const data = await response.json();
-      
+
       if (data.success) {
         toast.success("Job triggered successfully", {
           description: `${jobId} completed in ${data.duration}ms`,
@@ -212,7 +212,7 @@ export default function Settings() {
           description: data.error || "Unknown error",
         });
       }
-      
+
       // Refresh job status
       await fetchCronJobs();
     } catch (error) {
@@ -250,20 +250,20 @@ export default function Settings() {
   // Toggle Gemini enabled state
   const toggleGeminiEnabled = useCallback(async () => {
     if (!geminiConfig) return;
-    
+
     try {
       setGeminiToggling(true);
       const newEnabled = !geminiConfig.enabled;
-      
+
       const response = await fetch("/api/data/gemini-config", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: newEnabled }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setGeminiConfig(prev => prev ? { ...prev, enabled: newEnabled } : null);
         toast.success(newEnabled ? "Gemini AI processing enabled" : "Gemini AI processing disabled");
@@ -281,19 +281,19 @@ export default function Settings() {
   // Change Gemini model
   const changeGeminiModel = useCallback(async (newModel: string) => {
     if (!geminiConfig || newModel === geminiConfig.model) return;
-    
+
     try {
       setGeminiModelChanging(true);
-      
+
       const response = await fetch("/api/data/gemini-config", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: newModel }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setGeminiConfig(prev => prev ? { ...prev, model: newModel } : null);
         toast.success(`Gemini model changed to ${newModel}`);
@@ -312,16 +312,16 @@ export default function Settings() {
   const retryFailedGemini = useCallback(async () => {
     try {
       setGeminiRetrying(true);
-      
+
       const response = await fetch("/api/data/gemini-config", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ retryErrors: true }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         toast.success("Failed images reset for retry");
         fetchGeminiConfig();
@@ -345,7 +345,7 @@ export default function Settings() {
         credentials: "include",
       });
       const data = await response.json();
-      
+
       if (data.success) {
         toast.success("InfluxDB seeded", {
           description: "Historical data points have been recorded",
@@ -368,12 +368,12 @@ export default function Settings() {
     try {
       setIsPurgingAll(true);
       setPurgeAllProgress("Initializing purge...");
-      
+
       // Clear local storage first
       setPurgeAllProgress("Clearing local storage...");
       localStorage.clear();
       sessionStorage.clear();
-      
+
       // Call the purge-all API
       setPurgeAllProgress("Purging database records...");
       const response = await fetch("/api/data/purge-all", {
@@ -388,9 +388,9 @@ export default function Settings() {
           includeNeo4j,
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         const parts: string[] = ["Database cleared"];
         if (data.neo4j?.nodesDeleted > 0) {
@@ -402,7 +402,7 @@ export default function Settings() {
         toast.success("All data purged successfully", {
           description: `${parts.join(", ")}. Duration: ${data.duration_ms}ms`,
         });
-        
+
         // Refresh the page data
         await fetchCloudinaryData();
       } else {
@@ -674,8 +674,8 @@ export default function Settings() {
 
               <AlertDialog open={showPurgeAllDialog} onOpenChange={setShowPurgeAllDialog}>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="destructive" 
+                  <Button
+                    variant="destructive"
                     disabled={isPurgingAll}
                     className="bg-red-600 hover:bg-red-700"
                   >
@@ -834,7 +834,7 @@ export default function Settings() {
                   )}
                 </div>
               </div>
-              
+
               {/* Monitoring Links */}
               <div className="mt-4 pt-4 border-t border-border/50 grid md:grid-cols-2 gap-3">
                 {postgresData?.success && (
@@ -902,20 +902,18 @@ export default function Settings() {
               ) : geminiConfig ? (
                 <>
                   {/* API Key Status */}
-                  <div className={`p-3 rounded-lg flex items-center gap-3 ${
-                    geminiConfig.apiKeyConfigured 
-                      ? "bg-green-500/10 border border-green-500/20" 
+                  <div className={`p-3 rounded-lg flex items-center gap-3 ${geminiConfig.apiKeyConfigured
+                      ? "bg-green-500/10 border border-green-500/20"
                       : "bg-red-500/10 border border-red-500/20"
-                  }`}>
+                    }`}>
                     {geminiConfig.apiKeyConfigured ? (
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
                     ) : (
                       <XCircle className="w-4 h-4 text-red-500" />
                     )}
                     <div className="flex-1">
-                      <span className={`text-sm font-medium ${
-                        geminiConfig.apiKeyConfigured ? "text-green-400" : "text-red-400"
-                      }`}>
+                      <span className={`text-sm font-medium ${geminiConfig.apiKeyConfigured ? "text-green-400" : "text-red-400"
+                        }`}>
                         API Key: {geminiConfig.apiKeyConfigured ? "Configured" : "Not Configured"}
                       </span>
                       {!geminiConfig.apiKeyConfigured && (
@@ -939,8 +937,8 @@ export default function Settings() {
                           Automatic Processing
                         </span>
                         <p className="text-xs text-muted-foreground">
-                          {geminiConfig.enabled 
-                            ? "Images will be analyzed automatically every hour" 
+                          {geminiConfig.enabled
+                            ? "Images will be analyzed automatically every hour"
                             : "Automatic processing is disabled"}
                         </p>
                       </div>
@@ -1013,7 +1011,7 @@ export default function Settings() {
                   </Button>
 
                   <p className="text-xs text-muted-foreground">
-                    Gemini AI analyzes surveillance images to extract metadata like people count, vehicles, license plates, 
+                    Gemini AI analyzes surveillance images to extract metadata like people count, vehicles, license plates,
                     weapons, and clothing colors. This data is stored in Neo4j for advanced querying in the Topology Graph.
                   </p>
                 </>
@@ -1064,20 +1062,18 @@ export default function Settings() {
                 <>
                   {/* InfluxDB Status */}
                   {cronJobsData.influxdb_status && (
-                    <div className={`p-3 rounded-lg flex items-center gap-3 ${
-                      cronJobsData.influxdb_status.configured 
-                        ? "bg-green-500/10 border border-green-500/20" 
+                    <div className={`p-3 rounded-lg flex items-center gap-3 ${cronJobsData.influxdb_status.configured
+                        ? "bg-green-500/10 border border-green-500/20"
                         : "bg-yellow-500/10 border border-yellow-500/20"
-                    }`}>
+                      }`}>
                       {cronJobsData.influxdb_status.configured ? (
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                       ) : (
                         <AlertCircle className="w-4 h-4 text-yellow-500" />
                       )}
                       <div className="flex-1">
-                        <span className={`text-sm font-medium ${
-                          cronJobsData.influxdb_status.configured ? "text-green-400" : "text-yellow-400"
-                        }`}>
+                        <span className={`text-sm font-medium ${cronJobsData.influxdb_status.configured ? "text-green-400" : "text-yellow-400"
+                          }`}>
                           InfluxDB: {cronJobsData.influxdb_status.configured ? "Connected" : "Not Configured"}
                         </span>
                         {cronJobsData.influxdb_status.configured && (
@@ -1209,6 +1205,132 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* AI Agents Configuration */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.4 }}
+        >
+          <Card className="border-purple-500/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-purple-500" />
+                    AI Pattern Discovery Agents
+                  </CardTitle>
+                  <CardDescription>
+                    Autonomous agents that discover patterns in surveillance data
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLocation("/dashboard/agents/timeline")}
+                    className="border-purple-500/30 hover:bg-purple-500/10"
+                  >
+                    <Clock className="w-4 h-4 mr-2 text-purple-400" />
+                    Timeline
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLocation("/dashboard/agents/correlation")}
+                    className="border-blue-500/30 hover:bg-blue-500/10"
+                  >
+                    <Zap className="w-4 h-4 mr-2 text-blue-400" />
+                    Correlation
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLocation("/dashboard/agents/anomaly")}
+                    className="border-orange-500/30 hover:bg-orange-500/10"
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-2 text-orange-400" />
+                    Anomaly
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Agent Overview */}
+              <div className="grid md:grid-cols-3 gap-4">
+                {/* Timeline Agent */}
+                <div className="p-4 border border-purple-500/20 rounded-lg bg-purple-500/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-4 h-4 text-purple-400" />
+                    <span className="font-medium text-purple-400">Timeline Agent</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Discovers temporal sequences of related events (same vehicle/person appearing over time)
+                  </p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Mode</span>
+                    <Badge variant="outline" className="text-purple-400 border-purple-500/30">
+                      CRON + Context
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Correlation Agent */}
+                <div className="p-4 border border-blue-500/20 rounded-lg bg-blue-500/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap className="w-4 h-4 text-blue-400" />
+                    <span className="font-medium text-blue-400">Correlation Agent</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Finds clusters of related events based on property similarity (order-independent)
+                  </p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Mode</span>
+                    <Badge variant="outline" className="text-blue-400 border-blue-500/30">
+                      CRON + Context
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Anomaly Agent */}
+                <div className="p-4 border border-orange-500/20 rounded-lg bg-orange-500/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium text-orange-400">Anomaly Agent</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Detects unusual events: fires, violence, accidents, weapons, large gatherings
+                  </p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Severity</span>
+                    <div className="flex gap-1">
+                      <Badge className="bg-red-600 text-[10px] px-1">Critical</Badge>
+                      <Badge className="bg-orange-600 text-[10px] px-1">High</Badge>
+                      <Badge className="bg-yellow-600 text-[10px] px-1">Medium</Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Configuration Info */}
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5" />
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium mb-1">Agent Configuration</p>
+                    <ul className="list-disc list-inside space-y-1 text-xs">
+                      <li>Agents run on CRON schedule (hourly) or via context menu on nodes</li>
+                      <li>7-second execution limit per run (Vercel serverless constraint)</li>
+                      <li>90% confidence threshold for similarity matching</li>
+                      <li>Overlapping tags supported (same node can be in multiple groups)</li>
+                      <li>Duplicate detection prevents re-tagging already discovered patterns</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </motion.div>

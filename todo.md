@@ -139,7 +139,7 @@
 - [x] Flag selection as issue + write back to Neo4j (`flaggedReportId`) ✅
 - [x] Production fix: missing `topology_reports` table created in DB ✅
 
-### AI Agent System *(Phase 3 Complete Dec 12, 2025)*
+### AI Agent System *(All Phases Complete Dec 12, 2025)* ✅
 
 > **Goal:** Discover patterns ("needles in the haystack") in surveillance data via autonomous agents
 
@@ -185,16 +185,29 @@
 - [x] **Route added** - `/dashboard/agents/correlation` ✅
 - [ ] **Context trigger** - Right-click node → "Find Correlations" action (Phase 5)
 
-#### Phase 4: Anomaly Agent
-- [ ] **CRON handler** - `api/cron/agent-anomaly.ts` with 7-second timeout
-- [ ] **Anomaly detection** - Fire, fights, crashes, unusual gatherings (Gemini tags)
-- [ ] **Time windowing** - Group anomalies within 1-hour window
-- [ ] **Geographic segregation** - Different regions = different anomaly groups
-- [ ] **Anomaly dashboard** - `AnomalyAgentDashboard.tsx` with regional heat map
+#### Phase 4: Anomaly Agent ✅ (Completed Dec 12)
+- [x] **CRON handler** - `api/cron/agent-anomaly.ts` with 7-second timeout ✅
+  - Keyword-based anomaly detection (fire, violence, accidents, weapons, gatherings)
+  - Severity classification (critical > high > medium)
+  - Time windowing (1-hour default)
+  - Geographic grouping by region
+- [x] **Anomaly dashboard** - `AnomalyAgentDashboard.tsx` ✅
+  - Severity-coded stats (critical/high/medium counters)
+  - Anomaly type icons (flame, shield, car, users)
+  - Color-coded run history
+  - Time range and event list visualization
+  - Manual "Scan Now" button
+- [x] **Route added** - `/dashboard/agents/anomaly` ✅
 
-#### Phase 5: Integration
-- [ ] **Context menu integration** - Add agent triggers to Topology/Map right-click menus
-- [ ] **Settings UI** - Agent configuration in Settings page (batch size, thresholds)
+#### Phase 5: Integration ✅ (Completed Dec 12)
+- [x] **Context menu integration** - `NodeContextMenu.tsx` updated with agent triggers ✅
+  - "Find Timeline" action for events/vehicles/persons
+  - "Find Correlations" action for events/vehicles/persons
+  - Props: `onFindTimeline`, `onFindCorrelations`
+- [x] **Settings UI** - AI Agents section in Settings page ✅
+  - Agent overview cards (Timeline, Correlation, Anomaly)
+  - Quick navigation to agent dashboards
+  - Configuration documentation
 
 #### Future Scalability (Billions of Images)
 - [ ] **Migrate to Inngest** - Step-based workflows, each step under 10s

@@ -27,6 +27,7 @@ const SharedReport = lazy(() => import("./pages/SharedReport"));
 // Lazy load agent dashboards
 const TimelineAgentDashboard = lazy(() => import("./pages/TimelineAgentDashboard"));
 const CorrelationAgentDashboard = lazy(() => import("./pages/CorrelationAgentDashboard"));
+const AnomalyAgentDashboard = lazy(() => import("./pages/AnomalyAgentDashboard"));
 
 // Loading fallback component for lazy-loaded pages
 function PageLoadingFallback() {
@@ -171,6 +172,13 @@ function Router() {
           {() => (
             <Suspense fallback={<PageLoadingFallback />}>
               <AnimatedPage><ProtectedRoute component={CorrelationAgentDashboard} /></AnimatedPage>
+            </Suspense>
+          )}
+        </Route>
+        <Route path="/dashboard/agents/anomaly">
+          {() => (
+            <Suspense fallback={<PageLoadingFallback />}>
+              <AnimatedPage><ProtectedRoute component={AnomalyAgentDashboard} /></AnimatedPage>
             </Suspense>
           )}
         </Route>
