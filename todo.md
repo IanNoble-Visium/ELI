@@ -139,7 +139,7 @@
 - [x] Flag selection as issue + write back to Neo4j (`flaggedReportId`) ✅
 - [x] Production fix: missing `topology_reports` table created in DB ✅
 
-### AI Agent System *(Phase 2 Complete Dec 12, 2025)*
+### AI Agent System *(Phase 3 Complete Dec 12, 2025)*
 
 > **Goal:** Discover patterns ("needles in the haystack") in surveillance data via autonomous agents
 
@@ -170,11 +170,20 @@
 - [x] **Route added** - `/dashboard/agents/timeline` ✅
 - [ ] **Context trigger** - Right-click node → "Find Timeline" action (Phase 5)
 
-#### Phase 3: Correlation Agent
-- [ ] **CRON handler** - `api/cron/agent-correlation.ts` with 7-second timeout
-- [ ] **Context trigger** - Right-click node → "Find Correlations" action
-- [ ] **Correlation dashboard** - `CorrelationAgentDashboard.tsx` with cluster visualization
-- [ ] **Cluster discovery** - Group nodes with 90%+ property similarity (order-independent)
+#### Phase 3: Correlation Agent ✅ (Completed Dec 12)
+- [x] **CRON handler** - `api/cron/agent-correlation.ts` with 7-second timeout ✅
+  - Similarity graph construction
+  - Union-find algorithm for cluster discovery
+  - Centroid identification (most connected node)
+  - Duplicate detection before tagging
+- [x] **Correlation dashboard** - `CorrelationAgentDashboard.tsx` ✅
+  - Stats cards (runs, clusters, nodes tagged, avg cluster size)
+  - Run history list with channel counts
+  - Cluster visualization with centroid
+  - Common identifiers display
+  - Manual trigger button
+- [x] **Route added** - `/dashboard/agents/correlation` ✅
+- [ ] **Context trigger** - Right-click node → "Find Correlations" action (Phase 5)
 
 #### Phase 4: Anomaly Agent
 - [ ] **CRON handler** - `api/cron/agent-anomaly.ts` with 7-second timeout
