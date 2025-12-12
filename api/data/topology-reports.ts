@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { nanoid } from "nanoid";
 import { jwtVerify } from "jose";
 
-import { invokeLLM } from "../../server/_core/llm.js";
+import { generateTextWithGemini } from "../lib/gemini.js";
 import {
   getDb,
   topologyReports,
@@ -148,6 +148,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const db = await getDb();
   if (!db) {
+    if (req.method === "POST") {
+      return res.status(400).json({
+        success: false,
+        error: "DATABASE_URL not configured (database unavailable)",
+      });
+    }
     return res.status(200).json({
       success: true,
       reports: [],
@@ -342,14 +348,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const context = await getTopologyReportContextFromNeo4j({ nodeIds, edgeIds });
 
       const prompt = buildReportPrompt(context);
-      const result = await invokeLLM({
-        messages: [
-          { role: "system", content: "You produce executive-grade security analysis reports." },
-          { role: "user", content: prompt },
-        ],
+      const content = await generateTextWithGemini({
+        prompt: `You produce executive-grade security analysis reports.\n\n${prompt}`,
+        model: "gemini-2.5-flash",
       });
-
-      const content = extractTextContent(result.choices?.[0]?.message?.content);
       if (!content) {
         return res.status(500).json({
           success: false,
@@ -374,8 +376,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           nodes: context.nodes,
           edges: context.edges,
           llm: {
-            model: result.model,
-            usage: result.usage || null,
+            provider: "gemini",
+            model: "gemini-2.5-flash",
           },
         },
       } as any;
@@ -389,9 +391,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     } catch (error: any) {
       console.error("[Topology Reports API] POST error:", error);
+      const msg = error?.message || "Internal server error";
+      // Helpful hint for missing migrations
+      if (typeof msg === "string" && (msg.includes("topology_reports") || msg.includes("42P01"))) {
+        return res.status(500).json({
+          success: false,
+          error: "Database schema missing: topology_reports table not found. Run Drizzle migrations in the target database.",
+        });
+      }
       return res.status(500).json({
         success: false,
-        error: error.message || "Internal server error",
+        error: msg,
       });
     }
   }

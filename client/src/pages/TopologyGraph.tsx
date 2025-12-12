@@ -794,7 +794,13 @@ export default function TopologyGraph() {
         }),
       });
 
-      const data = await response.json();
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        const text = await response.text();
+        throw new Error(text || `Request failed (${response.status})`);
+      }
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Failed to generate report");
       }
@@ -838,7 +844,14 @@ export default function TopologyGraph() {
           edgeIds: selectedLinkIdList,
         }),
       });
-      const data = await response.json();
+
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        const text = await response.text();
+        throw new Error(text || `Request failed (${response.status})`);
+      }
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Failed to flag selection");
       }
@@ -865,7 +878,14 @@ export default function TopologyGraph() {
         credentials: "include",
         body: JSON.stringify({ reportId: activeReport.id }),
       });
-      const data = await response.json();
+
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        const text = await response.text();
+        throw new Error(text || `Request failed (${response.status})`);
+      }
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Failed to create share link");
       }

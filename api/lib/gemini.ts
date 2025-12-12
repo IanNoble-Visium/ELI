@@ -234,6 +234,50 @@ export function getGeminiApiKey(): string | null {
   return process.env.GEMINI_API_KEY || null;
 }
 
+export async function generateTextWithGemini(params: {
+  prompt: string;
+  model?: GeminiModelId;
+}): Promise<string> {
+  const { prompt, model = 'gemini-2.5-flash' as GeminiModelId } = params;
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is not configured');
+  }
+
+  const modelConfig = GEMINI_MODELS[model];
+  const apiVersion = modelConfig?.apiVersion || 'v1';
+  const apiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [{ text: prompt }],
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const textContent = data.candidates?.[0]?.content?.parts
+    ?.map((p: any) => p?.text)
+    .filter(Boolean)
+    .join('\n');
+  if (!textContent) {
+    throw new Error('No text content in Gemini response');
+  }
+  return String(textContent);
+}
+
 /**
  * Analyze an image using Gemini Vision API
  */
