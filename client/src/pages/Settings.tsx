@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowLeft,
   Database,
+  Network,
   Trash2,
   AlertTriangle,
   CheckCircle,
@@ -116,6 +117,7 @@ function formatBytes(bytes: number, decimals = 2): string {
 export default function Settings() {
   const [, setLocation] = useLocation();
   const [retentionDays, setRetentionDays] = useState([7]);
+  const [topologyMaxEvents, setTopologyMaxEvents] = useState([20000]);
   const [cloudinaryData, setCloudinaryData] = useState<CloudinaryUsageData | null>(null);
   const [cloudinaryLoading, setCloudinaryLoading] = useState(true);
   const [postgresData, setPostgresData] = useState<PostgreSQLUsageData | null>(null);
@@ -147,6 +149,25 @@ export default function Settings() {
   const [geminiRetrying, setGeminiRetrying] = useState(false);
 
   const { data: config } = trpc.config.get.useQuery({ key: "dataRetentionDays" });
+  const { data: topologyMaxEventsConfig } = trpc.config.get.useQuery({ key: "topologyMaxEvents" });
+
+  useEffect(() => {
+    if (config) {
+      const parsed = Number.parseInt(String(config), 10);
+      if (Number.isFinite(parsed)) {
+        setRetentionDays([parsed]);
+      }
+    }
+  }, [config]);
+
+  useEffect(() => {
+    if (topologyMaxEventsConfig) {
+      const parsed = Number.parseInt(String(topologyMaxEventsConfig), 10);
+      if (Number.isFinite(parsed)) {
+        setTopologyMaxEvents([Math.max(1, Math.min(20000, parsed))]);
+      }
+    }
+  }, [topologyMaxEventsConfig]);
 
   // Fetch Cloudinary usage data
   const fetchCloudinaryData = useCallback(async () => {
@@ -455,6 +476,14 @@ export default function Settings() {
     });
   };
 
+  const handleSaveTopologyMaxEvents = () => {
+    updateConfigMutation.mutate({
+      key: "topologyMaxEvents",
+      value: topologyMaxEvents[0].toString(),
+      description: "Maximum number of event nodes returned to the topology graph per request",
+    });
+  };
+
   const handlePurgeData = () => {
     purgeMutation.mutate({ retentionDays: retentionDays[0] });
   };
@@ -542,6 +571,70 @@ export default function Settings() {
               <div className="flex gap-2">
                 <Button
                   onClick={handleSaveRetention}
+                  disabled={updateConfigMutation.isPending}
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Save Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Network className="w-5 h-5" />
+                Topology Graph Limits
+              </CardTitle>
+              <CardDescription>
+                Configure limits used by the Topology Graph to keep the UI responsive
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="topology-max-events" className="text-base">
+                    Max Events Per Request
+                  </Label>
+                  <div className="text-2xl font-bold text-primary">
+                    {topologyMaxEvents[0].toLocaleString()}
+                  </div>
+                </div>
+                <Slider
+                  id="topology-max-events"
+                  min={1000}
+                  max={20000}
+                  step={1000}
+                  value={topologyMaxEvents}
+                  onValueChange={setTopologyMaxEvents}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>1,000</span>
+                  <span>20,000</span>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium mb-1">Recommendation</p>
+                      <p className="text-muted-foreground">
+                        Keep this at 20,000 or less. Larger values can overwhelm the browser when rendering graphs.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSaveTopologyMaxEvents}
                   disabled={updateConfigMutation.isPending}
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />

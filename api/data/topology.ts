@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { isNeo4jConfigured } from "../lib/neo4j.js";
+import { getSystemConfig } from "../lib/db.js";
 import { getEventTimestampBoundsFromNeo4j, getTopologyFromNeo4j } from "./topology-neo4j.js";
 
 /**
@@ -131,10 +132,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .filter(Boolean)
         : undefined;
     const maxEventsParsed = maxEventsRaw != null ? Number.parseInt(String(maxEventsRaw), 10) : undefined;
-    const maxEvents =
+    let maxEvents =
       maxEventsParsed != null && Number.isFinite(maxEventsParsed)
         ? Math.max(1, Math.min(20000, maxEventsParsed))
         : undefined;
+
+    if (maxEvents == null) {
+      const configValue = await getSystemConfig("topologyMaxEvents");
+      const parsed = configValue != null ? Number.parseInt(String(configValue), 10) : NaN;
+      if (Number.isFinite(parsed)) {
+        maxEvents = Math.max(1, Math.min(20000, parsed));
+      } else {
+        maxEvents = 20000;
+      }
+    }
 
     // Query topology data exclusively from Neo4j
     const neo4jData = await getTopologyFromNeo4j({

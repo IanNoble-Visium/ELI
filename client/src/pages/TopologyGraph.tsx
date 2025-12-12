@@ -361,7 +361,6 @@ export default function TopologyGraph() {
       const sp = new URLSearchParams();
       if (params?.startTs != null && Number.isFinite(params.startTs)) sp.set("startTs", String(params.startTs));
       if (params?.endTs != null && Number.isFinite(params.endTs)) sp.set("endTs", String(params.endTs));
-      sp.set("maxEvents", "20000");
       const url = sp.toString() ? `/api/data/topology?${sp.toString()}` : "/api/data/topology";
       const response = await fetch(url, { credentials: "include" });
 
