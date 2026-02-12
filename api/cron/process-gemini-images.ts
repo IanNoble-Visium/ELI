@@ -282,7 +282,7 @@ async function processImage(
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const analysis = await analyzeImageWithGemini(snapshot.imageUrl, model);
-      
+
       if (!analysis) {
         throw new Error('No analysis result returned');
       }
@@ -301,12 +301,12 @@ async function processImage(
       };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      
+
       // Don't retry on certain errors
       if (lastError.message.includes('429') || lastError.message.includes('quota')) {
         break; // Rate limit hit, stop retrying
       }
-      
+
       if (attempt < retries) {
         // Wait before retry (exponential backoff)
         await sleep(1000 * Math.pow(2, attempt));
@@ -362,7 +362,7 @@ export default async function handler(
     // Check if Gemini is configured
     if (!isGeminiConfigured()) {
       results.status = "skipped";
-      results.reason = "GEMINI_API_KEY not configured";
+      results.reason = "ZAI_API_KEY not configured";
       res.status(200).json(results);
       return;
     }
@@ -386,7 +386,7 @@ export default async function handler(
     // Check daily limit
     const dailyCount = await getDailyRequestCount();
     const modelConfig = GEMINI_MODELS[config.model];
-    
+
     if (isDailyLimitReached(dailyCount, config.model)) {
       results.status = "skipped";
       results.reason = `Daily limit reached (${dailyCount}/${modelConfig.rpd})`;
@@ -400,7 +400,7 @@ export default async function handler(
 
     // Get unprocessed snapshots
     const unprocessedSnapshots = await getUnprocessedSnapshots(effectiveBatchSize);
-    
+
     if (unprocessedSnapshots.length === 0) {
       results.status = "completed";
       results.reason = "No unprocessed images found";
@@ -422,7 +422,7 @@ export default async function handler(
 
     for (let i = 0; i < unprocessedSnapshots.length; i++) {
       const snapshot = unprocessedSnapshots[i];
-      
+
       // Check if we've hit rate limits
       const currentDailyCount = await getDailyRequestCount();
       if (isDailyLimitReached(currentDailyCount, config.model)) {

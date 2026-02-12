@@ -971,10 +971,10 @@ export default function Settings() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-yellow-500" />
-                    Gemini AI Image Analysis
+                    Z.ai Vision Image Analysis
                   </CardTitle>
                   <CardDescription>
-                    Configure automatic image analysis using Google Gemini AI
+                    Configure automatic image analysis using Z.ai Vision AI
                   </CardDescription>
                 </div>
                 <Button
@@ -996,8 +996,8 @@ export default function Settings() {
                 <>
                   {/* API Key Status */}
                   <div className={`p-3 rounded-lg flex items-center gap-3 ${geminiConfig.apiKeyConfigured
-                      ? "bg-green-500/10 border border-green-500/20"
-                      : "bg-red-500/10 border border-red-500/20"
+                    ? "bg-green-500/10 border border-green-500/20"
+                    : "bg-red-500/10 border border-red-500/20"
                     }`}>
                     {geminiConfig.apiKeyConfigured ? (
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -1011,7 +1011,7 @@ export default function Settings() {
                       </span>
                       {!geminiConfig.apiKeyConfigured && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Add GEMINI_API_KEY to Vercel environment variables
+                          Add ZAI_API_KEY to Vercel environment variables
                         </p>
                       )}
                     </div>
@@ -1058,7 +1058,7 @@ export default function Settings() {
                     <div>
                       <span className="text-sm font-medium">Model</span>
                       <p className="text-xs text-muted-foreground">
-                        Select the Gemini model for image analysis
+                        Select the Z.ai model for image analysis
                       </p>
                     </div>
                     <select
@@ -1104,14 +1104,14 @@ export default function Settings() {
                   </Button>
 
                   <p className="text-xs text-muted-foreground">
-                    Gemini AI analyzes surveillance images to extract metadata like people count, vehicles, license plates,
+                    Z.ai Vision AI analyzes surveillance images to extract metadata like people count, vehicles, license plates,
                     weapons, and clothing colors. This data is stored in Neo4j for advanced querying in the Topology Graph.
                   </p>
                 </>
               ) : (
                 <div className="text-center py-4 text-muted-foreground">
                   <AlertCircle className="w-6 h-6 mx-auto mb-2" />
-                  <p className="text-sm">Failed to load Gemini configuration</p>
+                  <p className="text-sm">Failed to load Z.ai configuration</p>
                 </div>
               )}
             </CardContent>
@@ -1156,8 +1156,8 @@ export default function Settings() {
                   {/* InfluxDB Status */}
                   {cronJobsData.influxdb_status && (
                     <div className={`p-3 rounded-lg flex items-center gap-3 ${cronJobsData.influxdb_status.configured
-                        ? "bg-green-500/10 border border-green-500/20"
-                        : "bg-yellow-500/10 border border-yellow-500/20"
+                      ? "bg-green-500/10 border border-green-500/20"
+                      : "bg-yellow-500/10 border border-yellow-500/20"
                       }`}>
                       {cronJobsData.influxdb_status.configured ? (
                         <CheckCircle2 className="w-4 h-4 text-green-500" />

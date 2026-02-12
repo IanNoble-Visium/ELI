@@ -1,39 +1,26 @@
 /**
- * Google Gemini AI Integration for Image Analysis
+ * Z.ai Vision AI Integration for Image Analysis
  * 
  * Provides image metadata extraction from surveillance camera images
- * using Google's Gemini Vision models.
+ * using Z.ai's GLM vision models (OpenAI-compatible API).
+ * 
+ * Migrated from Google Gemini API (Feb 2026) to reduce costs.
+ * Z.ai free tiers for Flash models vs. Gemini's $0.10-$2.50 per 1M tokens.
  */
 
-// Gemini model options - verified available via /api/data/gemini-models
+// Z.ai model options
 export const GEMINI_MODELS = {
-  'gemini-2.0-flash': {
-    name: 'Gemini 2.0 Flash',
-    description: 'Fast multimodal model for image analysis',
-    rpm: 15,
-    rpd: 1500,
-    apiVersion: 'v1',
-  },
-  'gemini-2.0-flash-lite': {
-    name: 'Gemini 2.0 Flash Lite',
-    description: 'Lightweight fast model, lower cost',
+  'glm-4.6v': {
+    name: 'GLM-4.6V',
+    description: 'Vision-language model, 128K context, images/video/text',
     rpm: 30,
-    rpd: 1500,
-    apiVersion: 'v1',
+    rpd: 5000,
   },
-  'gemini-2.5-flash': {
-    name: 'Gemini 2.5 Flash',
-    description: 'Latest flash model with improved capabilities',
-    rpm: 15,
-    rpd: 1500,
-    apiVersion: 'v1',
-  },
-  'gemini-2.5-pro': {
-    name: 'Gemini 2.5 Pro',
-    description: 'Most capable model for complex analysis',
-    rpm: 2,
-    rpd: 50,
-    apiVersion: 'v1',
+  'glm-4.7-flash': {
+    name: 'GLM-4.7-Flash',
+    description: 'Fast flash model, free tier, lightweight',
+    rpm: 60,
+    rpd: 10000,
   },
 } as const;
 
@@ -41,14 +28,14 @@ export type GeminiModelId = keyof typeof GEMINI_MODELS;
 
 // Default configuration
 export const GEMINI_DEFAULTS = {
-  model: 'gemini-2.0-flash' as GeminiModelId,
+  model: 'glm-4.6v' as GeminiModelId,
   batchSize: 100,
   enabled: false,
   scheduleMinutes: 30,
-  delayBetweenRequestsMs: 4100, // ~14.6 RPM to stay under 15 RPM limit
+  delayBetweenRequestsMs: 2100, // Conservative rate limiting
 };
 
-// Gemini configuration keys for system_config table
+// Config keys for system_config table (kept as-is for DB compatibility)
 export const GEMINI_CONFIG_KEYS = {
   MODEL: 'gemini_model',
   BATCH_SIZE: 'gemini_batch_size',
@@ -59,42 +46,43 @@ export const GEMINI_CONFIG_KEYS = {
 };
 
 /**
- * Gemini analysis result structure
+ * Analysis result structure
  * Designed for Neo4j property storage and Cypher querying
+ * Property names kept as `gemini*` for backward compatibility with existing data
  */
 export interface GeminiAnalysisResult {
   // Scene description
   geminiCaption: string;
   geminiTags: string[];
-  
+
   // Object detection
   geminiObjects: string[];
   geminiPeopleCount: number;
   geminiVehicles: string[];
   geminiWeapons: string[];
-  
+
   // Visual attributes
   geminiClothingColors: string[];
   geminiDominantColors: string[];
-  
+
   // Text and identification
   geminiLicensePlates: string[];
   geminiTextExtracted: string[];
-  
+
   // Quality metrics
   geminiQualityScore: number;
   geminiBlurScore: number;
-  
+
   // Scene/Environment metadata
   geminiTimeOfDay: string;
   geminiLightingCondition: string;
   geminiEnvironment: string;
   geminiWeatherCondition: string;
   geminiCameraPerspective: string;
-  
+
   // Enhanced vehicle details
   geminiVehicleDetails: GeminiVehicleDetail[];
-  
+
   // Raw detailed objects (for advanced queries)
   geminiDetailedObjects: GeminiDetectedObject[];
 }
@@ -220,80 +208,115 @@ Return this exact JSON structure:
 Be thorough - this data is used to correlate and match vehicles/people across multiple camera feeds. Extract EVERY detail visible.
 Remember: Return ONLY the JSON object, nothing else.`;
 
+// Z.ai API constants
+const ZAI_API_BASE = 'https://api.z.ai/api/paas/v4';
+const ZAI_CHAT_ENDPOINT = `${ZAI_API_BASE}/chat/completions`;
+
 /**
- * Check if Gemini API is configured
+ * Check if Z.ai API is configured
  */
 export function isGeminiConfigured(): boolean {
-  return !!process.env.GEMINI_API_KEY;
+  return !!process.env.ZAI_API_KEY;
 }
 
 /**
- * Get Gemini API key
+ * Get Z.ai API key
  */
 export function getGeminiApiKey(): string | null {
-  return process.env.GEMINI_API_KEY || null;
+  return process.env.ZAI_API_KEY || null;
+}
+
+/**
+ * Extract text content from a Z.ai chat completion response.
+ * Handles both string and array content formats.
+ */
+function extractTextFromResponse(data: any): string | null {
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) return null;
+
+  // content can be a plain string or an array of parts
+  if (typeof content === 'string') return content;
+
+  if (Array.isArray(content)) {
+    return content
+      .filter((p: any) => p?.type === 'text')
+      .map((p: any) => p.text)
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  return String(content);
+}
+
+/**
+ * Strip markdown code fences from LLM output
+ */
+function stripCodeFences(text: string): string {
+  let s = text.trim();
+  if (s.startsWith('```json')) s = s.slice(7);
+  else if (s.startsWith('```')) s = s.slice(3);
+  if (s.endsWith('```')) s = s.slice(0, -3);
+  return s.trim();
 }
 
 export async function generateTextWithGemini(params: {
   prompt: string;
   model?: GeminiModelId;
 }): Promise<string> {
-  const { prompt, model = 'gemini-2.5-flash' as GeminiModelId } = params;
+  const { prompt, model = 'glm-4.7-flash' as GeminiModelId } = params;
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured');
+    throw new Error('ZAI_API_KEY is not configured');
   }
 
-  const modelConfig = GEMINI_MODELS[model];
-  const apiVersion = modelConfig?.apiVersion || 'v1';
-  const apiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
-
-  const response = await fetch(apiUrl, {
+  const response = await fetch(ZAI_CHAT_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      contents: [
+      model,
+      messages: [
         {
-          parts: [{ text: prompt }],
+          role: 'user',
+          content: prompt,
         },
       ],
+      temperature: 0.7,
+      max_tokens: 4096,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${errorText}`);
+    throw new Error(`Z.ai API error ${response.status}: ${errorText}`);
   }
 
   const data = await response.json();
-  const textContent = data.candidates?.[0]?.content?.parts
-    ?.map((p: any) => p?.text)
-    .filter(Boolean)
-    .join('\n');
+  const textContent = extractTextFromResponse(data);
   if (!textContent) {
-    throw new Error('No text content in Gemini response');
+    throw new Error('No text content in Z.ai response');
   }
-  return String(textContent);
+  return textContent;
 }
 
 /**
- * Analyze an image using Gemini Vision API
+ * Analyze an image using Z.ai Vision API
  */
 export async function analyzeImageWithGemini(
   imageUrl: string,
-  model: GeminiModelId = 'gemini-2.0-flash'
+  model: GeminiModelId = 'glm-4.6v'
 ): Promise<GeminiAnalysisResult | null> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    console.error('[Gemini] API key not configured');
+    console.error('[Z.ai] API key not configured');
     return null;
   }
 
   // Validate URL
   if (!imageUrl || !imageUrl.startsWith('http')) {
-    console.error('[Gemini] Invalid image URL:', imageUrl);
+    console.error('[Z.ai] Invalid image URL:', imageUrl);
     return null;
   }
 
@@ -303,89 +326,67 @@ export async function analyzeImageWithGemini(
     if (!imageResponse.ok) {
       throw new Error(`Failed to fetch image: ${imageResponse.status}`);
     }
-    
+
     const imageBuffer = await imageResponse.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString('base64');
     const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-    // Call Gemini API - get API version from model config
-    const modelConfig = GEMINI_MODELS[model];
-    const apiVersion = modelConfig?.apiVersion || 'v1';
-    const apiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
-    
-    const response = await fetch(apiUrl, {
+    // Call Z.ai Vision API (OpenAI-compatible format)
+    const response = await fetch(ZAI_CHAT_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        contents: [
+        model,
+        messages: [
           {
-            parts: [
-              { text: GEMINI_ANALYSIS_PROMPT },
+            role: 'user',
+            content: [
+              { type: 'text', text: GEMINI_ANALYSIS_PROMPT },
               {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: base64Image,
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
                 },
               },
             ],
           },
         ],
-        generationConfig: {
-          temperature: 0.1,
-          topK: 32,
-          topP: 1,
-          maxOutputTokens: 4096,
-        },
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-        ],
+        temperature: 0.1,
+        top_p: 1,
+        max_tokens: 4096,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Gemini API error ${response.status}: ${errorText}`);
+      throw new Error(`Z.ai API error ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    
+
     // Extract text from response
-    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const textContent = extractTextFromResponse(data);
     if (!textContent) {
-      throw new Error('No text content in Gemini response');
+      throw new Error('No text content in Z.ai response');
     }
 
     // Parse JSON response (handle potential markdown code blocks)
-    let jsonStr = textContent.trim();
-    
-    // Remove markdown code blocks if present
-    if (jsonStr.startsWith('```json')) {
-      jsonStr = jsonStr.slice(7);
-    } else if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.slice(3);
-    }
-    if (jsonStr.endsWith('```')) {
-      jsonStr = jsonStr.slice(0, -3);
-    }
-    jsonStr = jsonStr.trim();
-
+    const jsonStr = stripCodeFences(textContent);
     const result = JSON.parse(jsonStr) as GeminiAnalysisResult;
-    
+
     // Validate and sanitize result
     return sanitizeGeminiResult(result);
   } catch (error) {
-    console.error('[Gemini] Error analyzing image:', error);
+    console.error('[Z.ai] Error analyzing image:', error);
     throw error;
   }
 }
 
 /**
- * Sanitize and validate Gemini result
+ * Sanitize and validate analysis result
  */
 function sanitizeGeminiResult(result: any): GeminiAnalysisResult {
   return {

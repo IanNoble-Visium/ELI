@@ -1,7 +1,7 @@
 /**
  * Reverse Image Search API
  * 
- * Analyzes an uploaded image using Gemini AI and finds matching
+ * Analyzes an uploaded image using Z.ai Vision AI and finds matching
  * surveillance events based on extracted metadata with confidence scoring.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
@@ -53,7 +53,7 @@ const FEATURE_WEIGHTS = {
 };
 
 /**
- * Analyze uploaded image with Gemini
+ * Analyze uploaded image with Z.ai Vision API
  */
 async function analyzeUploadedImage(
   base64Image: string,
@@ -62,58 +62,51 @@ async function analyzeUploadedImage(
 ): Promise<GeminiAnalysisResult | null> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
+    throw new Error("ZAI_API_KEY not configured");
   }
 
   try {
-    const modelConfig = GEMINI_MODELS[model];
-    const apiVersion = modelConfig?.apiVersion || 'v1';
-    const apiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
-    
+    const apiUrl = 'https://api.z.ai/api/paas/v4/chat/completions';
+
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        contents: [
+        model,
+        messages: [
           {
-            parts: [
-              { text: GEMINI_ANALYSIS_PROMPT },
+            role: 'user',
+            content: [
+              { type: 'text', text: GEMINI_ANALYSIS_PROMPT },
               {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: base64Image,
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
                 },
               },
             ],
           },
         ],
-        generationConfig: {
-          temperature: 0.1,
-          topK: 32,
-          topP: 1,
-          maxOutputTokens: 4096,
-        },
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-        ],
+        temperature: 0.1,
+        top_p: 1,
+        max_tokens: 4096,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Gemini API error ${response.status}: ${errorText}`);
+      throw new Error(`Z.ai API error ${response.status}: ${errorText}`);
     }
 
     const data = await response.json();
-    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+    const content = data.choices?.[0]?.message?.content;
+    const textContent = typeof content === 'string' ? content : Array.isArray(content) ? content.filter((p: any) => p?.type === 'text').map((p: any) => p.text).join('\n') : null;
+
     if (!textContent) {
-      throw new Error('No text content in Gemini response');
+      throw new Error('No text content in Z.ai response');
     }
 
     // Parse JSON response
@@ -130,7 +123,7 @@ async function analyzeUploadedImage(
 
     return JSON.parse(jsonStr) as GeminiAnalysisResult;
   } catch (error) {
-    console.error('[Reverse Image Search] Gemini analysis error:', error);
+    console.error('[Reverse Image Search] Z.ai analysis error:', error);
     throw error;
   }
 }
@@ -141,19 +134,19 @@ async function analyzeUploadedImage(
 function stringSimilarity(str1: string, str2: string): number {
   const s1 = str1.toLowerCase();
   const s2 = str2.toLowerCase();
-  
+
   if (s1 === s2) return 1;
   if (s1.includes(s2) || s2.includes(s1)) return 0.8;
-  
+
   // Simple word overlap for longer strings
   const words1 = s1.split(/\s+/);
   const words2 = s2.split(/\s+/);
   const commonWords = words1.filter(w => words2.includes(w));
-  
+
   if (commonWords.length > 0) {
     return commonWords.length / Math.max(words1.length, words2.length);
   }
-  
+
   return 0;
 }
 
@@ -162,10 +155,10 @@ function stringSimilarity(str1: string, str2: string): number {
  */
 function arrayOverlap(arr1: string[], arr2: string[]): number {
   if (!arr1?.length || !arr2?.length) return 0;
-  
+
   const set1 = new Set(arr1.map(s => s.toLowerCase()));
   const set2 = new Set(arr2.map(s => s.toLowerCase()));
-  
+
   let matches = 0;
   for (const item of set1) {
     for (const item2 of set2) {
@@ -175,7 +168,7 @@ function arrayOverlap(arr1: string[], arr2: string[]): number {
       }
     }
   }
-  
+
   return matches / Math.max(set1.size, set2.size);
 }
 
@@ -184,27 +177,27 @@ function arrayOverlap(arr1: string[], arr2: string[]): number {
  */
 function licensePlateMatch(queryPlates: string[], targetPlates: string[]): number {
   if (!queryPlates?.length || !targetPlates?.length) return 0;
-  
+
   for (const qPlate of queryPlates) {
     const cleanQuery = qPlate.replace(/[^A-Z0-9]/gi, '').toUpperCase();
     if (!cleanQuery || cleanQuery === 'OBSCURED' || cleanQuery === 'NOT_VISIBLE') continue;
-    
+
     for (const tPlate of targetPlates) {
       const cleanTarget = tPlate.replace(/[^A-Z0-9]/gi, '').toUpperCase();
       if (!cleanTarget || cleanTarget === 'OBSCURED' || cleanTarget === 'NOT_VISIBLE') continue;
-      
+
       // Exact match
       if (cleanQuery === cleanTarget) return 1.0;
-      
+
       // Partial match (at least 4 characters)
       if (cleanQuery.length >= 4 && cleanTarget.includes(cleanQuery)) return 0.9;
       if (cleanTarget.length >= 4 && cleanQuery.includes(cleanTarget)) return 0.9;
-      
+
       // First 3 characters match (common plate prefix)
       if (cleanQuery.slice(0, 3) === cleanTarget.slice(0, 3)) return 0.6;
     }
   }
-  
+
   return 0;
 }
 
@@ -213,16 +206,16 @@ function licensePlateMatch(queryPlates: string[], targetPlates: string[]): numbe
  */
 function vehicleMatch(queryVehicles: string[], targetVehicles: string[]): number {
   if (!queryVehicles?.length || !targetVehicles?.length) return 0;
-  
+
   let bestScore = 0;
-  
+
   for (const qVehicle of queryVehicles) {
     const qLower = qVehicle.toLowerCase();
-    
+
     for (const tVehicle of targetVehicles) {
       const tLower = tVehicle.toLowerCase();
       let score = 0;
-      
+
       // Check for vehicle type matches
       const vehicleTypes = ['car', 'sedan', 'suv', 'truck', 'motorcycle', 'mototaxi', 'bus', 'van', 'hatchback'];
       for (const type of vehicleTypes) {
@@ -231,7 +224,7 @@ function vehicleMatch(queryVehicles: string[], targetVehicles: string[]): number
           break;
         }
       }
-      
+
       // Check for color matches
       const colors = ['white', 'black', 'red', 'blue', 'green', 'yellow', 'silver', 'gray', 'grey', 'orange', 'brown'];
       for (const color of colors) {
@@ -240,7 +233,7 @@ function vehicleMatch(queryVehicles: string[], targetVehicles: string[]): number
           break;
         }
       }
-      
+
       // Check for make matches
       const makes = ['toyota', 'hyundai', 'kia', 'nissan', 'honda', 'ford', 'chevrolet', 'volkswagen', 'mercedes', 'bmw'];
       for (const make of makes) {
@@ -249,11 +242,11 @@ function vehicleMatch(queryVehicles: string[], targetVehicles: string[]): number
           break;
         }
       }
-      
+
       bestScore = Math.max(bestScore, Math.min(1, score));
     }
   }
-  
+
   return bestScore;
 }
 
@@ -371,7 +364,7 @@ async function findMatchingEvents(
 
   // Add filter conditions to narrow down candidates
   // We'll calculate detailed confidence scores on the results
-  
+
   // If we have license plates, prioritize those matches
   if (queryAnalysis.geminiLicensePlates?.length > 0) {
     const validPlates = queryAnalysis.geminiLicensePlates.filter(
@@ -412,7 +405,7 @@ async function findMatchingEvents(
 
     for (const event of results) {
       const { confidence, reasons } = calculateConfidence(queryAnalysis, event);
-      
+
       // Only include results with meaningful confidence
       if (confidence >= 10) {
         scoredResults.push({
@@ -488,18 +481,18 @@ export default async function handler(
       return;
     }
 
-    // Check Gemini configuration
+    // Check Z.ai configuration
     if (!isGeminiConfigured()) {
-      res.status(503).json({ 
-        error: 'Gemini API not configured',
-        message: 'GEMINI_API_KEY environment variable is not set'
+      res.status(503).json({
+        error: 'Z.ai API not configured',
+        message: 'ZAI_API_KEY environment variable is not set'
       });
       return;
     }
 
     // Check Neo4j configuration
     if (!isNeo4jConfigured()) {
-      res.status(503).json({ 
+      res.status(503).json({
         error: 'Neo4j not configured',
         message: 'Neo4j connection is required for reverse image search'
       });

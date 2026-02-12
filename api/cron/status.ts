@@ -34,13 +34,13 @@ const CRON_JOBS = [
   },
   {
     id: "process-gemini-images",
-    name: "Gemini AI Image Analysis",
-    description: "Analyzes surveillance images using Google Gemini AI to extract metadata (objects, people, vehicles, license plates, etc.)",
+    name: "Z.ai Vision Image Analysis",
+    description: "Analyzes surveillance images using Z.ai Vision AI to extract metadata (objects, people, vehicles, license plates, etc.)",
     path: "/api/cron/process-gemini-images",
     schedule: "0 * * * *",
     scheduleDescription: "Every hour",
     enabled: true,
-    dependencies: ["GEMINI_API_KEY", "DATABASE_URL"],
+    dependencies: ["ZAI_API_KEY", "DATABASE_URL"],
   },
   // AI Agent CRON Jobs
   {
@@ -51,7 +51,7 @@ const CRON_JOBS = [
     schedule: "0 * * * *",
     scheduleDescription: "Every hour",
     enabled: false,  // Disabled until implemented
-    dependencies: ["GEMINI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
+    dependencies: ["ZAI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
   },
   {
     id: "agent-correlation",
@@ -61,7 +61,7 @@ const CRON_JOBS = [
     schedule: "0 * * * *",
     scheduleDescription: "Every hour",
     enabled: false,  // Disabled until implemented
-    dependencies: ["GEMINI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
+    dependencies: ["ZAI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
   },
   {
     id: "agent-anomaly",
@@ -71,7 +71,7 @@ const CRON_JOBS = [
     schedule: "0 * * * *",
     scheduleDescription: "Every hour",
     enabled: false,  // Disabled until implemented
-    dependencies: ["GEMINI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
+    dependencies: ["ZAI_API_KEY", "DATABASE_URL", "NEO4J_URI"],
   },
 ];
 

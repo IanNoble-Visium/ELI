@@ -57,11 +57,11 @@ export default async function handler(
       const geminiConfigured = isGeminiConfigured();
       const geminiEnabled = await getSystemConfig(GEMINI_CONFIG_KEYS.ENABLED);
       const dailyCount = await getSystemConfig(GEMINI_CONFIG_KEYS.DAILY_REQUESTS_COUNT);
-      
+
       const stats = await getGeminiAnalysisStats();
-      
+
       // Return stats with configuration info
-      res.status(200).json({ 
+      res.status(200).json({
         stats: stats || {
           totalProcessed: 0,
           withWeapons: 0,
@@ -76,10 +76,10 @@ export default async function handler(
           enabled: geminiEnabled === 'true',
           dailyRequestsUsed: parseInt(dailyCount || '0', 10),
         },
-        message: !geminiConfigured 
-          ? 'GEMINI_API_KEY not configured in environment variables'
+        message: !geminiConfigured
+          ? 'ZAI_API_KEY not configured in environment variables'
           : geminiEnabled !== 'true'
-            ? 'Gemini processing is disabled. Enable it in Settings or run the job with ?force=true'
+            ? 'AI processing is disabled. Enable it in Settings or run the job with ?force=true'
             : stats?.totalProcessed === 0
               ? 'No images processed yet. Run the Gemini AI Image Analysis job from Settings.'
               : null,

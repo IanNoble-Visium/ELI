@@ -1,17 +1,17 @@
 # ELI Dashboard - Pending Tasks
 
-> **Last Updated:** December 12, 2025 (AI Agent System Complete)
+> **Last Updated:** February 12, 2026 (Z.ai Migration Complete)
 
 ---
 
 ## Priority Matrix
 
-| Priority | Impact | Effort | Focus Area |
-|----------|--------|--------|------------|
-| P0 | Critical | Low | Must have for demo |
-| P1 | High | Medium | Quick wins |
-| P2 | Medium | Medium | Enhanced features |
-| P3 | Nice to have | High | Future enhancements |
+| Priority | Impact       | Effort | Focus Area          |
+| -------- | ------------ | ------ | ------------------- |
+| P0       | Critical     | Low    | Must have for demo  |
+| P1       | High         | Medium | Quick wins          |
+| P2       | Medium       | Medium | Enhanced features   |
+| P3       | Nice to have | High   | Future enhancements |
 
 ---
 
@@ -131,7 +131,7 @@
 ### Topology Graph Reporting *(Completed Dec 12, 2025)*
 - [x] Multi-select (Shift + drag lasso) on Topology Graph ✅
 - [x] Generate executive summary from multi-selection ✅
-  - Uses Google Gemini text generation (`GEMINI_API_KEY`)
+  - Uses Z.ai text generation (`ZAI_API_KEY`)
 - [x] Persist reports in PostgreSQL (`topology_reports`) ✅
 - [x] Reports table in Executive Dashboard ✅
 - [x] Share link view (`/share/report/:token`) ✅
@@ -267,6 +267,16 @@
 
 ---
 
+## Deferred: Post-Migration Cleanup
+
+### Neo4j Property Renaming (Feb 2026)
+- [ ] Rename `gemini*` properties to `zai*` on Neo4j Event nodes
+  - Affects: `geminiCaption`, `geminiTags`, `geminiObjects`, `geminiPeopleCount`, `geminiVehicles`, `geminiWeapons`, `geminiClothingColors`, `geminiDominantColors`, `geminiLicensePlates`, `geminiTextExtracted`, `geminiQualityScore`, `geminiBlurScore`, `geminiTimeOfDay`, `geminiLightingCondition`, `geminiEnvironment`, `geminiWeatherCondition`, `geminiCameraPerspective`, `geminiVehicleDetails`, `geminiProcessedAt`
+  - Requires: Cypher migration script, update `GeminiAnalysisResult` interface fields, update all Cypher queries in codebase, update client-side references in `TopologyGraph.tsx` and `NodeDetailsPanel.tsx`
+  - Risk: Breaking change across DB, API, and frontend — should be done as a coordinated migration
+
+---
+
 ## Backend Tasks
 
 ### Neo4j Integration
@@ -345,125 +355,138 @@
 ## Recently Completed (December 10-11, 2025)
 
 ### Geographic Map Enhancements
-| Feature | File(s) Modified | Notes |
-|---------|-----------------|-------|
-| Camera Marker Clustering | `GeographicMap.tsx`, `package.json`, `index.css` | Uses react-leaflet-cluster with Peru theme |
-| Cloudinary Image Filtering | `GeographicMap.tsx` | `hasValidImages()` now requires cloudinary.com URLs |
-| Fullscreen Button | `GeographicMap.tsx`, `TopologyGraph.tsx` | Maximize2/Minimize2 icons in header |
-| Fullscreen Indicator | `App.tsx` | "PRESENTATION MODE" badge bottom-right |
-| Event Ticker | `EventTicker.tsx` (new), `ExecutiveDashboard.tsx`, `index.css` | Scrolling events with pause-on-hover |
+| Feature                    | File(s) Modified                                               | Notes                                               |
+| -------------------------- | -------------------------------------------------------------- | --------------------------------------------------- |
+| Camera Marker Clustering   | `GeographicMap.tsx`, `package.json`, `index.css`               | Uses react-leaflet-cluster with Peru theme          |
+| Cloudinary Image Filtering | `GeographicMap.tsx`                                            | `hasValidImages()` now requires cloudinary.com URLs |
+| Fullscreen Button          | `GeographicMap.tsx`, `TopologyGraph.tsx`                       | Maximize2/Minimize2 icons in header                 |
+| Fullscreen Indicator       | `App.tsx`                                                      | "PRESENTATION MODE" badge bottom-right              |
+| Event Ticker               | `EventTicker.tsx` (new), `ExecutiveDashboard.tsx`, `index.css` | Scrolling events with pause-on-hover                |
 
 ### POLE Analytics & Incident Management Redesign (Evening Session)
-| Feature | File(s) Modified | Notes |
-|---------|-----------------|-------|
-| **POLE Analytics Redesign** | `POLEAnalytics.tsx` (rewritten) | "Digital Detective Board" aesthetic |
-| **Incident Management Redesign** | `IncidentManagement.tsx` (rewritten) | "Command Center" aesthetic |
-| **POLE Entities API** | `api/data/pole-entities.ts` (new) | Fetches from `pole_entities` PostgreSQL table |
-| **Stale Data Bug Fix** | `POLEAnalytics.tsx` | Now fetches real data, shows empty state when DB is purged |
-| **Scanline Overlay Effect** | Both pages | Subtle CRT/detective board visual effect |
-| **Dossier Panel** | `POLEAnalytics.tsx` | Glassmorphism detail panel for selected entities |
-| **Dispatch Status Card** | `IncidentManagement.tsx` | Shows response units with ETA and status |
-| **Threat Analysis Card** | `IncidentManagement.tsx` | Progress indicators and threat level |
-| **Framer Motion Animations** | Both pages | Smooth transitions, pulsing high-risk indicators |
-| **Translation Updates** | `translations.ts` | Added missing keys for redesigned pages |
+| Feature                          | File(s) Modified                     | Notes                                                      |
+| -------------------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| **POLE Analytics Redesign**      | `POLEAnalytics.tsx` (rewritten)      | "Digital Detective Board" aesthetic                        |
+| **Incident Management Redesign** | `IncidentManagement.tsx` (rewritten) | "Command Center" aesthetic                                 |
+| **POLE Entities API**            | `api/data/pole-entities.ts` (new)    | Fetches from `pole_entities` PostgreSQL table              |
+| **Stale Data Bug Fix**           | `POLEAnalytics.tsx`                  | Now fetches real data, shows empty state when DB is purged |
+| **Scanline Overlay Effect**      | Both pages                           | Subtle CRT/detective board visual effect                   |
+| **Dossier Panel**                | `POLEAnalytics.tsx`                  | Glassmorphism detail panel for selected entities           |
+| **Dispatch Status Card**         | `IncidentManagement.tsx`             | Shows response units with ETA and status                   |
+| **Threat Analysis Card**         | `IncidentManagement.tsx`             | Progress indicators and threat level                       |
+| **Framer Motion Animations**     | Both pages                           | Smooth transitions, pulsing high-risk indicators           |
+| **Translation Updates**          | `translations.ts`                    | Added missing keys for redesigned pages                    |
 
 ### Executive Dashboard - Analytics Tab (Late Night Session)
-| Feature | File(s) Modified | Notes |
-|---------|-----------------|-------|
-| **Trends & Predictions Tab** | `ExecutiveDashboard.tsx` | Added tabbed interface with Overview/Analytics tabs |
-| **Analytics Time Series API** | `api/analytics/time-series.ts` (new) | Returns events over time, heatmaps, regional comparisons |
-| **Predictions API** | `api/analytics/predictions.ts` (new) | Linear regression forecasting, anomaly detection |
-| **AnalyticsTab Component** | `client/src/components/analytics/AnalyticsTab.tsx` (new) | Main container with KPI projections |
-| **EventsTrendChart** | `client/src/components/analytics/EventsTrendChart.tsx` (new) | Gradient area chart with events vs alerts |
-| **ActivityHeatmap** | `client/src/components/analytics/ActivityHeatmap.tsx` (new) | GitHub-style hour/day activity grid |
-| **AlertDistributionChart** | `client/src/components/analytics/AlertDistributionChart.tsx` (new) | Stacked bar by severity |
-| **PredictionChart** | `client/src/components/analytics/PredictionChart.tsx` (new) | Forecast with confidence bands, anomaly markers |
-| **RegionalComparisonChart** | `client/src/components/analytics/RegionalComparisonChart.tsx` (new) | Multi-line regional comparison |
-| **HourlyActivityChart** | `client/src/components/analytics/HourlyActivityChart.tsx` (new) | Bar chart with peak hour highlighting |
-| **EventTicker Improvements** | `EventTicker.tsx` | Improved readability with larger badges, better spacing |
-| **Click-to-View Images** | `EventTicker.tsx` | Modal dialog preview of event Cloudinary images |
-| **Image Count Badge** | `EventTicker.tsx` | Shows number of images available per event |
-| **Cloudinary-Only Filter** | `EventTicker.tsx` | Ticker only shows events with valid Cloudinary URLs |
+| Feature                       | File(s) Modified                                                    | Notes                                                    |
+| ----------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Trends & Predictions Tab**  | `ExecutiveDashboard.tsx`                                            | Added tabbed interface with Overview/Analytics tabs      |
+| **Analytics Time Series API** | `api/analytics/time-series.ts` (new)                                | Returns events over time, heatmaps, regional comparisons |
+| **Predictions API**           | `api/analytics/predictions.ts` (new)                                | Linear regression forecasting, anomaly detection         |
+| **AnalyticsTab Component**    | `client/src/components/analytics/AnalyticsTab.tsx` (new)            | Main container with KPI projections                      |
+| **EventsTrendChart**          | `client/src/components/analytics/EventsTrendChart.tsx` (new)        | Gradient area chart with events vs alerts                |
+| **ActivityHeatmap**           | `client/src/components/analytics/ActivityHeatmap.tsx` (new)         | GitHub-style hour/day activity grid                      |
+| **AlertDistributionChart**    | `client/src/components/analytics/AlertDistributionChart.tsx` (new)  | Stacked bar by severity                                  |
+| **PredictionChart**           | `client/src/components/analytics/PredictionChart.tsx` (new)         | Forecast with confidence bands, anomaly markers          |
+| **RegionalComparisonChart**   | `client/src/components/analytics/RegionalComparisonChart.tsx` (new) | Multi-line regional comparison                           |
+| **HourlyActivityChart**       | `client/src/components/analytics/HourlyActivityChart.tsx` (new)     | Bar chart with peak hour highlighting                    |
+| **EventTicker Improvements**  | `EventTicker.tsx`                                                   | Improved readability with larger badges, better spacing  |
+| **Click-to-View Images**      | `EventTicker.tsx`                                                   | Modal dialog preview of event Cloudinary images          |
+| **Image Count Badge**         | `EventTicker.tsx`                                                   | Shows number of images available per event               |
+| **Cloudinary-Only Filter**    | `EventTicker.tsx`                                                   | Ticker only shows events with valid Cloudinary URLs      |
 
 ### Performance & Real-time Updates (December 11, 2025 - Late Night Session)
-| Feature | File(s) Modified | Notes |
-|---------|-----------------|-------|
-| **Peru Region Boundaries** | `GeographicMap.tsx`, `peruRegions.ts` (new) | GeoJSON overlay for 25 departments with color-coded boundaries |
-| **Lazy Loading** | `App.tsx` | Map, Topology, POLE pages now load on-demand with React.lazy() |
-| **ForceGraph Memoization** | `TopologyGraph.tsx`, `POLEAnalytics.tsx` | Memoized callbacks to prevent re-renders |
-| **Live Indicator** | `LiveIndicator.tsx` (new), `ExecutiveDashboard.tsx` | Animated pulsing "LIVE" badge component |
-| **Flash Effect CSS** | `index.css` | `flash-highlight` and `animate-data-pulse` animations |
-| **Stat Change Indicator** | `StatChangeIndicator.tsx` (new) | Animated +/- with Framer Motion |
-| **Sparkline Component** | `Sparkline.tsx` (new) | Mini trend charts using Recharts |
-| **Relative Timestamps** | `ExecutiveDashboard.tsx` | "Updated X seconds ago" using date-fns |
-| **Region Tooltip Styling** | `index.css` | Glassmorphism tooltip for region boundaries |
+| Feature                    | File(s) Modified                                    | Notes                                                          |
+| -------------------------- | --------------------------------------------------- | -------------------------------------------------------------- |
+| **Peru Region Boundaries** | `GeographicMap.tsx`, `peruRegions.ts` (new)         | GeoJSON overlay for 25 departments with color-coded boundaries |
+| **Lazy Loading**           | `App.tsx`                                           | Map, Topology, POLE pages now load on-demand with React.lazy() |
+| **ForceGraph Memoization** | `TopologyGraph.tsx`, `POLEAnalytics.tsx`            | Memoized callbacks to prevent re-renders                       |
+| **Live Indicator**         | `LiveIndicator.tsx` (new), `ExecutiveDashboard.tsx` | Animated pulsing "LIVE" badge component                        |
+| **Flash Effect CSS**       | `index.css`                                         | `flash-highlight` and `animate-data-pulse` animations          |
+| **Stat Change Indicator**  | `StatChangeIndicator.tsx` (new)                     | Animated +/- with Framer Motion                                |
+| **Sparkline Component**    | `Sparkline.tsx` (new)                               | Mini trend charts using Recharts                               |
+| **Relative Timestamps**    | `ExecutiveDashboard.tsx`                            | "Updated X seconds ago" using date-fns                         |
+| **Region Tooltip Styling** | `index.css`                                         | Glassmorphism tooltip for region boundaries                    |
 
 ### Context Menu & Auto-Creation (December 11, 2025 - Afternoon Session)
-| Feature | File(s) Modified | Notes |
-|---------|-----------------|-------|
-| **Auto-Create Incident API** | `api/data/create-incident.ts` | Generates rich crime stories, assigns officers/units |
-| **Auto-Create POLE API** | `api/data/create-pole-entity.ts` | Generates elaborate criminal profiles and intel notes |
-| **API Schema Fix** | `api/data/create-incident.ts` | Fixed 500 error by matching Drizzle schema (camelCase columns) |
-| **Node Details Panel** | `NodeDetailsPanel.tsx`, `TopologyGraph.tsx` | Slide-over panel with raw data inspector and quick actions |
-| **Rich Mock Data** | API Endpoints | "El Lobo", "Operation Shadow" - realistic Peru-themed data |
-| **Topology Integration** | `TopologyGraph.tsx` | Context menu now calls APIs + handles navigation |
-| **Map Integration** | `GeographicMap.tsx` | Context menu now calls APIs + handles navigation |
+| Feature                      | File(s) Modified                            | Notes                                                          |
+| ---------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| **Auto-Create Incident API** | `api/data/create-incident.ts`               | Generates rich crime stories, assigns officers/units           |
+| **Auto-Create POLE API**     | `api/data/create-pole-entity.ts`            | Generates elaborate criminal profiles and intel notes          |
+| **API Schema Fix**           | `api/data/create-incident.ts`               | Fixed 500 error by matching Drizzle schema (camelCase columns) |
+| **Node Details Panel**       | `NodeDetailsPanel.tsx`, `TopologyGraph.tsx` | Slide-over panel with raw data inspector and quick actions     |
+| **Rich Mock Data**           | API Endpoints                               | "El Lobo", "Operation Shadow" - realistic Peru-themed data     |
+| **Topology Integration**     | `TopologyGraph.tsx`                         | Context menu now calls APIs + handles navigation               |
+| **Map Integration**          | `GeographicMap.tsx`                         | Context menu now calls APIs + handles navigation               |
 
 ### Node Details Panel & Gemini Neo4j Sync (December 11, 2025 - Afternoon Session)
-| Feature | File(s) Modified | Notes |
-|---------|-----------------|-------|
-| **Node Details Panel Enhancement** | `NodeDetailsPanel.tsx`, `TopologyGraph.tsx` | Comprehensive slide-out panel with all node properties |
-| **Gemini AI Data Display** | `NodeDetailsPanel.tsx` | Shows AI caption, vehicles, plates, people, clothing, environment |
-| **Image Preview** | `NodeDetailsPanel.tsx` | Full image with "Open Full" link |
-| **Copy to Clipboard** | `NodeDetailsPanel.tsx` | Copy JSON, IDs, license plates with one click |
-| **Gemini Neo4j Sync Fix** | `api/cron/process-gemini-images.ts` | Fixed matching on `id` instead of `eventId` |
-| **Topology API Gemini Props** | `api/data/topology-neo4j.ts`, `api/data/topology.ts` | Added all Gemini properties to TopologyNode interface |
-| **Neo4j Sync Endpoint** | `api/data/sync-gemini-neo4j.ts` (new) | Backfill Gemini data from PostgreSQL to Neo4j |
-| **Neo4jEvent Interface** | `api/lib/neo4j.ts` | Added missing Gemini properties |
+| Feature                            | File(s) Modified                                     | Notes                                                             |
+| ---------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------- |
+| **Node Details Panel Enhancement** | `NodeDetailsPanel.tsx`, `TopologyGraph.tsx`          | Comprehensive slide-out panel with all node properties            |
+| **Gemini AI Data Display**         | `NodeDetailsPanel.tsx`                               | Shows AI caption, vehicles, plates, people, clothing, environment |
+| **Image Preview**                  | `NodeDetailsPanel.tsx`                               | Full image with "Open Full" link                                  |
+| **Copy to Clipboard**              | `NodeDetailsPanel.tsx`                               | Copy JSON, IDs, license plates with one click                     |
+| **Gemini Neo4j Sync Fix**          | `api/cron/process-gemini-images.ts`                  | Fixed matching on `id` instead of `eventId`                       |
+| **Topology API Gemini Props**      | `api/data/topology-neo4j.ts`, `api/data/topology.ts` | Added all Gemini properties to TopologyNode interface             |
+| **Neo4j Sync Endpoint**            | `api/data/sync-gemini-neo4j.ts` (new)                | Backfill Gemini data from PostgreSQL to Neo4j                     |
+| **Neo4jEvent Interface**           | `api/lib/neo4j.ts`                                   | Added missing Gemini properties                                   |
+
+### Z.ai API Migration (February 12, 2026) ✅
+| Change                      | File(s) Modified                                        | Notes                                                                                          |
+| --------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Core AI Library Rewrite** | `api/lib/gemini.ts`                                     | Switched from Google Gemini to Z.ai GLM-4.6V/GLM-4.7-Flash                                     |
+| **API Format**              | `api/lib/gemini.ts`, `api/data/reverse-image-search.ts` | Changed from `contents[].parts[]` to OpenAI-compatible `messages[].content[]` with `image_url` |
+| **Auth**                    | All API files                                           | `?key=` URL param → `Authorization: Bearer` header                                             |
+| **Response Parsing**        | All API files                                           | `candidates[0].content.parts[0].text` → `choices[0].message.content`                           |
+| **Environment**             | `.env`                                                  | `GEMINI_API_KEY` / `GOOGLE_API_KEY` removed, `ZAI_API_KEY` retained                            |
+| **CRON Dependencies**       | `api/cron/status.ts`                                    | All `GEMINI_API_KEY` deps → `ZAI_API_KEY`                                                      |
+| **Models API**              | `api/data/gemini-models.ts`                             | Static Z.ai model list (no remote model listing API)                                           |
+| **LLM Core**                | `server/_core/llm.ts`                                   | Model ref changed to `glm-4.7-flash`                                                           |
+| **Client UI**               | `client/src/pages/Settings.tsx`                         | Labels updated: "Gemini AI" → "Z.ai Vision AI"                                                 |
 
 ### Gemini AI Image Analysis (December 11, 2025 - Morning Session)
-| Feature | File(s) Modified | Notes |
-|---------|-----------------|-------|
-| **Gemini API Integration** | `api/lib/gemini.ts` | Google Gemini 2.0 Flash for image analysis |
-| **Image Processing CRON** | `api/cron/process-gemini-images.ts` | Batch processing with rate limiting |
-| **Gemini Config API** | `api/data/gemini-config.ts` | GET/POST configuration management |
-| **Gemini Search API** | `api/data/gemini-search.ts` | Query events by AI-detected metadata |
-| **Gemini Models API** | `api/data/gemini-models.ts` | List available models for API key |
-| **Neo4j Gemini Sync** | `api/data/topology-neo4j.ts` | Sync AI metadata to Event nodes |
-| **Settings UI** | `client/src/pages/Settings.tsx` | Model selector, batch size, retry failed images |
-| **Quick Filters UI** | `client/src/pages/TopologyGraph.tsx` | Filter panel with weapons, plates, people, vehicles, colors |
-| **Filter Behavior** | `TopologyGraph.tsx` | Hide non-matching nodes instead of just highlighting |
+| Feature                    | File(s) Modified                     | Notes                                                           |
+| -------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| **Gemini API Integration** | `api/lib/gemini.ts`                  | ~~Google Gemini 2.0 Flash~~ → Z.ai GLM-4.6V (migrated Feb 2026) |
+| **Image Processing CRON**  | `api/cron/process-gemini-images.ts`  | Batch processing with rate limiting                             |
+| **Gemini Config API**      | `api/data/gemini-config.ts`          | GET/POST configuration management                               |
+| **Gemini Search API**      | `api/data/gemini-search.ts`          | Query events by AI-detected metadata                            |
+| **Gemini Models API**      | `api/data/gemini-models.ts`          | List available models for API key                               |
+| **Neo4j Gemini Sync**      | `api/data/topology-neo4j.ts`         | Sync AI metadata to Event nodes                                 |
+| **Settings UI**            | `client/src/pages/Settings.tsx`      | Model selector, batch size, retry failed images                 |
+| **Quick Filters UI**       | `client/src/pages/TopologyGraph.tsx` | Filter panel with weapons, plates, people, vehicles, colors     |
+| **Filter Behavior**        | `TopologyGraph.tsx`                  | Hide non-matching nodes instead of just highlighting            |
 
 ### New Components Added (Dec 11)
-| Component | Path | Purpose |
-|-----------|------|---------|
-| `LiveIndicator` | `components/LiveIndicator.tsx` | Animated pulsing "LIVE" badge |
-| `StatChangeIndicator` | `components/StatChangeIndicator.tsx` | +/- change with color coding |
-| `Sparkline` | `components/Sparkline.tsx` | Minimal 7-day trend chart |
-| `peruRegions` | `data/peruRegions.ts` | GeoJSON for Peru 25 departments |
-| `NodeContextMenu` | `components/NodeContextMenu.tsx` | Right-click context menu for graph/map nodes |
-| `NodeDetailsPanel` | `components/NodeDetailsPanel.tsx` | Comprehensive slide-out panel with Gemini AI data, image preview, and all node properties |
+| Component             | Path                                 | Purpose                                                                                   |
+| --------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `LiveIndicator`       | `components/LiveIndicator.tsx`       | Animated pulsing "LIVE" badge                                                             |
+| `StatChangeIndicator` | `components/StatChangeIndicator.tsx` | +/- change with color coding                                                              |
+| `Sparkline`           | `components/Sparkline.tsx`           | Minimal 7-day trend chart                                                                 |
+| `peruRegions`         | `data/peruRegions.ts`                | GeoJSON for Peru 25 departments                                                           |
+| `NodeContextMenu`     | `components/NodeContextMenu.tsx`     | Right-click context menu for graph/map nodes                                              |
+| `NodeDetailsPanel`    | `components/NodeDetailsPanel.tsx`    | Comprehensive slide-out panel with Gemini AI data, image preview, and all node properties |
 
 ### New API Endpoints Added (Dec 11)
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/data/create-incident` | POST | Auto-generate incident with rich mock data |
-| `/api/data/create-pole-entity` | POST | Auto-generate POLE entity with rich mock data |
-| `/api/data/gemini-config` | GET/POST | Gemini configuration management |
-| `/api/data/gemini-search` | GET | Search events by AI metadata |
-| `/api/data/gemini-models` | GET | List available Gemini models |
-| `/api/cron/process-gemini-images` | GET | Trigger AI image processing |
-| `/api/data/sync-gemini-neo4j` | POST | Backfill Gemini data from PostgreSQL to Neo4j |
-| `/api/data/reverse-image-search` | POST | Upload image to find matching surveillance events |
+| Endpoint                          | Method   | Purpose                                           |
+| --------------------------------- | -------- | ------------------------------------------------- |
+| `/api/data/create-incident`       | POST     | Auto-generate incident with rich mock data        |
+| `/api/data/create-pole-entity`    | POST     | Auto-generate POLE entity with rich mock data     |
+| `/api/data/gemini-config`         | GET/POST | Gemini configuration management                   |
+| `/api/data/gemini-search`         | GET      | Search events by AI metadata                      |
+| `/api/data/gemini-models`         | GET      | List available Gemini models                      |
+| `/api/cron/process-gemini-images` | GET      | Trigger AI image processing                       |
+| `/api/data/sync-gemini-neo4j`     | POST     | Backfill Gemini data from PostgreSQL to Neo4j     |
+| `/api/data/reverse-image-search`  | POST     | Upload image to find matching surveillance events |
 
 ### Reverse Image Search Feature (December 11, 2025 - Evening Session)
-| Feature | File(s) Modified | Notes |
-|---------|-----------------|-------|
-| **Reverse Image Search API** | `api/data/reverse-image-search.ts` (new) | Accepts base64 image, analyzes with Gemini, searches Neo4j, returns confidence-scored matches |
-| **UI Panel** | `client/src/pages/TopologyGraph.tsx` | Drag-and-drop upload zone, image preview, extracted features, match results list |
-| **Confidence Scoring** | `api/data/reverse-image-search.ts` | Weighted algorithm: License Plates (40%), Vehicles (25%), Clothing (15%), People (10%), Colors (5%), Text (5%) |
-| **Match Results Display** | `TopologyGraph.tsx` | Thumbnails, confidence badges, channel/timestamp info, match reasons |
-| **Apply to Graph** | `TopologyGraph.tsx` | Filter topology to show only matching event nodes |
+| Feature                      | File(s) Modified                         | Notes                                                                                                          |
+| ---------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Reverse Image Search API** | `api/data/reverse-image-search.ts` (new) | Accepts base64 image, analyzes with Gemini, searches Neo4j, returns confidence-scored matches                  |
+| **UI Panel**                 | `client/src/pages/TopologyGraph.tsx`     | Drag-and-drop upload zone, image preview, extracted features, match results list                               |
+| **Confidence Scoring**       | `api/data/reverse-image-search.ts`       | Weighted algorithm: License Plates (40%), Vehicles (25%), Clothing (15%), People (10%), Colors (5%), Text (5%) |
+| **Match Results Display**    | `TopologyGraph.tsx`                      | Thumbnails, confidence badges, channel/timestamp info, match reasons                                           |
+| **Apply to Graph**           | `TopologyGraph.tsx`                      | Filter topology to show only matching event nodes                                                              |
 
 **Implementation Notes:**
 - Cline AI had created the API endpoint and handler functions but did not add the UI panel
