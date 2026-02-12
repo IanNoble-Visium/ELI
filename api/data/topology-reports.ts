@@ -350,7 +350,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const prompt = buildReportPrompt(context);
       const content = await generateTextWithGemini({
         prompt: `You produce executive-grade security analysis reports.\n\n${prompt}`,
-        model: "gemini-2.5-flash",
+        model: "glm-4.7-flash",
       });
       if (!content) {
         return res.status(500).json({
@@ -376,8 +376,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           nodes: context.nodes,
           edges: context.edges,
           llm: {
-            provider: "gemini",
-            model: "gemini-2.5-flash",
+            provider: "z.ai",
+            model: "glm-4.7-flash",
           },
         },
       } as any;

@@ -21,7 +21,7 @@ export async function invokeLLM(params: InvokeParams): Promise<any> {
   const url = `${apiUrlBase}/v1/chat/completions`;
 
   const payload: any = {
-    model: "gemini-2.5-flash",
+    model: "glm-4.7-flash",
     messages: params.messages,
   };
 
